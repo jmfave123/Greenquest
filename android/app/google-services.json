@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "523977270593",
+    "project_id": "greenquest-2b976",
+    "storage_bucket": "greenquest-2b976.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:523977270593:android:1e735e10b024c738bc2dc0",
+        "android_client_info": {
+          "package_name": "com.example.greenquest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAWpNSD_l57fVmjnD_glX9WKtoQr0BUSPI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
