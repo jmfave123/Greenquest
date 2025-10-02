@@ -33,8 +33,13 @@ dependencies:
   get: ^4.7.2
   flutter_screenutil: ^5.8.4
   firebase_core: ^4.0.0
-  cloud_firestore: ^6.0.0
+  cloud_firestore: ^6.0.1
   firebase_auth: ^6.0.1
+  cloudinary_flutter: ^1.0.6
+  image_picker: ^1.0.4
+  file_picker: ^8.0.0+1
+  http: ^1.1.0
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

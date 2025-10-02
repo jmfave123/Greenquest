@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../shared/custom_drawer.dart';
+import '../../shared/login/custom_drawer.dart';
 import 'message_chat_screen.dart';
 
 class MessageListScreen extends StatefulWidget {
@@ -25,12 +25,16 @@ class _MessageListScreenState extends State<MessageListScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
+          builder:
+              (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.black),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
         ),
-        title: const Text('Message', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Message',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
       ),
       backgroundColor: Colors.white,
@@ -52,11 +56,21 @@ class _MessageListScreenState extends State<MessageListScreen> {
                   isDense: true,
                   prefixIcon: Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: Image.asset('assets/icons/akar-icons_search.png', width: 22, color: Colors.black45),
+                    child: Image.asset(
+                      'assets/icons/akar-icons_search.png',
+                      width: 22,
+                      color: Colors.black45,
+                    ),
                   ),
-                  prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                   hintText: 'Search',
-                  hintStyle: const TextStyle(color: Colors.black38, fontSize: 15),
+                  hintStyle: const TextStyle(
+                    color: Colors.black38,
+                    fontSize: 15,
+                  ),
                 ),
               ),
             ),
@@ -83,27 +97,41 @@ class _MessageListScreenState extends State<MessageListScreen> {
                 ),
               ],
             ),
-            title: const Text('Mia Castro', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: const Text(
+              'Mia Castro',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             subtitle: const Text('Instructor'),
             trailing: ElevatedButton(
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const MessageChatScreen()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MessageChatScreen()),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF34A853),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
                 elevation: 0,
               ),
               child: const Text('Chat'),
             ),
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const MessageChatScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MessageChatScreen()),
+              );
             },
           ),
         ],
       ),
     );
   }
-} 
+}

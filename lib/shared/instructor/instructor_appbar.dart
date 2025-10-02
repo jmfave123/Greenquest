@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/safe_asset_image.dart';
 
 class InstructorAppBar extends StatelessWidget {
   final String instructorName;
@@ -27,7 +28,11 @@ class InstructorAppBar extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Image.asset('assets/instructor/icons/akar-icons_search.png', width: 20, color: Color(0xFFBDBDBD)),
+                SafeAssetImage(
+                  assetPath: 'assets/instructor/icons/akar-icons_search.png',
+                  width: 20,
+                  color: Color(0xFFBDBDBD),
+                ),
                 const SizedBox(width: 10),
                 const Expanded(
                   child: TextField(
@@ -48,7 +53,12 @@ class InstructorAppBar extends StatelessWidget {
           Row(
             children: [
               ClipOval(
-                child: Image.asset('assets/instructor/images/Avatar.png', width: 44, height: 44, fit: BoxFit.cover),
+                child: SafeAssetImage(
+                  assetPath: 'assets/instructor/images/Avatar.png',
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.cover,
+                ),
               ),
               const SizedBox(width: 14),
               Column(

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/user/select/select_controller.dart';
@@ -14,10 +12,10 @@ class SelectCourseScreen extends StatefulWidget {
 class _SelectCourseScreenState extends State<SelectCourseScreen> {
   final controller = Get.put(SelectController());
 
-  bool showSubCourses = false;
-  String? selectedSubCourse;
-  bool showSectionDropdown = false;
-  String? selectedSection;
+  String? selectedDepartment;
+  String? selectedSectionCode;
+  Map<String, List<Map<String, dynamic>>> groupedAssignments = {};
+  Map<String, bool> expandedDepartments = {};
 
   // final courses = [
   //   {
@@ -33,12 +31,46 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
   //     'img': 'assets/images/image 349.png',
   //   },
   // ];
-  final subCourses = [
-    'Home Economics (HE)',
-    'Information and Communication Technology (ICT)',
-    'Industrial Arts (IA)',
-  ];
-  final sections = ['ICT- A', 'ICT- B', 'ICT- C', 'ICT- D', 'ICT- E', 'ICT- F'];
+  @override
+  void initState() {
+    super.initState();
+    _groupAssignmentsByDepartment();
+    // Listen to changes in instructor assignments
+    controller.instructorAssignments.listen((_) {
+      _groupAssignmentsByDepartment();
+    });
+  }
+
+  void _groupAssignmentsByDepartment() {
+    groupedAssignments.clear();
+    expandedDepartments.clear();
+
+    for (var assignment in controller.instructorAssignments) {
+      String departmentId = assignment['departmentId'] ?? '';
+
+      if (!groupedAssignments.containsKey(departmentId)) {
+        groupedAssignments[departmentId] = [];
+        expandedDepartments[departmentId] = false;
+      }
+      groupedAssignments[departmentId]!.add(assignment);
+    }
+  }
+
+  void _toggleDepartment(String departmentId) {
+    setState(() {
+      expandedDepartments[departmentId] =
+          !(expandedDepartments[departmentId] ?? false);
+    });
+  }
+
+  void _selectSection(String departmentId, String sectionCode) {
+    setState(() {
+      selectedDepartment = departmentId;
+      selectedSectionCode = sectionCode;
+    });
+    // Update controller with selection
+    controller.selectSection(departmentId, sectionCode);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,223 +124,276 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                   style: TextStyle(fontSize: 15, color: Colors.black54),
                 ),
                 const SizedBox(height: 24),
-                // First two courses
-                ...courses
-                    .take(2)
-                    .map(
-                      (course) => GestureDetector(
-                        onTap: () {},
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFE0E0E0)),
-                          ),
-                          child: ListTile(
-                            leading:
-                                course['img'] != null
-                                    ? Image.memory(
-                                      base64Decode(course['img']),
-                                      width: 44,
-                                      height: 44,
-                                    )
-                                    : Image.asset(
-                                      'assets/images/image 331.png',
-                                      width: 44,
-                                      height: 44,
-                                    ),
-                            title: Text(
-                              course['name']!,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
+
+                // Show instructor info with student name
+                Obx(() {
+                  if (controller.selectedInstructorName.value.isNotEmpty) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE0E0E0)),
                       ),
-                    ),
-                // BTLED course with expandable sub-courses
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      showSubCourses = !showSubCourses;
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Column(
+                      child: Row(
                         children: [
-                          ListTile(
-                            leading:
-                                courses[2]['img'] != null
-                                    ? Image.memory(
-                                      base64Decode(courses[2]['img']),
-                                      width: 44,
-                                      height: 44,
-                                    )
-                                    : Image.asset(
-                                      'assets/images/image 349.png',
-                                      width: 44,
-                                      height: 44,
-                                    ),
-                            title: const Text(
-                              'Bachelor of Technology and Livelihood Education',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            trailing: Icon(
-                              showSubCourses
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
-                              size: 28,
-                            ),
+                          const Icon(
+                            Icons.person,
+                            color: Color(0xFF34A853),
+                            size: 24,
                           ),
-                          if (showSubCourses)
-                            ...subCourses.map(
-                              (sub) => GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    selectedSubCourse = sub;
-                                    showSubCourses = false;
-                                  });
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    vertical: 4,
-                                    horizontal: 0,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        selectedSubCourse == sub
-                                            ? const Color(0xFFF2F6FB)
-                                            : Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: const Color(0xFFE0E0E0),
-                                    ),
-                                  ),
-                                  child: ListTile(
-                                    leading:
-                                        courses[2]['img'] != null
-                                            ? Image.memory(
-                                              base64Decode(courses[2]['img']),
-                                              width: 44,
-                                              height: 44,
-                                            )
-                                            : Image.asset(
-                                              'assets/images/image 349.png',
-                                              width: 44,
-                                              height: 44,
-                                            ),
-                                    title: Text(
-                                      sub,
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    selected: selectedSubCourse == sub,
-                                    selectedTileColor: const Color(0xFFF2F6FB),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Instructor: ${controller.selectedInstructorName.value}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
                                   ),
                                 ),
-                              ),
+                                Text(
+                                  controller.studentName.value.isNotEmpty
+                                      ? 'Student: ${controller.studentName.value}'
+                                      : 'Select your department and section',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
                         ],
                       ),
-                    ),
-                  ),
-                ),
-                // Section dropdown styled as a container
-                GestureDetector(
-                  onTap:
-                      selectedSubCourse == null
-                          ? null
-                          : () {
-                            setState(() {
-                              showSectionDropdown = !showSectionDropdown;
-                            });
-                          },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 16, top: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                    ),
-                    child: ListTile(
-                      title: Text(
-                        selectedSection ?? 'Section',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color:
-                              selectedSection == null
-                                  ? Colors.black54
-                                  : Colors.black,
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
+
+                // Grouped departments with section dropdowns
+                Obx(() {
+                  if (controller.instructorAssignments.isEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'No assignments available',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'This instructor has no department-section assignments',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
-                      trailing: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                ),
-                if (showSectionDropdown && selectedSubCourse != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                    ),
-                    child: Column(
-                      children:
-                          sections
-                              .map(
-                                (s) => GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      selectedSection = s;
-                                      showSectionDropdown = false;
-                                    });
-                                  },
+                    );
+                  }
+
+                  return Column(
+                    children:
+                        groupedAssignments.entries.map<Widget>((entry) {
+                          String departmentId = entry.key;
+                          List<Map<String, dynamic>> sections = entry.value;
+                          String departmentName =
+                              sections.isNotEmpty
+                                  ? sections.first['departmentName'] ??
+                                      'Unknown Department'
+                                  : 'Unknown Department';
+                          String departmentCode =
+                              sections.isNotEmpty
+                                  ? sections.first['departmentCode'] ?? ''
+                                  : '';
+                          bool isExpanded =
+                              expandedDepartments[departmentId] ?? false;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                // Department header
+                                GestureDetector(
+                                  onTap: () => _toggleDepartment(departmentId),
                                   child: Container(
-                                    decoration: BoxDecoration(
-                                      color:
-                                          selectedSection == s
-                                              ? const Color(0xFFF2F6FB)
-                                              : Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: ListTile(
-                                      title: Text(
-                                        s,
-                                        style: const TextStyle(fontSize: 15),
-                                      ),
-                                      selected: selectedSection == s,
-                                      selectedTileColor: const Color(
-                                        0xFFF2F6FB,
-                                      ),
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 50,
+                                          height: 50,
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFF34A853,
+                                            ).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.school_rounded,
+                                            color: Color(0xFF34A853),
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                departmentName,
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Code: $departmentCode',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          isExpanded
+                                              ? Icons.keyboard_arrow_up
+                                              : Icons.keyboard_arrow_down,
+                                          color: const Color(0xFF34A853),
+                                          size: 24,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                              )
-                              .toList(),
-                    ),
-                  ),
+                                // Sections dropdown
+                                if (isExpanded)
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[50],
+                                      borderRadius: const BorderRadius.only(
+                                        bottomLeft: Radius.circular(12),
+                                        bottomRight: Radius.circular(12),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children:
+                                          sections.map<Widget>((section) {
+                                            String sectionCode =
+                                                section['sectionCode'] ?? '';
+                                            bool isSelected =
+                                                selectedDepartment ==
+                                                    departmentId &&
+                                                selectedSectionCode ==
+                                                    sectionCode;
+
+                                            return GestureDetector(
+                                              onTap:
+                                                  () => _selectSection(
+                                                    departmentId,
+                                                    sectionCode,
+                                                  ),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      isSelected
+                                                          ? const Color(
+                                                            0xFFE8F5E8,
+                                                          )
+                                                          : Colors.transparent,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    const SizedBox(
+                                                      width: 66,
+                                                    ), // Align with department content
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Section $sectionCode',
+                                                        style: TextStyle(
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              isSelected
+                                                                  ? FontWeight
+                                                                      .w600
+                                                                  : FontWeight
+                                                                      .normal,
+                                                          color:
+                                                              isSelected
+                                                                  ? const Color(
+                                                                    0xFF34A853,
+                                                                  )
+                                                                  : Colors
+                                                                      .black87,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (isSelected)
+                                                      const Icon(
+                                                        Icons.check_circle,
+                                                        color: Color(
+                                                          0xFF34A853,
+                                                        ),
+                                                        size: 20,
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                  );
+                }),
                 const SizedBox(height: 10),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -316,20 +401,58 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed:
-                          selectedSubCourse != null && selectedSection != null
-                              ? () {
-                                Get.toNamed('/home');
+                          selectedDepartment != null &&
+                                  selectedSectionCode != null
+                              ? () async {
+                                // Show loading indicator
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder:
+                                      (context) => const Center(
+                                        child: CircularProgressIndicator(
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Color(0xFF34A853),
+                                              ),
+                                        ),
+                                      ),
+                                );
+
+                                try {
+                                  await controller.completeSelection();
+                                  // Close loading dialog
+                                  Navigator.of(context).pop();
+                                  // Navigate to home dashboard
+                                  Get.offAllNamed('/home');
+                                } catch (e) {
+                                  // Close loading dialog
+                                  Navigator.of(context).pop();
+                                  // Show error message
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Error completing selection: $e',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
                               : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF43A047),
+                        backgroundColor:
+                            selectedDepartment != null &&
+                                    selectedSectionCode != null
+                                ? const Color(0xFF43A047)
+                                : Colors.grey,
                         foregroundColor: Colors.white,
                         minimumSize: const Size.fromHeight(56),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
                         ),
                       ),
-                      child: const Text('Done'),
+                      child: const Text('Complete Selection'),
                     ),
                   ),
                 ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/user/profile/profile_controller.dart';
-import '../../shared/custom_drawer.dart';
+import '../../shared/login/custom_drawer.dart';
 import 'edit_profile_screen.dart';
 import 'about_screen.dart';
 import 'privacy_policy_screen.dart';

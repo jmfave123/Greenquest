@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
-import '../../user/materials/materials_list_screen.dart';
-import '../../user/profile/profile_screen.dart';
-import '../../user/home_screen.dart';
-import '../../user/message/message_list_screen.dart';
-import '../../user/leaderboard/leaderboard_screen.dart';
+import '../../../user/materials/materials_list_screen.dart';
+import '../../../user/profile/profile_screen.dart';
+import '../../../user/home_screen.dart';
+import '../../../user/message/message_list_screen.dart';
+import '../../../user/leaderboard/leaderboard_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   final int selectedIndex;
@@ -215,15 +215,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: ElevatedButton(
-                                      onPressed: () async {
-                                        await authController.logout();
-                                        Get.offAllNamed('/login');
-                                        showSuccessSnackBar(
-                                          context,
-                                          message: 'Logged out successfully',
-                                        );
-                                        Navigator.of(context).pop(true);
-                                      },
+                                      onPressed:
+                                          () => Navigator.of(context).pop(true),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(
                                           0xFF34A853,
@@ -253,9 +246,50 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                       ),
                 );
+
                 if (confirmed == true) {
-                  // TODO: Implement actual logout logic here
-                  Navigator.of(context).pop(); // Close drawer
+                  // Close drawer first
+                  Navigator.of(context).pop();
+
+                  // Show loading indicator
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder:
+                        (context) => const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF34A853),
+                            ),
+                          ),
+                        ),
+                  );
+
+                  try {
+                    // Perform logout
+                    await authController.logout();
+
+                    // Close loading dialog
+                    Navigator.of(context).pop();
+
+                    // Show success message
+                    showSuccessSnackBar(
+                      context,
+                      message: 'Logged out successfully',
+                    );
+
+                    // Navigate to login screen
+                    Get.offAllNamed('/login_app');
+                  } catch (e) {
+                    // Close loading dialog
+                    Navigator.of(context).pop();
+
+                    // Show error message
+                    showErrorSnackBar(
+                      context,
+                      message: 'Logout failed. Please try again.',
+                    );
+                  }
                 }
               },
             ),

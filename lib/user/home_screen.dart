@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:greenquest/shared/custom_drawer.dart';
-import 'package:greenquest/shared/custom_appbar.dart';
+import 'package:greenquest/shared/login/custom_drawer.dart';
+import 'package:greenquest/shared/login/custom_appbar.dart';
 import 'package:greenquest/user/submit/activity/activity_list_screen.dart';
 import 'package:greenquest/user/submit/assignment/assignment_list_screen.dart';
+import 'package:greenquest/user/submit/quiz_new/quiz_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -337,10 +338,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF6F1FF),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Color(0xFFD1B3FF)),
+                        border: Border.all(color: Color(0xFFF6F1FF)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,6 +444,122 @@ class _HomeScreenState extends State<HomeScreen> {
                               backgroundColor: const Color(0xFFE9D8FD),
                               valueColor: const AlwaysStoppedAnimation(
                                 Color(0xFF8B5CF6),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Quizzes
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE3F0FF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Color(0xFFB6D5F5)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD6E4FF),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Image.asset(
+                                    'assets/icons/Vector (3).png',
+                                    width: 28,
+                                    color: Color(0xFF2886D7),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Quizzes',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Color(0xFF2886D7),
+                                    ),
+                                  ),
+                                  const Text(
+                                    'Major projects',
+                                    style: TextStyle(
+                                      color: Color(0xFF6B7280),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Spacer(),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  RichText(
+                                    text: TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: '5',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF2886D7),
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: ' / 10',
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Row(
+                                    children: [
+                                      Image.asset(
+                                        'assets/icons/solar_check-circle-broken.png',
+                                        width: 20,
+                                        color: Color(0xFF2886D7),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      const Text(
+                                        '50%',
+                                        style: TextStyle(
+                                          color: Color(0xFF2886D7),
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 20),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: 0.5,
+                              minHeight: 15,
+                              backgroundColor: const Color(0xFFE9D8FD),
+                              valueColor: const AlwaysStoppedAnimation(
+                                Color(0xFF2886D7),
                               ),
                             ),
                           ),
@@ -601,6 +719,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
                           color: const Color(0xFFE3F0FF),
                           borderRadius: BorderRadius.circular(12),
@@ -620,6 +739,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: Image.asset(
                                   'assets/icons/Vector (0).png',
                                   width: 28,
+                                  color: Color(0xFF2886D7),
                                 ),
                               ),
                             ),
@@ -646,6 +766,84 @@ class _HomeScreenState extends State<HomeScreen> {
                                       const SizedBox(width: 5),
                                       Text(
                                         'Turn in your major project',
+                                        style: TextStyle(
+                                          color: Color(0xFF6B7280),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Submit Quizzes
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const QuizListScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF6F1FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Color.fromARGB(255, 215, 199, 245),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE9D8FD),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Image.asset(
+                                  'assets/icons/Vector (0).png',
+                                  width: 28,
+                                  color: Color(0xFF8B5CF6),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Submit Quizzes',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Color(0xFF8B5CF6),
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Image.asset(
+                                        'assets/icons/Vector (6).png',
+                                        width: 24,
+
+                                        color: Color(0xFF8B5CF6),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        'Turn in your quizzes',
                                         style: TextStyle(
                                           color: Color(0xFF6B7280),
                                           fontSize: 13,

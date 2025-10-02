@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../shared/admin/admin_sidebar.dart';
+import '../shared/admin/admin_navigation_constants.dart';
+import '../shared/widgets/safe_asset_image.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -8,6 +11,16 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
+  AdminNavigationItem _selectedItem = AdminNavigationItem.dashboard;
+  
+  void _handleNavigationSelect(AdminNavigationItem item) {
+    setState(() {
+      _selectedItem = item;
+    });
+    String route = AdminNavigationHelper.getRoute(item);
+    Navigator.of(context).pushNamed(route);
+  }
+
   // Dummy data
   final instructors = [
     {
@@ -141,12 +154,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: Row(
+        children: [
+          // Sidebar
+          AdminSidebar(
+            selectedItem: _selectedItem,
+            onItemSelected: _handleNavigationSelect,
+          ),
+          // Main content
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               // Header
               Container(
                 width: double.infinity,
@@ -158,7 +180,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Image.asset('assets/admin_icons/fluent_hat-graduation-12-regular.png', width: 40,),
+                    SafeAssetImage(
+                      assetPath: 'assets/admin_icons/fluent_hat-graduation-12-regular.png',
+                      width: 40,
+                      height: 40,
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -169,69 +195,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           Text('National Service Training Program - Manage instructors, sections, and students', style: TextStyle(color: Colors.white, fontSize: 15)),
                         ],
                       ),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF34A853),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                      ),
-                      icon: const Icon(Icons.logout, color: Color(0xFF34A853)),
-                      label: const Text('Logout', style: TextStyle(color: Color(0xFF34A853), fontWeight: FontWeight.bold)),
-                      onPressed: () async {
-                        final shouldLogout = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            backgroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                            contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const Text('Logout Confirmation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.black)),
-                                const SizedBox(height: 10),
-                                const Text(
-                                  'Are you sure you want to do logout?',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.black54, fontSize: 15),
-                                ),
-                                const SizedBox(height: 28),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF34A853),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                                      ),
-                                      onPressed: () => Navigator.of(context).pop(true),
-                                      child: const Text('Confirm', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.black54,
-                                        side: const BorderSide(color: Color(0xFF34A853)),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                                      ),
-                                      onPressed: () => Navigator.of(context).pop(false),
-                                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                        if (shouldLogout == true) {
-                          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                        }
-                      },
                     ),
                   ],
                 ),
@@ -274,7 +237,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           Expanded(
                             child: TextField(
                               decoration: const InputDecoration(
-                                hintText: 'Search students',
+                                hintText: 'Search Name',
                                 border: InputBorder.none,
                               ),
                               cursorColor: Colors.black54,
@@ -601,6 +564,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ],
           ),
         ),
+      ),
+    ),
+        ],
       ),
     );
   }

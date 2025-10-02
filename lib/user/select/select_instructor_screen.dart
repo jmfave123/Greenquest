@@ -13,16 +13,15 @@ class SelectInstructorScreen extends StatefulWidget {
 
 class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
   final selectController = Get.put(SelectController());
-  String? selectedInstructorId;
 
-  void selectInstructor(String instructorId) {
-    setState(() {
-      selectedInstructorId = instructorId;
-    });
+  void selectInstructor(String instructorId, String instructorName) async {
+    await selectController.selectInstructor(instructorId, instructorName);
+    // Automatically navigate to course screen after selection
+    Get.toNamed('/select-course');
   }
 
   bool isInstructorSelected(String instructorId) {
-    return selectedInstructorId == instructorId;
+    return selectController.selectedInstructorId.value == instructorId;
   }
 
   @override
@@ -99,15 +98,19 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 0.7,
+                childAspectRatio: 0.75,
                 children: List.generate(instructors.length, (index) {
                   final instructor = instructors[index];
                   final isSelected = isInstructorSelected(
-                    instructor['id'] ?? '',
+                    instructor['uid'] ?? '',
                   );
 
                   return GestureDetector(
-                    onTap: () => selectInstructor(instructor['id'] ?? ''),
+                    onTap:
+                        () => selectInstructor(
+                          instructor['uid'] ?? '',
+                          instructor['name'] ?? '',
+                        ),
                     child: Container(
                       decoration: BoxDecoration(
                         color:
@@ -128,7 +131,7 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           CircleAvatar(
-                            radius: 32,
+                            radius: 28,
                             backgroundImage:
                                 instructor['img'] != null
                                     ? MemoryImage(
@@ -138,21 +141,25 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                                       'assets/images/image_311-removebg-preview.png',
                                     ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            instructor['name'] ?? '',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight:
-                                  isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                              color:
-                                  isSelected
-                                      ? const Color(0xFF43A047)
-                                      : Colors.black,
+                          const SizedBox(height: 6),
+                          Flexible(
+                            child: Text(
+                              instructor['name'] ?? '',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight:
+                                    isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                color:
+                                    isSelected
+                                        ? const Color(0xFF43A047)
+                                        : Colors.black,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
@@ -161,6 +168,62 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                 }),
               );
             }),
+
+            // Show instructor info if selected
+            Obx(() {
+              if (selectController.selectedInstructorId.value.isNotEmpty) {
+                return Container(
+                  margin: const EdgeInsets.only(top: 20, bottom: 10),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8F9FA),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE0E0E0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.person,
+                        color: Color(0xFF34A853),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Selected: ${selectController.selectedInstructorName.value}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              selectController.studentName.value.isNotEmpty
+                                  ? 'Student: ${selectController.studentName.value}'
+                                  : 'Tap to continue to course selection',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Color(0xFF34A853),
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            }),
+
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 50),
@@ -168,12 +231,12 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed:
-                      selectedInstructorId != null
+                      selectController.selectedInstructorId.value.isNotEmpty
                           ? () => Get.toNamed('/select-course')
                           : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
-                        selectedInstructorId != null
+                        selectController.selectedInstructorId.value.isNotEmpty
                             ? const Color(0xFF43A047)
                             : Colors.grey,
                     foregroundColor: Colors.white,

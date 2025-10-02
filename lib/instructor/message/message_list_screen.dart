@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
+import '../../shared/instructor/instructor_navigation_constants.dart';
 import 'message_screen.dart';
 import 'package:get/get.dart';
 
@@ -8,11 +9,13 @@ class InstructorMessageListScreen extends StatefulWidget {
   const InstructorMessageListScreen({Key? key}) : super(key: key);
 
   @override
-  State<InstructorMessageListScreen> createState() => _InstructorMessageListScreenState();
+  State<InstructorMessageListScreen> createState() =>
+      _InstructorMessageListScreenState();
 }
 
-class _InstructorMessageListScreenState extends State<InstructorMessageListScreen> {
-  int _sidebarIndex = 3; // Messages
+class _InstructorMessageListScreenState
+    extends State<InstructorMessageListScreen> {
+  InstructorNavigationItem _selectedItem = InstructorNavigationItem.messages;
   final List<Map<String, dynamic>> students = [
     {
       'name': 'Mary Ann',
@@ -66,38 +69,63 @@ class _InstructorMessageListScreenState extends State<InstructorMessageListScree
   ];
   String _search = '';
 
-  void _onSidebarSelect(int idx) {
-    setState(() => _sidebarIndex = idx);
-    if (idx == 0) {
-      Get.offAllNamed('/instructor-dashboard');
-    } else if (idx == 3) {
-      // Already on messages
-    }
+  void _onNavigationSelect(InstructorNavigationItem item) {
+    setState(() => _selectedItem = item);
+    String route = InstructorNavigationHelper.getRoute(item);
+    Navigator.of(context).pushNamed(route);
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = students.where((s) => s['name'].toLowerCase().contains(_search.toLowerCase())).toList();
+    final filtered =
+        students
+            .where(
+              (s) => s['name'].toLowerCase().contains(_search.toLowerCase()),
+            )
+            .toList();
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
         children: [
-          InstructorSidebar(selectedIndex: _sidebarIndex, onItemSelected: _onSidebarSelect),
+          InstructorSidebar(
+            selectedItem: _selectedItem,
+            onItemSelected: _onNavigationSelect,
+          ),
           Expanded(
             child: Column(
               children: [
                 const InstructorAppBar(instructorName: 'Mia Castro'),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 48,
+                      vertical: 32,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Message', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 32)),
+                        const Text(
+                          'Message',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 32,
+                          ),
+                        ),
                         const SizedBox(height: 6),
-                        const Text('Manage your classroom communications', style: TextStyle(color: Colors.black38, fontSize: 16)),
+                        const Text(
+                          'Manage your classroom communications',
+                          style: TextStyle(color: Colors.black38, fontSize: 16),
+                        ),
                         const SizedBox(height: 32),
-                        const Text('STUDENTS', style: TextStyle(color: Colors.black38, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
+                        const Text(
+                          'STUDENTS',
+                          style: TextStyle(
+                            color: Colors.black38,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            letterSpacing: 1,
+                          ),
+                        ),
                         const SizedBox(height: 10),
                         Container(
                           width: 340,
@@ -110,14 +138,21 @@ class _InstructorMessageListScreenState extends State<InstructorMessageListScree
                           child: Row(
                             children: [
                               const SizedBox(width: 12),
-                              Image.asset('assets/icons/akar-icons_search.png', width: 20, color: const Color(0xFFBDBDBD)),
+                              Image.asset(
+                                'assets/icons/akar-icons_search.png',
+                                width: 20,
+                                color: const Color(0xFFBDBDBD),
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: TextField(
                                   decoration: const InputDecoration(
                                     hintText: 'Search students',
                                     border: InputBorder.none,
-                                    hintStyle: TextStyle(color: Color(0xFFBDBDBD), fontSize: 15),
+                                    hintStyle: TextStyle(
+                                      color: Color(0xFFBDBDBD),
+                                      fontSize: 15,
+                                    ),
                                   ),
                                   style: const TextStyle(fontSize: 15),
                                   cursorColor: Colors.black54,
@@ -131,12 +166,15 @@ class _InstructorMessageListScreenState extends State<InstructorMessageListScree
                         Expanded(
                           child: ListView.separated(
                             itemCount: filtered.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 18),
+                            separatorBuilder:
+                                (_, __) => const SizedBox(height: 18),
                             itemBuilder: (context, i) {
                               final s = filtered[i];
                               return InkWell(
                                 onTap: () {
-                                  Get.to(() => InstructorMessageScreen(student: s));
+                                  Get.to(
+                                    () => InstructorMessageScreen(student: s),
+                                  );
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.only(right: 200),
@@ -148,22 +186,47 @@ class _InstructorMessageListScreenState extends State<InstructorMessageListScree
                                       ),
                                       const SizedBox(width: 16),
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(s['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                                          Text(
+                                            s['name'],
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 17,
+                                            ),
+                                          ),
                                           Row(
                                             children: [
-                                              Text(s['status'], style: TextStyle(color: s['online'] ? const Color(0xFF22C55E) : Colors.black38, fontSize: 13)),
+                                              Text(
+                                                s['status'],
+                                                style: TextStyle(
+                                                  color:
+                                                      s['online']
+                                                          ? const Color(
+                                                            0xFF22C55E,
+                                                          )
+                                                          : Colors.black38,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
                                               if (s['online'])
                                                 Padding(
-                                                  padding: const EdgeInsets.only(left: 6),
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 6,
+                                                      ),
                                                   child: Container(
                                                     width: 8,
                                                     height: 8,
-                                                    decoration: const BoxDecoration(
-                                                      color: Color(0xFF22C55E),
-                                                      shape: BoxShape.circle,
-                                                    ),
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          color: Color(
+                                                            0xFF22C55E,
+                                                          ),
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
                                                   ),
                                                 ),
                                             ],
@@ -173,12 +236,24 @@ class _InstructorMessageListScreenState extends State<InstructorMessageListScree
                                       const Spacer(),
                                       if (s['unread'] > 0)
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 2,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFFFF3D00),
-                                            borderRadius: BorderRadius.circular(12),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
                                           ),
-                                          child: Text('${s['unread']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                                          child: Text(
+                                            '${s['unread']}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
                                         ),
                                     ],
                                   ),
@@ -198,4 +273,4 @@ class _InstructorMessageListScreenState extends State<InstructorMessageListScree
       ),
     );
   }
-} 
+}

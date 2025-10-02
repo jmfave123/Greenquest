@@ -76,12 +76,25 @@ class AuthController extends GetxController {
 
       // Check if email is verified
       if (userCredential.user?.emailVerified == false) {
-        // Sign out the user since email is not verified
-        await _auth.signOut();
+        // Don't sign out, allow user to proceed but show warning
+        return {
+          'success': true,
+          'message':
+              'Login successful! Please verify your email for full access.',
+          'user': userCredential.user,
+          'emailVerified': false,
+        };
+      }
+
+      // Refresh the user token to ensure it's valid
+      await userCredential.user?.reload();
+      final refreshedUser = _auth.currentUser;
+
+      if (refreshedUser == null) {
         return {
           'success': false,
-          'message': 'Please verify your email before logging in.',
-          'error': 'email-not-verified',
+          'message': 'Session expired. Please try logging in again.',
+          'error': 'session-expired',
         };
       }
 
@@ -91,7 +104,8 @@ class AuthController extends GetxController {
       return {
         'success': true,
         'message': 'Login successful!',
-        'user': userCredential.user,
+        'user': refreshedUser,
+        'emailVerified': true,
       };
     } on FirebaseAuthException catch (e) {
       String message;
@@ -110,6 +124,17 @@ class AuthController extends GetxController {
           break;
         case 'too-many-requests':
           message = 'Too many failed attempts. Please try again later.';
+          break;
+        case 'invalid-credential':
+          message =
+              'Invalid credentials. Please check your email and password.';
+          break;
+        case 'account-exists-with-different-credential':
+          message =
+              'An account already exists with this email but different sign-in method.';
+          break;
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
           break;
         default:
           message = 'Login failed: ${e.message}';
@@ -134,11 +159,27 @@ class AuthController extends GetxController {
 
   Future<void> logout() async {
     try {
+      // Sign out from Firebase Auth
       await _auth.signOut();
+
+      // Clear local state
       isLoggedIn = false;
       errorMessage = null;
+
+      // Clear all GetX controllers to ensure clean logout
+      try {
+        Get.deleteAll();
+      } catch (e) {
+        log('Error clearing controllers: $e');
+      }
+
+      log('User logged out successfully');
     } catch (e) {
       log('Logout error: $e');
+      // Even if there's an error, clear local state
+      isLoggedIn = false;
+      errorMessage = null;
+      rethrow; // Re-throw to handle in UI
     }
   }
 
@@ -147,6 +188,58 @@ class AuthController extends GetxController {
       await _auth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException catch (e) {
       log('Password reset error: ${e.message}');
+      rethrow;
+    }
+  }
+
+  /// Check if user is currently authenticated and token is valid
+  Future<bool> isUserAuthenticated() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      // Refresh the user to check if token is still valid
+      await user.reload();
+      final refreshedUser = _auth.currentUser;
+
+      if (refreshedUser == null) {
+        isLoggedIn = false;
+        return false;
+      }
+
+      isLoggedIn = true;
+      return true;
+    } catch (e) {
+      log('Auth check error: $e');
+      isLoggedIn = false;
+      return false;
+    }
+  }
+
+  /// Get current user with token refresh
+  Future<User?> getCurrentUser() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      // Refresh the user to ensure token is valid
+      await user.reload();
+      return _auth.currentUser;
+    } catch (e) {
+      log('Get current user error: $e');
+      return null;
+    }
+  }
+
+  /// Send email verification
+  Future<void> sendEmailVerification() async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null && !user.emailVerified) {
+        await user.sendEmailVerification();
+      }
+    } catch (e) {
+      log('Send email verification error: $e');
       rethrow;
     }
   }
