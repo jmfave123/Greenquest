@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "flutter build web --release --base-href /",
+  "buildCommand": "bash build.sh",
   "outputDirectory": "build/web",
   "framework": null,
   "rewrites": [
