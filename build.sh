@@ -1,40 +1,28 @@
 #!/bin/bash
-
-# Exit on error
 set -e
 
-echo "🚀 Starting Flutter web build for Vercel..."
+# Debug info
+echo "Starting build process..."
+echo "Current directory: $(pwd)"
+ls -la
 
-# Install Flutter if not found
-if ! command -v flutter &> /dev/null
-then
-    echo "📥 Installing Flutter..."
-    
-    # Download Flutter SDK
-    FLUTTER_VERSION="3.24.3"
-    cd /tmp
-    curl -L "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o flutter.tar.xz
-    tar xf flutter.tar.xz
-    export PATH="$PATH:/tmp/flutter/bin"
-    
-    echo "✅ Flutter installed"
-else
-    echo "✅ Flutter found: $(flutter --version | head -n 1)"
-fi
+# Install Flutter
+echo "Installing Flutter..."
+git clone https://github.com/flutter/flutter.git -b stable --depth 1 $HOME/flutter
+export PATH="$PATH:$HOME/flutter/bin"
 
-# Ensure Flutter is in PATH
-export PATH="$PATH:/tmp/flutter/bin"
+# Verify Flutter installation
+echo "Flutter version:"
+flutter --version
 
-# Verify we're in the right directory
-echo "📁 Current directory: $(pwd)"
-
-# Get dependencies
-echo "📦 Getting dependencies..."
+# Install dependencies
+echo "Getting dependencies..."
 flutter pub get
 
-# Build for web
-echo "🔨 Building Flutter web app..."
-flutter build web --release --base-href /
+# Build the web app
+echo "Building web app..."
+flutter build web --release
 
-echo "✅ Build completed successfully!"
-echo "📁 Output directory: build/web"
+# Verify build output
+echo "Build completed. Contents of build/web:"
+ls -la build/web

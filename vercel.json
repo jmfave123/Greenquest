@@ -1,41 +1,28 @@
 {
   "version": 2,
-  "buildCommand": "bash build.sh",
-  "outputDirectory": "build/web",
-  "framework": null,
-  "rewrites": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "build.sh",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build/web"
+      }
     }
   ],
-  "headers": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        }
-      ]
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
-      "source": "/manifest.json",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/manifest+json"
-        }
-      ]
+      "src": "/(.*)",
+      "dest": "/build/web/$1"
     }
-  ]
+  ],
+  "build": {
+    "env": {
+      "NODE_VERSION": "16.x",
+      "FLUTTER_VERSION": "3.24.3"
+    }
+  }
 }
-
