@@ -142,16 +142,16 @@ class InstructorRegisterController extends GetxController {
 
         // Show success message
         Get.snackbar(
-          'Registration Submitted',
-          'Your registration has been submitted for admin approval. You will be notified once approved.',
+          'Registration Successful!',
+          'Please check your email and verify your account before logging in.',
           snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.orange,
+          backgroundColor: const Color(0xFF34A853),
           colorText: Colors.white,
           duration: const Duration(seconds: 5),
         );
 
-        // Navigate to login screen
-        Get.offAllNamed('/login');
+        // Navigate to email verification screen
+        Get.offAllNamed('/instructor-email-verification');
       } else {
         errorMessage.value = 'Failed to create account. Please try again.';
       }

@@ -31,16 +31,36 @@ class _SplashScreenState extends State<SplashScreen> {
         final refreshedUser = FirebaseAuth.instance.currentUser;
 
         if (refreshedUser != null) {
-          // Check if user has completed selection
+          // Check if user has completed selection and approval status
           final hasCompletedSelection = await _checkUserSelectionStatus(
             refreshedUser.uid,
           );
+          final enrollmentStatus = await _getUserEnrollmentStatus(
+            refreshedUser.uid,
+          );
 
-          if (hasCompletedSelection) {
-            // User has completed selection, go directly to home
+          print(
+            '🔍 Splash screen - Selection complete: $hasCompletedSelection',
+          );
+          print('🔍 Splash screen - Enrollment status: $enrollmentStatus');
+
+          if (hasCompletedSelection && enrollmentStatus == 'approved') {
+            // User has completed selection and is approved, go directly to home
+            print('✅ Splash screen - User approved, navigating to home');
             Get.offAllNamed('/home');
+          } else if (hasCompletedSelection &&
+              (enrollmentStatus == 'pending' ||
+                  enrollmentStatus == 'rejected')) {
+            // User has completed selection but needs approval or was rejected
+            print(
+              '⏳ Splash screen - User pending/rejected, navigating to pending approval',
+            );
+            Get.offAllNamed('/pending-approval');
           } else {
             // User hasn't completed selection, go to instructor selection
+            print(
+              '📝 Splash screen - User needs to complete selection, navigating to instructor selection',
+            );
             Get.offAllNamed('/select-instructor');
           }
         } else {
@@ -60,20 +80,49 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<bool> _checkUserSelectionStatus(String userId) async {
     try {
-      final doc =
+      final userDoc =
           await FirebaseFirestore.instance
-              .collection('user_selections')
+              .collection('users')
               .doc(userId)
               .get();
 
-      if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>;
-        return data['isComplete'] ?? false;
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        final selectionComplete = data['selectionComplete'] ?? false;
+        final instructorId = data['selectedInstructorId'] ?? '';
+        final instructorName = data['selectedInstructorName'] ?? '';
+
+        // Check if user has completed instructor and course selection
+        return selectionComplete &&
+            instructorId.isNotEmpty &&
+            instructorName.isNotEmpty;
       }
       return false;
     } catch (e) {
       print('Error checking selection status: $e');
       return false;
+    }
+  }
+
+  Future<String> _getUserEnrollmentStatus(String userId) async {
+    try {
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        final status = data['enrollmentStatus'] ?? 'none';
+        print('🔍 Splash screen - User enrollment status: $status');
+        return status;
+      }
+      print('⚠️ Splash screen - User document does not exist');
+      return 'none';
+    } catch (e) {
+      print('❌ Splash screen - Error checking enrollment status: $e');
+      return 'none';
     }
   }
 

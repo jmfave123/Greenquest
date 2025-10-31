@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../shared/services/submission_routing_service.dart';
 
 class AssignmentController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -21,6 +22,26 @@ class AssignmentController extends GetxController {
   void onInit() {
     super.onInit();
     loadCurrentInstructorAssignments();
+  }
+
+  /// Get user's section code from their profile
+  Future<String?> _getUserSectionCode() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final sectionCode = userData['selectedSectionCode']?.toString();
+        print('📚 Student section code: $sectionCode');
+        return sectionCode;
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting user section code: $e');
+      return null;
+    }
   }
 
   /// Load assignments from the current instructor
@@ -115,18 +136,59 @@ class AssignmentController extends GetxController {
 
       print('✅ Instructor found: $instructorName');
 
-      // Get assignments from the instructor's assignments subcollection
-      print(
-        '📚 Querying assignments subcollection for instructor: $instructorUid',
-      );
+      // Get student's section code for filtering
+      final userSectionCode = await _getUserSectionCode();
+      print('📚 Student section code: $userSectionCode');
 
-      final assignmentsQuery =
+      // Add debug: Print all assignments to see what sections they have
+      print('🔍 DEBUG: Fetching ALL assignments first to inspect data...');
+      final allAssignmentsDebug =
           await _firestore
               .collection('instructors')
               .doc(instructorUid)
               .collection('assignments')
               .where('status', isEqualTo: 'active')
               .get();
+
+      print(
+        '🔍 DEBUG: Found ${allAssignmentsDebug.docs.length} total active assignments',
+      );
+      for (var doc in allAssignmentsDebug.docs) {
+        final data = doc.data();
+        final classes = data['selectedClasses'] ?? [];
+        print('  - Assignment: ${data['title']} - Selected Classes: $classes');
+      }
+
+      // Get assignments from the instructor's assignments subcollection
+      print(
+        '📚 Querying assignments subcollection for instructor: $instructorUid',
+      );
+
+      // 🔥 OPTIMIZED: Use array-contains for efficient array filtering in Firestore
+      QuerySnapshot assignmentsQuery;
+      if (userSectionCode != null && userSectionCode.isNotEmpty) {
+        print(
+          '🎯 Using array-contains filter with section: "$userSectionCode"',
+        );
+        assignmentsQuery =
+            await _firestore
+                .collection('instructors')
+                .doc(instructorUid)
+                .collection('assignments')
+                .where('status', isEqualTo: 'active')
+                .where('selectedClasses', arrayContains: userSectionCode)
+                .get();
+      } else {
+        print('⚠️ No section code found, fetching all active assignments');
+        // If no section code, just filter by status
+        assignmentsQuery =
+            await _firestore
+                .collection('instructors')
+                .doc(instructorUid)
+                .collection('assignments')
+                .where('status', isEqualTo: 'active')
+                .get();
+      }
 
       print(
         '📚 Assignments query result: ${assignmentsQuery.docs.length} documents',
@@ -141,7 +203,7 @@ class AssignmentController extends GetxController {
 
         for (int i = 0; i < assignmentsQuery.docs.length; i++) {
           var assignmentDoc = assignmentsQuery.docs[i];
-          var assignmentData = assignmentDoc.data();
+          var assignmentData = assignmentDoc.data() as Map<String, dynamic>;
 
           print(
             '📄 Assignment $i (${assignmentDoc.id}): ${assignmentData.runtimeType}',
@@ -153,6 +215,13 @@ class AssignmentController extends GetxController {
             print('⚠️ Assignment $i has empty data, skipping');
             continue;
           }
+
+          // Get selected classes for this assignment
+          final selectedClasses = List<String>.from(
+            assignmentData['selectedClasses'] ?? [],
+          );
+
+          // Note: Firestore array-contains query already filtered by section
 
           // Create assignment map with proper data structure
           Map<String, dynamic> assignmentMap = {
@@ -166,13 +235,14 @@ class AssignmentController extends GetxController {
                 instructorName, // Use instructor name from instructor document
             'instructorId': instructorUid,
             'points': assignmentData['points'] ?? 0,
-            'dueDate': _formatDate(assignmentData['dueDate']),
-            'createdAt': _formatDate(assignmentData['createdAt']),
+            'dueDate': assignmentData['dueDate'], // Pass raw date data
+            'createdAt': assignmentData['createdAt'], // Pass raw date data
             'status': assignmentData['status']?.toString() ?? 'active',
             'type': assignmentData['type']?.toString() ?? 'Assignment',
             'period': assignmentData['period']?.toString() ?? '',
             'attachments': assignmentData['attachments'] ?? [],
-            'selectedClasses': assignmentData['selectedClasses'] ?? [],
+            'selectedClasses': selectedClasses,
+            'category': assignmentData['category']?.toString() ?? '',
           };
 
           print(
@@ -181,10 +251,11 @@ class AssignmentController extends GetxController {
           print('📄 Instructor name: ${assignmentMap['instructorName']}');
           print('📄 Assignment status: ${assignmentMap['status']}');
 
-          // Only add valid assignments
+          // Only add valid assignments (require title, topic is optional)
           if (assignmentMap['title'] != 'No Title' &&
-              assignmentMap['topic'] != 'No Topic') {
+              assignmentMap['title'] != null) {
             instructorAssignments.add(assignmentMap);
+            print('✅ Added assignment: ${assignmentMap['title']}');
           } else {
             print('⚠️ Skipping invalid assignment: ${assignmentMap['title']}');
           }
@@ -201,26 +272,27 @@ class AssignmentController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid assignments before setting
+      // Filter out any invalid assignments before setting (require title, topic is optional)
       final validAssignments =
           instructorAssignments
               .where(
                 (assignment) =>
                     assignment.isNotEmpty &&
                     assignment['title'] != null &&
-                    assignment['title'] != 'No Title' &&
-                    assignment['topic'] != null &&
-                    assignment['topic'] != 'No Topic',
+                    assignment['title'] != 'No Title',
               )
               .toList();
 
       assignments.value = validAssignments;
       print(
-        '📊 Loaded ${validAssignments.length} assignments from instructor $instructorUid',
+        '📊 Loaded ${validAssignments.length} assignments from instructor $instructorUid (filtered by section $userSectionCode)',
       );
 
+      // Load submission statuses for all assignments
+      await loadSubmissionStatuses();
+
       if (validAssignments.isEmpty) {
-        errorMessage.value = 'No assignments found for this instructor';
+        errorMessage.value = 'No assignments found for your section';
       }
     } catch (e) {
       print('❌ Error loading assignments: $e');
@@ -277,8 +349,8 @@ class AssignmentController extends GetxController {
                   instructorName, // Use instructor name from instructor document
               'instructorId': instructorId,
               'points': assignmentData['points'] ?? 0,
-              'dueDate': _formatDate(assignmentData['dueDate']),
-              'createdAt': _formatDate(assignmentData['createdAt']),
+              'dueDate': assignmentData['dueDate'], // Pass raw date data
+              'createdAt': assignmentData['createdAt'], // Pass raw date data
               'status': assignmentData['status']?.toString() ?? 'active',
               'type': assignmentData['type']?.toString() ?? 'Assignment',
               'period': assignmentData['period']?.toString() ?? '',
@@ -321,6 +393,9 @@ class AssignmentController extends GetxController {
       print(
         '📊 Loaded ${validAssignments.length} assignments from all instructors',
       );
+
+      // Load submission statuses for all assignments
+      await loadSubmissionStatuses();
     } catch (e) {
       errorMessage.value = 'Error loading assignments: $e';
       assignments.value = [];
@@ -408,7 +483,99 @@ class AssignmentController extends GetxController {
     selectedAssignment.value = assignment;
   }
 
-  /// Submit assignment (simplified version without file upload for now)
+  /// Submit assignment with Cloudinary file URLs using automatic routing
+  Future<void> submitAssignmentWithCloudinary(
+    String assignmentId,
+    List<Map<String, dynamic>> uploadedFiles, {
+    String submissionType = 'assignment', // 'assignment', 'activity', or 'quiz'
+  }) async {
+    try {
+      isSubmitting.value = true;
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+
+      print('📤 Submitting $submissionType: $assignmentId');
+      print('📁 Files to submit: ${uploadedFiles.length}');
+
+      // Get user data for student information
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+
+      // Create submission data with Cloudinary URLs
+      final submissionData = {
+        'studentId': user.uid,
+        'studentName':
+            user.displayName ?? user.email?.split('@')[0] ?? 'Student',
+        'studentEmail': user.email ?? '',
+        'studentIdNumber': userData['idNumber'] ?? user.uid,
+        'files':
+            uploadedFiles
+                .map(
+                  (f) => {
+                    'name': f['name'],
+                    'url': f['url'],
+                    'publicId': f['publicId'],
+                    'size': f['size'],
+                    'type': f['type'],
+                    'resourceType': f['resourceType'],
+                    'uploadedAt': f['uploadedAt'],
+                  },
+                )
+                .toList(),
+        'fileNames': uploadedFiles.map((f) => f['name']).toList(),
+        'cloudinaryUrls': uploadedFiles.map((f) => f['url']).toList(),
+        'submittedAt': FieldValue.serverTimestamp(),
+        'status': 'submitted',
+        'grade': null,
+        'feedback': null,
+        'gradedAt': null,
+      };
+
+      // Use routing service to automatically route submission to correct instructor
+      final routingResult = await SubmissionRoutingService.routeSubmission(
+        activityId: assignmentId,
+        submissionType: submissionType,
+        submissionData: submissionData,
+      );
+
+      if (!routingResult['success']) {
+        throw Exception(routingResult['error'] ?? 'Failed to route submission');
+      }
+
+      // Update submission status
+      submissionStatus[assignmentId] = 'submitted';
+
+      print('✅ $submissionType submission routed successfully');
+      print('📍 Routed to instructor: ${routingResult['instructorId']}');
+      print('📍 Section: ${routingResult['sectionId']}');
+
+      Get.snackbar(
+        'Success',
+        '${submissionType.capitalizeFirst} submitted and routed to instructor!',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      print('❌ Error submitting $submissionType with Cloudinary: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to submit $submissionType: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
+  /// Submit assignment using automatic routing
   Future<void> submitAssignment(
     String assignmentId,
     List<Map<String, dynamic>> files,
@@ -421,15 +588,21 @@ class AssignmentController extends GetxController {
         throw Exception('User not logged in');
       }
 
+      print('📤 Submitting assignment: $assignmentId');
+      print('📁 Files to submit: ${files.length}');
+
+      // Get user data for student information
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+
       // Create submission data
-      Map<String, dynamic> submissionData = {
-        'assignmentId': assignmentId,
+      final submissionData = {
         'studentId': user.uid,
+        'studentName':
+            user.displayName ?? user.email?.split('@')[0] ?? 'Student',
         'studentEmail': user.email ?? '',
-        'instructorId': currentInstructorUid.value,
-        'instructorName': currentInstructorName.value,
-        'files':
-            files.map((f) => f['name']).toList(), // Store file names for now
+        'studentIdNumber': userData['idNumber'] ?? user.uid,
+        'files': files.map((f) => f['name']).toList(),
         'fileNames': files.map((f) => f['name']).toList(),
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'submitted',
@@ -438,16 +611,27 @@ class AssignmentController extends GetxController {
         'gradedAt': null,
       };
 
-      await _firestore.collection('assignment_submissions').add(submissionData);
+      // Use routing service to automatically route submission to correct instructor
+      final routingResult = await SubmissionRoutingService.routeSubmission(
+        activityId: assignmentId,
+        submissionType: 'assignment',
+        submissionData: submissionData,
+      );
+
+      if (!routingResult['success']) {
+        throw Exception(routingResult['error'] ?? 'Failed to route submission');
+      }
 
       // Update submission status
       submissionStatus[assignmentId] = 'submitted';
 
-      print('✅ Assignment submission completed successfully');
+      print('✅ Assignment submission routed successfully');
+      print('📍 Routed to instructor: ${routingResult['instructorId']}');
+      print('📍 Section: ${routingResult['sectionId']}');
 
       Get.snackbar(
         'Success',
-        'Assignment submitted successfully!',
+        'Assignment submitted and routed to instructor!',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.green,
         colorText: Colors.white,
@@ -544,6 +728,32 @@ class AssignmentController extends GetxController {
     }
   }
 
+  /// Load submission statuses for all assignments
+  Future<void> loadSubmissionStatuses() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Clear existing statuses
+      submissionStatus.clear();
+
+      // Get status for each assignment
+      for (final assignment in assignments) {
+        final assignmentId = assignment['id']?.toString();
+        if (assignmentId != null) {
+          final status = await getSubmissionStatus(assignmentId);
+          submissionStatus[assignmentId] = status;
+        }
+      }
+
+      print(
+        '📊 Loaded submission statuses for ${assignments.length} assignments',
+      );
+    } catch (e) {
+      print('❌ Error loading submission statuses: $e');
+    }
+  }
+
   /// Clear error message
   void clearError() {
     errorMessage.value = '';
@@ -626,46 +836,6 @@ class AssignmentController extends GetxController {
     } catch (e) {
       print('❌ Error setting instructor for testing: $e');
       errorMessage.value = 'Error setting instructor: $e';
-    }
-  }
-
-  /// Format date from Firestore timestamp
-  String? _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown Date';
-
-    try {
-      DateTime date;
-      if (timestamp is Timestamp) {
-        date = timestamp.toDate();
-      } else if (timestamp is DateTime) {
-        date = timestamp;
-      } else if (timestamp is String) {
-        date = DateTime.parse(timestamp);
-      } else {
-        return 'Unknown Date';
-      }
-
-      // Format as "July 28" to match the UI design
-      const months = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ];
-
-      final month = months[date.month - 1];
-      return '$month ${date.day}';
-    } catch (e) {
-      print('Error formatting date: $e');
-      return 'Unknown Date';
     }
   }
 }

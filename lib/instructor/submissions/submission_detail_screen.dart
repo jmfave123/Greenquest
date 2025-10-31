@@ -3,9 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../../shared/services/file_download_service.dart';
 import 'submissions_controller.dart';
 
 class SubmissionDetailScreen extends StatefulWidget {
@@ -31,6 +34,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
   late SubmissionsController submissionsController;
   late double _currentScore;
   late bool _isGraded;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -60,6 +64,8 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
   }
 
   Future<void> _saveGrade() async {
+    if (_isSaving) return; // Prevent multiple submissions
+
     if (_scoreController.text.isEmpty) {
       Get.snackbar(
         'Error',
@@ -74,10 +80,11 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     double score = double.tryParse(_scoreController.text) ?? 0.0;
     final maxScore = widget.activityData['points'] ?? 100;
 
-    if (score < 0 || score > maxScore) {
+    // Enhanced validation
+    if (_scoreController.text.isEmpty) {
       Get.snackbar(
         'Error',
-        'Score must be between 0 and $maxScore',
+        'Please enter a score',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -85,94 +92,67 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       return;
     }
 
-    final success = await submissionsController.gradeSubmission(
-      submissionId: widget.submissionData['id'],
-      submissionType: widget.submissionData['type'] ?? 'activity',
-      score: score,
-      feedback: _feedbackController.text,
-    );
-
-    if (success) {
-      setState(() {
-        _currentScore = score;
-        _isGraded = true;
-      });
-    }
-  }
-
-  void _markAsDone() {
-    if (!_isGraded) {
-      _showSnackBar('Please grade the submission first', Colors.orange);
+    if (score < 0) {
+      Get.snackbar(
+        'Error',
+        'Score cannot be negative. Please enter a score between 0 and $maxScore',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
       return;
     }
 
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            title: const Text(
-              'Mark as Done',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            content: const Text(
-              'Are you sure you want to mark this submission as done?',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _showSnackBar(
-                    'Submission marked as done!',
-                    const Color(0xFF34A853),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF34A853),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Mark Done',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-    );
+    if (score > maxScore) {
+      Get.snackbar(
+        'Error',
+        'Score cannot exceed maximum points of $maxScore. Please enter a score between 0 and $maxScore',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final success = await submissionsController.gradeSubmission(
+        submissionId: widget.submissionData['id'],
+        submissionType: widget.submissionData['type'] ?? 'activity',
+        score: score,
+        feedback: _feedbackController.text,
+      );
+
+      if (success) {
+        setState(() {
+          _currentScore = score;
+          _isGraded = true;
+        });
+      } else {
+        Get.snackbar(
+          'Error',
+          'Failed to save grade',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to save grade: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
+    }
   }
 
   void _showSnackBar(String message, Color color) {
@@ -193,6 +173,124 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  void _downloadSpecificPDF() async {
+    try {
+      _showSnackBar(
+        'Downloading submission_flow.pdf...',
+        const Color(0xFF34A853),
+      );
+
+      // Show progress dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: Color(0xFF34A853)),
+                  const SizedBox(height: 16),
+                  const Text('Downloading submission_flow.pdf...'),
+                ],
+              ),
+            ),
+      );
+
+      // Download the specific PDF using the download service
+      final filePath = await FileDownloadService.downloadSubmissionPDF();
+
+      // Close progress dialog
+      Navigator.of(context).pop();
+
+      if (filePath != null) {
+        _showSnackBar(
+          'PDF downloaded successfully: submission_flow.pdf',
+          const Color(0xFF34A853),
+        );
+      } else {
+        throw Exception('Download failed');
+      }
+    } catch (e) {
+      // Close progress dialog if it's open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      _showSnackBar('Error downloading PDF: $e', Colors.red);
+
+      // Show fallback dialog with the URL
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Download PDF'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Unable to download directly. Please use the link below:',
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: SelectableText(
+                      'https://res.cloudinary.com/dddnu6i5q/raw/upload/v1759553378/greenquest/submissions/activitys/fckx3dknrdfg4misgm6x.pdf',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Clipboard.setData(
+                      const ClipboardData(
+                        text:
+                            'https://res.cloudinary.com/dddnu6i5q/raw/upload/v1759553378/greenquest/submissions/activitys/fckx3dknrdfg4misgm6x.pdf',
+                      ),
+                    );
+                    _showSnackBar(
+                      'URL copied to clipboard',
+                      const Color(0xFF34A853),
+                    );
+                  },
+                  child: const Text('Copy URL'),
+                ),
+              ],
+            ),
+      );
+    }
+  }
+
+  String _formatSubmissionDate(dynamic submittedAt) {
+    if (submittedAt == null) return 'Unknown';
+
+    try {
+      if (submittedAt is Timestamp) {
+        final date = submittedAt.toDate();
+        return '${date.day}/${date.month}/${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      } else if (submittedAt is String) {
+        final date = DateTime.parse(submittedAt);
+        return '${date.day}/${date.month}/${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      }
+    } catch (e) {
+      return 'Invalid date';
+    }
+
+    return 'Unknown';
   }
 
   Color _getFileTypeColor(String type) {
@@ -233,6 +331,218 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     }
   }
 
+  String _getFileTypeFromUrl(String fileName) {
+    if (fileName.isEmpty) return 'unknown';
+    final extension = fileName.split('.').last.toLowerCase();
+    return extension;
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  void _openFilePreview(String url) async {
+    if (url.isEmpty) {
+      _showSnackBar('File URL not available', Colors.orange);
+      return;
+    }
+
+    try {
+      _showSnackBar('Opening file preview...', const Color(0xFF34A853));
+
+      // Create a proper URI from the URL
+      final Uri uri = Uri.parse(url);
+
+      // Check if the URL can be launched
+      if (await canLaunchUrl(uri)) {
+        // Launch the URL in the default browser for preview
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+        _showSnackBar('File opened in browser', const Color(0xFF34A853));
+      } else {
+        // Fallback: Show dialog with URL
+        _showPreviewDialog(url);
+      }
+    } catch (e) {
+      _showSnackBar('Error opening file: $e', Colors.red);
+      // Show fallback dialog
+      _showPreviewDialog(url);
+    }
+  }
+
+  void _showPreviewDialog(String url) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('File Preview'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Unable to open file directly. Please use the link below:',
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: SelectableText(
+                    url,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Click the link above to open in your browser, or use the download button below.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _downloadFile(url, 'preview_file');
+                },
+                child: const Text('Download'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _downloadFile(String url, String fileName) async {
+    if (url.isEmpty) {
+      _showSnackBar('File URL not available', Colors.orange);
+      return;
+    }
+
+    try {
+      _showSnackBar('Downloading $fileName...', const Color(0xFF34A853));
+
+      // Show progress dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: Color(0xFF34A853)),
+                  const SizedBox(height: 16),
+                  Text('Downloading $fileName...'),
+                ],
+              ),
+            ),
+      );
+
+      // Download the file using the download service
+      final filePath = await FileDownloadService.downloadFileFromUrl(
+        url: url,
+        customFileName: fileName,
+        onProgress: (received, total) {
+          // Progress callback - can be used for UI updates if needed
+        },
+      );
+
+      // Close progress dialog
+      Navigator.of(context).pop();
+
+      if (filePath != null) {
+        _showSnackBar(
+          'File downloaded successfully: $fileName',
+          const Color(0xFF34A853),
+        );
+      } else {
+        throw Exception('Download failed');
+      }
+    } catch (e) {
+      // Close progress dialog if it's open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      _showSnackBar('Error downloading file: $e', Colors.red);
+      // Show fallback dialog
+      _showDownloadDialog(url, fileName);
+    }
+  }
+
+  void _showDownloadDialog(String url, String fileName) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Download File'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Unable to open download directly. Please use the link below:',
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'File: $fileName',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(url, style: const TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Right-click the link above and select "Save link as..." to download the file.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // Copy URL to clipboard
+                  Clipboard.setData(ClipboardData(text: url));
+                  _showSnackBar(
+                    'URL copied to clipboard',
+                    const Color(0xFF34A853),
+                  );
+                },
+                child: const Text('Copy URL'),
+              ),
+            ],
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -248,9 +558,13 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             child: Column(
               children: [
                 // App Bar
-                const InstructorAppBar(
-                  instructorName: 'Mia Castro',
-                  instructorRole: 'Instructor',
+                Obx(
+                  () => InstructorAppBar(
+                    instructorName: submissionsController.instructorName.value,
+                    instructorRole: 'Instructor',
+                    profileImageUrl:
+                        submissionsController.profileImageUrl.value,
+                  ),
                 ),
                 // Main Content
                 Expanded(
@@ -378,7 +692,18 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             children: [
               CircleAvatar(
                 radius: 30,
-                backgroundImage: AssetImage(widget.submissionData['avatar']),
+                backgroundColor: const Color(0xFF34A853).withOpacity(0.1),
+                child: Text(
+                  widget.submissionData['studentName']?.toString().isNotEmpty ==
+                          true
+                      ? widget.submissionData['studentName'][0].toUpperCase()
+                      : 'S',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF34A853),
+                  ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -395,12 +720,12 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Student ID: ${widget.submissionData['studentId']}',
+                      'Student ID: ${widget.submissionData['studentIdNumber'] ?? widget.submissionData['studentId'] ?? 'N/A'}',
                       style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Submitted: ${widget.submissionData['submittedAt']}',
+                      'Submitted: ${_formatSubmissionDate(widget.submissionData['submittedAt'])}',
                       style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                   ],
@@ -431,102 +756,146 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Submitted Files',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+          Row(
+            children: [
+              const Text(
+                'Submitted Files',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              const Spacer(),
+              // Test button for the specific PDF URL
+              ElevatedButton.icon(
+                onPressed: () {
+                  _downloadSpecificPDF();
+                },
+                icon: const Icon(Icons.download, size: 16),
+                label: const Text('Download PDF'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF34A853),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          ...widget.submissionData['files'].map<Widget>((file) {
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
+          if (widget.submissionData['files'] != null &&
+              (widget.submissionData['files'] as List).isNotEmpty)
+            ...(widget.submissionData['files'] as List).map<Widget>((file) {
+              final fileType = _getFileTypeFromUrl(file['name'] ?? '');
+              final fileSize = _formatFileSize(file['size'] ?? 0);
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: _getFileTypeColor(fileType).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _getFileTypeIcon(fileType),
+                        color: _getFileTypeColor(fileType),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            file['name'] ?? 'Unknown file',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            fileSize,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        _openFilePreview(file['url'] ?? '');
+                      },
+                      icon: const Icon(
+                        Icons.visibility,
+                        color: Color(0xFF34A853),
+                      ),
+                      tooltip: 'Preview file',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(
+                          0xFF34A853,
+                        ).withOpacity(0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {
+                        _downloadFile(file['url'] ?? '', file['name'] ?? '');
+                      },
+                      icon: const Icon(
+                        Icons.download,
+                        color: Color(0xFF34A853),
+                      ),
+                      tooltip: 'Download file',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(
+                          0xFF34A853,
+                        ).withOpacity(0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            })
+          else
+            Container(
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8F9FA),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFE0E0E0)),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _getFileTypeColor(file['type']).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      _getFileTypeIcon(file['type']),
-                      color: _getFileTypeColor(file['type']),
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          file['name'],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
-                          ),
-                        ),
-                        Text(
-                          file['size'],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      _showSnackBar(
-                        'File preview would open here',
-                        const Color(0xFF34A853),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.visibility,
-                      color: Color(0xFF34A853),
-                    ),
-                    tooltip: 'Preview file',
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF34A853).withOpacity(0.1),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
-                      _showSnackBar(
-                        'File download would start here',
-                        const Color(0xFF34A853),
-                      );
-                    },
-                    icon: const Icon(Icons.download, color: Color(0xFF34A853)),
-                    tooltip: 'Download file',
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF34A853).withOpacity(0.1),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
+              child: const Center(
+                child: Text(
+                  'No files submitted',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
               ),
-            );
-          }).toList(),
+            ),
         ],
       ),
     );
@@ -577,9 +946,23 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
             ],
+            onChanged: (value) {
+              // Real-time validation feedback
+              final score = double.tryParse(value) ?? 0.0;
+              final maxScore = widget.activityData['points'] ?? 100;
+
+              if (value.isNotEmpty && (score < 0 || score > maxScore)) {
+                // You could add visual feedback here if needed
+                // For now, we'll rely on the save validation
+              }
+            },
             decoration: InputDecoration(
-              hintText: 'Enter score',
-              suffixText: '/${widget.submissionData['maxScore']}',
+              hintText:
+                  'Enter score (0-${widget.activityData['points'] ?? 100})',
+              suffixText: '/${widget.activityData['points'] ?? 100}',
+              helperText:
+                  'Maximum points: ${widget.activityData['points'] ?? 100}',
+              helperStyle: TextStyle(color: Colors.grey[600], fontSize: 12),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
@@ -622,7 +1005,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Graded: $_currentScore/${widget.submissionData['maxScore']}',
+                    'Graded: $_currentScore/${widget.activityData['points'] ?? 100}',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -638,7 +1021,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _saveGrade,
+              onPressed: _isSaving ? null : _saveGrade,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF34A853),
                 foregroundColor: Colors.white,
@@ -647,30 +1030,36 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
-                'Save Grade',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _markAsDone,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'Mark as Done',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
+              child:
+                  _isSaving
+                      ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Saving...',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      )
+                      : Text(
+                        _isGraded ? 'Update Grade' : 'Save Grade',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
             ),
           ),
         ],

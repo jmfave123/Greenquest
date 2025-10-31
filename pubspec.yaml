@@ -40,6 +40,19 @@ dependencies:
   file_picker: ^8.0.0+1
   http: ^1.1.0
   crypto: ^3.0.3
+  url_launcher: ^6.2.2
+  dio: ^5.4.0
+  path_provider: ^2.1.2
+  video_player: ^2.8.2
+  cached_network_image: ^3.3.1
+  permission_handler: ^11.3.1
+  open_file: ^3.3.2
+  gal: ^2.3.2
+  universal_html: ^2.2.4
+  syncfusion_flutter_xlsio: ^25.1.35  # Excel export functionality
+  flutter_launcher_icons: "^0.13.1" # Add this line
+  syncfusion_flutter_datagrid: ^25.2.7
+  
 
 dev_dependencies:
   flutter_test:
@@ -99,3 +112,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/GreenQuest Logo.jpg"

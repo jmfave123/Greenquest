@@ -30,7 +30,7 @@ android {
         applicationId = "com.example.greenquest"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23  // Updated to support Firebase plugins
+        minSdk = flutter.minSdkVersion  // Updated to support Firebase plugins
         targetSdk = 35  // Match compileSdk per plugin requirements
         versionCode = flutter.versionCode
         versionName = flutter.versionName

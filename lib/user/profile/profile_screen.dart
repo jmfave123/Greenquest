@@ -14,7 +14,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  int selectedDrawerIndex = 4;
+  int selectedDrawerIndex = 5;
   final controller = Get.put(ProfileController());
   @override
   Widget build(BuildContext context) {
@@ -29,6 +29,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
         leading: Builder(
           builder:
               (context) => IconButton(
@@ -51,9 +53,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return Column(
           children: [
             SizedBox(height: 32),
-            CircleAvatar(
-              radius: 48,
-              backgroundImage: AssetImage('assets/images/Photo.png'),
+            GestureDetector(
+              onTap: () => controller.uploadProfileImage(),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Obx(() {
+                    final profileImage = controller.userData['profileImage'];
+                    return CircleAvatar(
+                      radius: 48,
+                      backgroundColor:
+                          profileImage != null && profileImage.isNotEmpty
+                              ? null
+                              : const Color(0xFF34A853),
+                      backgroundImage:
+                          profileImage != null && profileImage.isNotEmpty
+                              ? NetworkImage(profileImage)
+                              : null,
+                      child:
+                          profileImage == null || profileImage.isEmpty
+                              ? Text(
+                                controller.getInitials(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                              : null,
+                    );
+                  }),
+                  if (controller.isUploadingImage.value)
+                    const CircleAvatar(
+                      radius: 48,
+                      backgroundColor: Colors.black54,
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34A853),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black12, blurRadius: 4),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             SizedBox(height: 12),
             Text(
@@ -64,6 +122,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
               userData['email'] ?? '',
               style: TextStyle(color: Colors.black54),
             ),
+
+            // Section Information
+            if (userData['selectedSectionCode'] != null &&
+                userData['selectedSectionCode'].toString().isNotEmpty) ...[
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Color(0xFFF0F8FF),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Color(0xFFB3D9FF)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.school, color: Color(0xFF2196F3), size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'Section: ${userData['selectedSectionCode']}',
+                      style: TextStyle(
+                        color: Color(0xFF2196F3),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             SizedBox(height: 32),
             ListTile(
               leading: Image.asset(

@@ -13,21 +13,56 @@ class QuizController extends GetxController {
   var quizzes = <Map<String, dynamic>>[].obs;
   var errorMessage = ''.obs;
 
+  // Add mounted check
+  bool _isDisposed = false;
+  bool get isMounted => !_isDisposed;
+
   @override
   void onInit() {
     super.onInit();
-    loadQuizzes();
+    // Use addPostFrameCallback to ensure operations run after build is complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeData();
+    });
+  }
+
+  @override
+  void onClose() {
+    // Mark as disposed to prevent further operations
+    _isDisposed = true;
+    super.onClose();
+  }
+
+  /// Initialize data without blocking the UI
+  Future<void> _initializeData() async {
+    try {
+      // Check if controller is still mounted before starting operations
+      if (!isMounted) return;
+
+      await loadQuizzes();
+    } catch (e) {
+      // Only update error if controller is still mounted
+      if (isMounted) {
+        print('Error initializing QuizController: $e');
+        errorMessage.value = 'Error initializing data: $e';
+      }
+    }
   }
 
   // Load quizzes from current instructor only
   Future<void> loadQuizzes() async {
     try {
+      // Check if controller is still mounted
+      if (!isMounted) return;
+
       isLoading.value = true;
       errorMessage.value = '';
 
       final User? user = _auth.currentUser;
       if (user == null) {
-        errorMessage.value = 'No instructor logged in';
+        if (isMounted) {
+          errorMessage.value = 'No instructor logged in';
+        }
         return;
       }
 
@@ -68,12 +103,21 @@ class QuizController extends GetxController {
         });
       }
 
-      quizzes.value = instructorQuizzes;
+      // Only update if controller is still mounted
+      if (isMounted) {
+        quizzes.value = instructorQuizzes;
+      }
     } catch (e) {
-      errorMessage.value = 'Error loading quizzes: $e';
-      print('Error loading quizzes: $e');
+      // Only update error if controller is still mounted
+      if (isMounted) {
+        errorMessage.value = 'Error loading quizzes: $e';
+        print('Error loading quizzes: $e');
+      }
     } finally {
-      isLoading.value = false;
+      // Only update loading state if controller is still mounted
+      if (isMounted) {
+        isLoading.value = false;
+      }
     }
   }
 

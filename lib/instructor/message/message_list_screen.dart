@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../instructor_dashboard_controller.dart';
 import 'message_screen.dart';
 import 'package:get/get.dart';
+import '../../shared/services/message_service.dart';
 
 class InstructorMessageListScreen extends StatefulWidget {
-  const InstructorMessageListScreen({Key? key}) : super(key: key);
+  const InstructorMessageListScreen({super.key});
 
   @override
   State<InstructorMessageListScreen> createState() =>
@@ -16,57 +18,9 @@ class InstructorMessageListScreen extends StatefulWidget {
 class _InstructorMessageListScreenState
     extends State<InstructorMessageListScreen> {
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.messages;
-  final List<Map<String, dynamic>> students = [
-    {
-      'name': 'Mary Ann',
-      'status': 'Online',
-      'image': 'assets/images/Photo (4).png',
-      'unread': 1,
-      'online': true,
-    },
-    {
-      'name': 'Jane Ame',
-      'status': 'Offline',
-      'image': 'assets/images/Photo (1).png',
-      'unread': 0,
-      'online': false,
-    },
-    {
-      'name': 'Princess',
-      'status': 'Online',
-      'image': 'assets/images/Photo (2).png',
-      'unread': 4,
-      'online': true,
-    },
-    {
-      'name': 'Sophia',
-      'status': 'Online',
-      'image': 'assets/images/Photo.png',
-      'unread': 3,
-      'online': true,
-    },
-    {
-      'name': 'Rose Anne',
-      'status': 'Online',
-      'image': 'assets/images/Photo (3).png',
-      'unread': 0,
-      'online': true,
-    },
-    {
-      'name': 'Bryan David',
-      'status': 'Offline',
-      'image': 'assets/images/image 319.png',
-      'unread': 2,
-      'online': false,
-    },
-    {
-      'name': 'Janna Mae',
-      'status': 'Offline',
-      'image': 'assets/images/image 321.png',
-      'unread': 0,
-      'online': false,
-    },
-  ];
+  final InstructorController instructorController = Get.put(
+    InstructorController(),
+  );
   String _search = '';
 
   void _onNavigationSelect(InstructorNavigationItem item) {
@@ -75,14 +29,98 @@ class _InstructorMessageListScreenState
     Navigator.of(context).pushNamed(route);
   }
 
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'ST';
+    final words = name.trim().split(' ');
+    if (words.length >= 2) {
+      return '${words[0][0].toUpperCase()}${words[words.length - 1][0].toUpperCase()}';
+    } else if (words.length == 1) {
+      return words[0].length >= 2
+          ? words[0].substring(0, 2).toUpperCase()
+          : words[0][0].toUpperCase();
+    }
+    return 'ST';
+  }
+
+  Widget _buildStudentItem(Map<String, dynamic> student) {
+    final hasImage =
+        student['image'] != null && (student['image'] as String).isNotEmpty;
+
+    return InkWell(
+      onTap: () {
+        Get.to(() => InstructorMessageScreen(student: student));
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(right: 200),
+        child: Row(
+          children: [
+            hasImage
+                ? CircleAvatar(
+                  radius: 26,
+                  backgroundImage: NetworkImage(student['image']),
+                  backgroundColor: const Color(0xFF22C55E),
+                )
+                : CircleAvatar(
+                  radius: 26,
+                  backgroundColor: const Color(0xFF22C55E),
+                  child: Text(
+                    _getInitials(student['name']),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    student['name'],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    student['lastMessage'] ?? '',
+                    style: const TextStyle(color: Colors.black54, fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if ((student['unreadCount'] ?? 0) > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF3D00),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${student['unreadCount']}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filtered =
-        students
-            .where(
-              (s) => s['name'].toLowerCase().contains(_search.toLowerCase()),
-            )
-            .toList();
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
@@ -94,7 +132,13 @@ class _InstructorMessageListScreenState
           Expanded(
             child: Column(
               children: [
-                const InstructorAppBar(instructorName: 'Mia Castro'),
+                Obx(
+                  () => InstructorAppBar(
+                    instructorName: instructorController.instructorName.value,
+                    instructorRole: 'Instructor',
+                    profileImageUrl: instructorController.profileImageUrl.value,
+                  ),
+                ),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -164,100 +208,84 @@ class _InstructorMessageListScreenState
                         ),
                         const SizedBox(height: 24),
                         Expanded(
-                          child: ListView.separated(
-                            itemCount: filtered.length,
-                            separatorBuilder:
-                                (_, __) => const SizedBox(height: 18),
-                            itemBuilder: (context, i) {
-                              final s = filtered[i];
-                              return InkWell(
-                                onTap: () {
-                                  Get.to(
-                                    () => InstructorMessageScreen(student: s),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.only(right: 200),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 26,
-                                        backgroundImage: AssetImage(s['image']),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            s['name'],
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 17,
-                                            ),
-                                          ),
-                                          Row(
-                                            children: [
-                                              Text(
-                                                s['status'],
-                                                style: TextStyle(
-                                                  color:
-                                                      s['online']
-                                                          ? const Color(
-                                                            0xFF22C55E,
-                                                          )
-                                                          : Colors.black38,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                              if (s['online'])
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 6,
-                                                      ),
-                                                  child: Container(
-                                                    width: 8,
-                                                    height: 8,
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                          color: Color(
-                                                            0xFF22C55E,
-                                                          ),
-                                                          shape:
-                                                              BoxShape.circle,
-                                                        ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      const Spacer(),
-                                      if (s['unread'] > 0)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFFF3D00),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${s['unread']}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15,
-                                            ),
-                                          ),
+                          child: StreamBuilder<List<Map<String, dynamic>>>(
+                            stream: MessageService.getStudentsWithMessages(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF22C55E),
+                                  ),
+                                );
+                              }
+
+                              if (snapshot.hasError) {
+                                return Center(
+                                  child: Text(
+                                    'Error loading messages',
+                                    style: TextStyle(
+                                      color: Colors.red.shade400,
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              final students = snapshot.data ?? [];
+                              final filtered =
+                                  students
+                                      .where(
+                                        (s) => s['name'].toLowerCase().contains(
+                                          _search.toLowerCase(),
                                         ),
+                                      )
+                                      .toList();
+
+                              if (filtered.isEmpty) {
+                                return Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.message_outlined,
+                                        size: 64,
+                                        color: Colors.grey.shade400,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        _search.isEmpty
+                                            ? 'No messages yet'
+                                            : 'No matching students',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _search.isEmpty
+                                            ? 'Messages from your students will appear here'
+                                            : 'Try a different search term',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ],
                                   ),
-                                ),
+                                );
+                              }
+
+                              return ListView.separated(
+                                itemCount: filtered.length,
+                                separatorBuilder:
+                                    (_, __) => const SizedBox(height: 18),
+                                itemBuilder: (context, i) {
+                                  final s = filtered[i];
+                                  return _buildStudentItem(s);
+                                },
                               );
                             },
                           ),

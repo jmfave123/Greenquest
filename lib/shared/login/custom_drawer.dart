@@ -7,12 +7,16 @@ import '../../../user/profile/profile_screen.dart';
 import '../../../user/home_screen.dart';
 import '../../../user/message/message_list_screen.dart';
 import '../../../user/leaderboard/leaderboard_screen.dart';
+import '../../../user/notification/announcement_screen_wrapper.dart';
 
 class CustomDrawer extends StatefulWidget {
   final int selectedIndex;
   final Function(int) onSelect;
-  CustomDrawer({required this.selectedIndex, required this.onSelect, Key? key})
-    : super(key: key);
+  const CustomDrawer({
+    required this.selectedIndex,
+    required this.onSelect,
+    super.key,
+  });
 
   @override
   State<CustomDrawer> createState() => _CustomDrawerState();
@@ -22,10 +26,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
   final authController = Get.put(AuthController());
   final drawerItems = const [
     {
-      'label': 'Overview',
+      'label': 'Home',
       'icon': 'assets/icons/material-symbols-light_home-rounded.png',
     },
     {'label': 'Message', 'icon': 'assets/icons/mage_message-fill.png'},
+    {'label': 'Announcements', 'icon': 'announcement'},
     {
       'label': 'Leaderboard',
       'icon': 'assets/icons/material-symbols-light_leaderboard-rounded.png',
@@ -61,6 +66,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     borderRadius: BorderRadius.circular(10),
                     onTap: () {
                       widget.onSelect(i);
+
                       if (i == 0) {
                         Navigator.pushAndRemoveUntil(
                           context,
@@ -69,36 +75,19 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         );
                       }
                       if (i == 1) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MessageListScreen(),
-                          ),
-                        );
+                        Get.to(() => const MessageListScreen());
                       }
                       if (i == 2) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LeaderboardScreen(),
-                          ),
-                        );
+                        Get.to(() => const AnnouncementScreenWrapper());
                       }
                       if (i == 3) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MaterialsListScreen(),
-                          ),
-                        );
+                        Get.to(() => const LeaderboardScreen());
                       }
                       if (i == 4) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ProfileScreen(),
-                          ),
-                        );
+                        Get.to(() => const MaterialsListScreen());
+                      }
+                      if (i == 5) {
+                        Get.to(() => const ProfileScreen());
                       }
                     },
                     child: Container(
@@ -109,14 +98,24 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         children: [
                           Container(
                             padding: const EdgeInsets.all(10),
-                            child: Image.asset(
-                              drawerItems[i]['icon']!,
-                              width: 24,
-                              color:
-                                  widget.selectedIndex == i
-                                      ? Colors.white
-                                      : Colors.grey[400],
-                            ),
+                            child:
+                                drawerItems[i]['icon'] == 'announcement'
+                                    ? Icon(
+                                      Icons.campaign_outlined,
+                                      size: 24,
+                                      color:
+                                          widget.selectedIndex == i
+                                              ? Colors.white
+                                              : Colors.grey[400],
+                                    )
+                                    : Image.asset(
+                                      drawerItems[i]['icon']!,
+                                      width: 24,
+                                      color:
+                                          widget.selectedIndex == i
+                                              ? Colors.white
+                                              : Colors.grey[400],
+                                    ),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -248,9 +247,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 );
 
                 if (confirmed == true) {
-                  // Close drawer first
-                  Navigator.of(context).pop();
-
                   // Show loading indicator
                   showDialog(
                     context: context,

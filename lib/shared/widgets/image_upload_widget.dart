@@ -17,7 +17,7 @@ class ImageUploadWidget extends StatelessWidget {
   final bool allowGallery;
 
   const ImageUploadWidget({
-    Key? key,
+    super.key,
     this.title,
     this.subtitle,
     this.folder,
@@ -30,14 +30,14 @@ class ImageUploadWidget extends StatelessWidget {
     this.showPreview = true,
     this.allowCamera = true,
     this.allowGallery = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(ImageUploadController());
 
     return Obx(
-      () => Container(
+      () => SizedBox(
         width: width ?? double.infinity,
         height: height ?? 200,
         child: Column(
@@ -159,7 +159,7 @@ class ImageUploadWidget extends StatelessWidget {
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 return Container(
-                  color: Get.theme.colorScheme.surfaceVariant,
+                  color: Get.theme.colorScheme.surfaceContainerHighest,
                   child: Icon(
                     Icons.broken_image,
                     size: 48,
@@ -290,20 +290,20 @@ class CompactImageUploadWidget extends StatelessWidget {
   final Function(String error)? onError;
 
   const CompactImageUploadWidget({
-    Key? key,
+    super.key,
     this.folder,
     this.publicId,
     this.tags,
     this.onImageUploaded,
     this.onError,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(ImageUploadController());
 
     return Obx(
-      () => Container(
+      () => SizedBox(
         width: 120,
         height: 120,
         child: Stack(
@@ -374,7 +374,7 @@ class CompactImageUploadWidget extends StatelessWidget {
   Widget _buildContent(ImageUploadController controller) {
     if (controller.isUploading) {
       return Container(
-        color: Get.theme.colorScheme.surfaceVariant,
+        color: Get.theme.colorScheme.surfaceContainerHighest,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -384,7 +384,7 @@ class CompactImageUploadWidget extends StatelessWidget {
     }
 
     return Container(
-      color: Get.theme.colorScheme.surfaceVariant,
+      color: Get.theme.colorScheme.surfaceContainerHighest,
       child: const Center(child: Icon(Icons.add_a_photo)),
     );
   }

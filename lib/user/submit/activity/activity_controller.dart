@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../shared/services/submission_routing_service.dart';
 
 class ActivityController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -22,6 +23,26 @@ class ActivityController extends GetxController {
   void onInit() {
     super.onInit();
     loadCurrentInstructorActivities();
+  }
+
+  /// Get user's section code from their profile
+  Future<String?> _getUserSectionCode() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final sectionCode = userData['selectedSectionCode']?.toString();
+        print('📚 Student section code: $sectionCode');
+        return sectionCode;
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting user section code: $e');
+      return null;
+    }
   }
 
   /// Load activities for the current logged-in user's selected instructor
@@ -117,6 +138,10 @@ class ActivityController extends GetxController {
       // Update instructor name
       currentInstructorName.value = instructorName;
 
+      // Get student's section code for filtering
+      final userSectionCode = await _getUserSectionCode();
+      print('📚 Student section code: $userSectionCode');
+
       // Get activities from the instructor's activities subcollection
       print(
         '📚 Querying activities subcollection for instructor: $instructorUid',
@@ -156,6 +181,26 @@ class ActivityController extends GetxController {
             continue;
           }
 
+          // Get selected classes for this activity
+          final selectedClasses = List<String>.from(
+            activityData['selectedClasses'] ?? [],
+          );
+
+          // 🎯 FILTER BY SECTION: Only include if student's section is in selectedClasses
+          if (userSectionCode != null &&
+              userSectionCode.isNotEmpty &&
+              selectedClasses.isNotEmpty) {
+            if (!selectedClasses.contains(userSectionCode)) {
+              print(
+                '❌ Skipping activity "${activityData['title']}" - not for section $userSectionCode',
+              );
+              continue;
+            }
+            print(
+              '✅ Activity "${activityData['title']}" matches student section $userSectionCode',
+            );
+          }
+
           // Create activity map with proper validation and UI-ready data
           final activityMap = <String, dynamic>{
             'id': activityDoc.id,
@@ -168,13 +213,13 @@ class ActivityController extends GetxController {
                 instructorName, // Use instructor name from instructor document
             'instructorId': instructorUid,
             'points': activityData['points'] ?? 0,
-            'dueDate': _formatDate(activityData['dueDate']),
-            'createdAt': _formatDate(activityData['createdAt']),
+            'dueDate': activityData['dueDate'],
+            'createdAt': activityData['createdAt'],
             'updatedAt': _formatDate(activityData['updatedAt']),
             'status': activityData['status']?.toString() ?? 'active',
             'type': activityData['type']?.toString() ?? 'Activity',
             'period': activityData['period']?.toString() ?? 'Unknown',
-            'selectedClasses': activityData['selectedClasses'] ?? [],
+            'selectedClasses': selectedClasses,
             'attachments': activityData['attachments'] ?? [],
           };
 
@@ -185,15 +230,13 @@ class ActivityController extends GetxController {
           print('📄 Activity status: ${activityMap['status']}');
           print('📄 Created date: ${activityMap['createdAt']}');
 
-          // Only add if activity has valid data for UI display
+          // Only add if activity has valid data for UI display (require title, topic is optional)
           if (activityMap['title'] != null &&
-              activityMap['title'] != 'No Title' &&
-              activityMap['topic'] != null &&
-              activityMap['topic'] != 'No Topic') {
+              activityMap['title'] != 'No Title') {
             instructorActivities.add(activityMap);
             print('✅ Added activity: ${activityMap['title']}');
           } else {
-            print('❌ Skipped activity due to missing or invalid title/topic');
+            print('❌ Skipped activity due to missing or invalid title');
           }
         }
       } else {
@@ -208,27 +251,28 @@ class ActivityController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid activities before setting
+      // Filter out any invalid activities before setting (require title, topic is optional)
       final validActivities =
           instructorActivities
               .where(
                 (activity) =>
                     activity.isNotEmpty &&
                     activity['title'] != null &&
-                    activity['title'] != 'No Title' &&
-                    activity['topic'] != null &&
-                    activity['topic'] != 'No Topic',
+                    activity['title'] != 'No Title',
               )
               .toList();
 
       activities.value = validActivities;
       print(
-        '📊 Loaded ${validActivities.length} activities from instructor $instructorUid',
+        '📊 Loaded ${validActivities.length} activities from instructor $instructorUid (filtered by section $userSectionCode)',
       );
+
+      // Load submission statuses for all activities
+      await loadSubmissionStatuses();
 
       if (validActivities.isEmpty) {
         print('⚠️ No valid activities found after processing');
-        errorMessage.value = 'No activities available for this instructor';
+        errorMessage.value = 'No activities found for your section';
       } else {
         errorMessage.value = ''; // Clear any previous errors
       }
@@ -294,8 +338,8 @@ class ActivityController extends GetxController {
                   instructorName, // Use instructor name from instructor document
               'instructorId': instructorId,
               'points': activityData['points'] ?? 0,
-              'dueDate': _formatDate(activityData['dueDate']),
-              'createdAt': _formatDate(activityData['createdAt']),
+              'dueDate': activityData['dueDate'],
+              'createdAt': activityData['createdAt'],
               'updatedAt': _formatDate(activityData['updatedAt']),
               'status': activityData['status']?.toString() ?? 'active',
               'type': activityData['type']?.toString() ?? 'Activity',
@@ -304,11 +348,9 @@ class ActivityController extends GetxController {
               'attachments': activityData['attachments'] ?? [],
             };
 
-            // Only add if activity has valid data for UI display
+            // Only add if activity has valid data for UI display (require title, topic is optional)
             if (activityMap['title'] != null &&
-                activityMap['title'] != 'No Title' &&
-                activityMap['topic'] != null &&
-                activityMap['topic'] != 'No Topic') {
+                activityMap['title'] != 'No Title') {
               allActivities.add(activityMap);
             }
           }
@@ -341,6 +383,9 @@ class ActivityController extends GetxController {
       print(
         '📊 Loaded ${validActivities.length} activities from all instructors',
       );
+
+      // Load submission statuses for all activities
+      await loadSubmissionStatuses();
     } catch (e) {
       errorMessage.value = 'Error loading activities: $e';
       print('Error loading activities: $e');
@@ -403,7 +448,7 @@ class ActivityController extends GetxController {
     print('📄 Selected activity: ${activity['title']}');
   }
 
-  /// Submit activity (simplified version without file upload for now)
+  /// Submit activity using automatic routing
   Future<void> submitActivity(
     String activityId,
     List<Map<String, dynamic>> files,
@@ -419,15 +464,17 @@ class ActivityController extends GetxController {
       print('📤 Submitting activity: $activityId');
       print('📁 Files to submit: ${files.length}');
 
-      // Save submission to Firestore (without file upload for now)
+      // Get user data for student information
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+
+      // Create submission data
       final submissionData = {
-        'activityId': activityId,
         'studentId': user.uid,
         'studentName': user.displayName ?? 'Unknown Student',
-        'instructorId': currentInstructorUid.value,
-        'instructorName': currentInstructorName.value,
-        'files':
-            files.map((f) => f['name']).toList(), // Store file names for now
+        'studentEmail': user.email ?? '',
+        'studentIdNumber': userData['idNumber'] ?? '',
+        'files': files.map((f) => f['name']).toList(),
         'fileNames': files.map((f) => f['name']).toList(),
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'submitted',
@@ -435,16 +482,27 @@ class ActivityController extends GetxController {
         'feedback': null,
       };
 
-      await _firestore.collection('activity_submissions').add(submissionData);
+      // Use routing service to automatically route submission to correct instructor
+      final routingResult = await SubmissionRoutingService.routeSubmission(
+        activityId: activityId,
+        submissionType: 'activity',
+        submissionData: submissionData,
+      );
+
+      if (!routingResult['success']) {
+        throw Exception(routingResult['error'] ?? 'Failed to route submission');
+      }
 
       // Update submission status
       submissionStatus[activityId] = 'submitted';
 
-      print('✅ Activity submission completed successfully');
+      print('✅ Activity submission routed successfully');
+      print('📍 Routed to instructor: ${routingResult['instructorId']}');
+      print('📍 Section: ${routingResult['sectionId']}');
 
       Get.snackbar(
         'Success',
-        'Activity submitted successfully!',
+        'Activity submitted and routed to instructor!',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.green,
         colorText: Colors.white,
@@ -544,6 +602,32 @@ class ActivityController extends GetxController {
     } catch (e) {
       print('❌ Error checking submission status: $e');
       return 'not_submitted';
+    }
+  }
+
+  /// Load submission statuses for all activities
+  Future<void> loadSubmissionStatuses() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Clear existing statuses
+      submissionStatus.clear();
+
+      // Get status for each activity
+      for (final activity in activities) {
+        final activityId = activity['id']?.toString();
+        if (activityId != null) {
+          final status = await getSubmissionStatus(activityId);
+          submissionStatus[activityId] = status;
+        }
+      }
+
+      print(
+        '📊 Loaded submission statuses for ${activities.length} activities',
+      );
+    } catch (e) {
+      print('❌ Error loading submission statuses: $e');
     }
   }
 

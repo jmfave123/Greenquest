@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/online_status_service.dart';
 
 class LoginScreenController extends GetxController {
   // Firebase instances
@@ -26,8 +27,24 @@ class LoginScreenController extends GetxController {
 
   @override
   void onClose() {
-    emailController.dispose();
-    passwordController.dispose();
+    // Remove listeners before disposing to prevent errors
+    try {
+      emailController.removeListener(_validateFormRealTime);
+      passwordController.removeListener(_validateFormRealTime);
+      emailController.removeListener(_clearErrorOnInput);
+      passwordController.removeListener(_clearErrorOnInput);
+    } catch (e) {
+      debugPrint('Error removing listeners: $e');
+    }
+
+    // Dispose controllers safely
+    try {
+      emailController.dispose();
+      passwordController.dispose();
+    } catch (e) {
+      debugPrint('Error disposing controllers: $e');
+    }
+
     super.onClose();
   }
 
@@ -41,21 +58,31 @@ class LoginScreenController extends GetxController {
 
   // Clear error message when user starts typing
   void _clearErrorOnInput() {
-    if (errorMessage.value.isNotEmpty) {
-      errorMessage.value = '';
+    try {
+      if (errorMessage.value.isNotEmpty) {
+        errorMessage.value = '';
+      }
+    } catch (e) {
+      debugPrint('Error clearing error message: $e');
     }
   }
 
   // Real-time form validation
   void _validateFormRealTime() {
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+    // Check if controllers are still valid
+    try {
+      final email = emailController.text.trim();
+      final password = passwordController.text.trim();
 
-    isFormValid.value =
-        email.isNotEmpty &&
-        GetUtils.isEmail(email) &&
-        password.isNotEmpty &&
-        password.length >= 6;
+      isFormValid.value =
+          email.isNotEmpty &&
+          GetUtils.isEmail(email) &&
+          password.isNotEmpty &&
+          password.length >= 6;
+    } catch (e) {
+      debugPrint('Error in form validation: $e');
+      isFormValid.value = false;
+    }
   }
 
   // Validate form fields
@@ -119,11 +146,12 @@ class LoginScreenController extends GetxController {
         // Check if email is verified - but allow admin accounts to bypass this
         if (!user.emailVerified) {
           // Check if this is an admin account in Firestore
-          final adminQuery = await _firestore
-              .collection('admins')
-              .where('email', isEqualTo: email)
-              .limit(1)
-              .get();
+          final adminQuery =
+              await _firestore
+                  .collection('admins')
+                  .where('email', isEqualTo: email)
+                  .limit(1)
+                  .get();
 
           if (adminQuery.docs.isNotEmpty) {
             // Admin account - allow login even if email not verified
@@ -181,13 +209,16 @@ class LoginScreenController extends GetxController {
           final instructorData = instructorQuery.docs.first.data();
           final status = instructorData['status']?.toString() ?? 'Pending';
           final isActive = instructorData['isActive'] ?? false;
-          
+
           if (status == 'Approved' && isActive) {
             userType = 'instructor';
             debugPrint('Found approved instructor');
           } else {
-            debugPrint('Instructor not approved yet. Status: $status, Active: $isActive');
-            errorMessage.value = 'Your instructor account is pending admin approval. Please wait for approval before logging in.';
+            debugPrint(
+              'Instructor not approved yet. Status: $status, Active: $isActive',
+            );
+            errorMessage.value =
+                'Your instructor account is pending admin approval. Please wait for approval before logging in.';
             await _auth.signOut(); // Sign out from Firebase Auth
             return;
           }
@@ -205,6 +236,9 @@ class LoginScreenController extends GetxController {
           await _auth.signOut(); // Sign out from Firebase Auth
           return;
         }
+
+        // Set user as online after successful login
+        await OnlineStatusService().setOnline();
 
         // Show success message
         Get.snackbar(
@@ -289,10 +323,65 @@ class LoginScreenController extends GetxController {
     }
   }
 
+  // Forgot Password - Send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      // Send password reset email
+      await _auth.sendPasswordResetEmail(email: email);
+
+      // Close the dialog
+      Get.back();
+
+      // Show success message
+      Get.snackbar(
+        'Reset Link Sent',
+        'A password reset link has been sent to $email. Please check your inbox.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFF34A853),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+        icon: const Icon(Icons.check_circle, color: Colors.white),
+      );
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Password reset failed: ${e.code} - ${e.message}');
+
+      // Handle specific errors
+      String message = 'Failed to send reset email. Please try again.';
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No account found with this email address.';
+          break;
+        case 'invalid-email':
+          message = 'The email address is not valid.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many requests. Please try again later.';
+          break;
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
+          break;
+        default:
+          message = e.message ?? 'An error occurred. Please try again.';
+      }
+
+      // Re-throw with proper message for the dialog to catch
+      throw Exception(message);
+    } catch (e) {
+      debugPrint('Unexpected error in password reset: $e');
+      throw Exception('An unexpected error occurred. Please try again.');
+    }
+  }
+
   // Clear form data
   void clearForm() {
-    emailController.clear();
-    passwordController.clear();
+    // Check if controllers are still valid before using them
+    try {
+      emailController.clear();
+      passwordController.clear();
+    } catch (e) {
+      debugPrint('Error clearing controllers: $e');
+    }
+
     errorMessage.value = '';
     isFormValid.value = false;
   }
@@ -300,6 +389,41 @@ class LoginScreenController extends GetxController {
   // Clear error message
   void clearError() {
     errorMessage.value = '';
+  }
+
+  // Logout method
+  Future<void> logout() async {
+    try {
+      // Set user as offline before signing out
+      await OnlineStatusService().setOffline();
+
+      // Sign out from Firebase Auth
+      await _auth.signOut();
+
+      // Clear form data BEFORE disposing controllers
+      clearForm();
+
+      // Navigate to login screen
+      Get.offAllNamed('/login');
+
+      Get.snackbar(
+        'Logged Out',
+        'You have been successfully logged out.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      debugPrint('Logout error: $e');
+      Get.snackbar(
+        'Logout Error',
+        'An error occurred during logout. Please try again.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   // Auto-fill test credentials for easier testing
@@ -318,10 +442,11 @@ class LoginScreenController extends GetxController {
   Future<void> createTestAdmin() async {
     try {
       // First create Firebase Auth user
-      final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: 'admin@gmail.com',
-        password: 'admin123',
-      );
+      final UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(
+            email: 'admin@gmail.com',
+            password: 'admin123',
+          );
 
       // Send email verification
       await userCredential.user?.sendEmailVerification();
@@ -359,11 +484,12 @@ class LoginScreenController extends GetxController {
   Future<void> fixExistingAdmin() async {
     try {
       // Check if admin exists in Firestore
-      final adminQuery = await _firestore
-          .collection('admins')
-          .where('email', isEqualTo: 'admin@gmail.com')
-          .limit(1)
-          .get();
+      final adminQuery =
+          await _firestore
+              .collection('admins')
+              .where('email', isEqualTo: 'admin@gmail.com')
+              .limit(1)
+              .get();
 
       if (adminQuery.docs.isEmpty) {
         Get.snackbar(
@@ -376,14 +502,15 @@ class LoginScreenController extends GetxController {
       }
 
       // Create Firebase Auth user
-      final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: 'admin@gmail.com',
-        password: 'admin123',
-      );
+      final UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(
+            email: 'admin@gmail.com',
+            password: 'admin123',
+          );
 
       // Mark email as verified (since we're fixing an existing account)
       await userCredential.user?.updateDisplayName('Test Admin');
-      
+
       Get.snackbar(
         'Admin Fixed',
         'Firebase Auth user created for admin@gmail.com\nYou can now login!',
@@ -414,13 +541,18 @@ class LoginScreenController extends GetxController {
   // Create test instructor account for testing
   Future<void> createTestInstructor() async {
     try {
-      await _firestore.collection('instructors').add({
+      // Use a specific document ID to avoid duplicates
+      const String testInstructorId = 'test_instructor_123';
+
+      await _firestore.collection('instructors').doc(testInstructorId).set({
+        'uid': testInstructorId,
         'name': 'Test Instructor',
         'email': 'instructor@test.com',
         'password': '123456',
         'phone': '1234567890',
         'isActive': true,
         'isVerified': true,
+        'status': 'Approved',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });

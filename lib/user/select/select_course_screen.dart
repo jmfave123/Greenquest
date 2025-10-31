@@ -37,16 +37,28 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
     _groupAssignmentsByDepartment();
     // Listen to changes in instructor assignments
     controller.instructorAssignments.listen((_) {
-      _groupAssignmentsByDepartment();
+      print('Instructor assignments changed in select_course_screen');
+      print('New assignment count: ${controller.instructorAssignments.length}');
+      if (mounted) {
+        setState(() {
+          _groupAssignmentsByDepartment();
+        });
+      }
     });
   }
 
   void _groupAssignmentsByDepartment() {
+    print('Grouping assignments by department...');
+    print('Total assignments: ${controller.instructorAssignments.length}');
+
     groupedAssignments.clear();
     expandedDepartments.clear();
 
     for (var assignment in controller.instructorAssignments) {
       String departmentId = assignment['departmentId'] ?? '';
+      print(
+        'Processing assignment: ${assignment['departmentCode']}-${assignment['sectionCode']}',
+      );
 
       if (!groupedAssignments.containsKey(departmentId)) {
         groupedAssignments[departmentId] = [];
@@ -54,6 +66,8 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
       }
       groupedAssignments[departmentId]!.add(assignment);
     }
+
+    print('Grouped into ${groupedAssignments.length} departments');
   }
 
   void _toggleDepartment(String departmentId) {
@@ -61,15 +75,18 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
       expandedDepartments[departmentId] =
           !(expandedDepartments[departmentId] ?? false);
     });
+    // No need to fetch sections - they're already available in groupedAssignments
   }
 
   void _selectSection(String departmentId, String sectionCode) {
     setState(() {
+      // Clear any previous selection - user can only select ONE section total
       selectedDepartment = departmentId;
       selectedSectionCode = sectionCode;
     });
     // Update controller with selection
-    controller.selectSection(departmentId, sectionCode);
+    controller.selectedDepartmentId.value = departmentId;
+    controller.selectedSectionCode.value = sectionCode;
   }
 
   @override
@@ -77,6 +94,7 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Obx(() {
@@ -129,7 +147,7 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                 Obx(() {
                   if (controller.selectedInstructorName.value.isNotEmpty) {
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 20),
+                      margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF8F9FA),
@@ -235,7 +253,7 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                               expandedDepartments[departmentId] ?? false;
 
                           return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
+                            margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
@@ -249,7 +267,7 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                                 GestureDetector(
                                   onTap: () => _toggleDepartment(departmentId),
                                   child: Container(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: const EdgeInsets.all(12),
                                     child: Row(
                                       children: [
                                         Container(
@@ -314,78 +332,90 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                                         bottomRight: Radius.circular(12),
                                       ),
                                     ),
-                                    child: Column(
-                                      children:
-                                          sections.map<Widget>((section) {
-                                            String sectionCode =
-                                                section['sectionCode'] ?? '';
-                                            bool isSelected =
-                                                selectedDepartment ==
-                                                    departmentId &&
-                                                selectedSectionCode ==
-                                                    sectionCode;
+                                    child: Obx(
+                                      () => Column(
+                                        children:
+                                            (groupedAssignments[departmentId] ?? []).map<
+                                              Widget
+                                            >((assignment) {
+                                              String sectionCode =
+                                                  assignment['sectionCode'] ??
+                                                  '';
+                                              bool isSelected =
+                                                  controller
+                                                          .selectedDepartmentId
+                                                          .value ==
+                                                      departmentId &&
+                                                  controller
+                                                          .selectedSectionCode
+                                                          .value ==
+                                                      sectionCode;
 
-                                            return GestureDetector(
-                                              onTap:
-                                                  () => _selectSection(
-                                                    departmentId,
-                                                    sectionCode,
+                                              return GestureDetector(
+                                                onTap:
+                                                    () => _selectSection(
+                                                      departmentId,
+                                                      sectionCode,
+                                                    ),
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 8,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        isSelected
+                                                            ? const Color(
+                                                              0xFFE8F5E8,
+                                                            )
+                                                            : Colors
+                                                                .transparent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
                                                   ),
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 12,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      isSelected
-                                                          ? const Color(
-                                                            0xFFE8F5E8,
-                                                          )
-                                                          : Colors.transparent,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    const SizedBox(
-                                                      width: 66,
-                                                    ), // Align with department content
-                                                    Expanded(
-                                                      child: Text(
-                                                        'Section $sectionCode',
-                                                        style: TextStyle(
-                                                          fontSize: 14,
-                                                          fontWeight:
-                                                              isSelected
-                                                                  ? FontWeight
-                                                                      .w600
-                                                                  : FontWeight
-                                                                      .normal,
-                                                          color:
-                                                              isSelected
-                                                                  ? const Color(
-                                                                    0xFF34A853,
-                                                                  )
-                                                                  : Colors
-                                                                      .black87,
+                                                  child: Row(
+                                                    children: [
+                                                      const SizedBox(
+                                                        width: 66,
+                                                      ), // Align with department content
+                                                      Expanded(
+                                                        child: Text(
+                                                          'Section $sectionCode',
+                                                          style: TextStyle(
+                                                            fontSize: 14,
+                                                            fontWeight:
+                                                                isSelected
+                                                                    ? FontWeight
+                                                                        .w600
+                                                                    : FontWeight
+                                                                        .normal,
+                                                            color:
+                                                                isSelected
+                                                                    ? const Color(
+                                                                      0xFF34A853,
+                                                                    )
+                                                                    : Colors
+                                                                        .black87,
+                                                          ),
                                                         ),
                                                       ),
-                                                    ),
-                                                    if (isSelected)
-                                                      const Icon(
-                                                        Icons.check_circle,
-                                                        color: Color(
-                                                          0xFF34A853,
+                                                      if (isSelected)
+                                                        const Icon(
+                                                          Icons.check_circle,
+                                                          color: Color(
+                                                            0xFF34A853,
+                                                          ),
+                                                          size: 20,
                                                         ),
-                                                        size: 20,
-                                                      ),
-                                                  ],
+                                                    ],
+                                                  ),
                                                 ),
-                                              ),
-                                            );
-                                          }).toList(),
+                                              );
+                                            }).toList(),
+                                      ),
                                     ),
                                   ),
                               ],
@@ -394,65 +424,76 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                         }).toList(),
                   );
                 }),
-                const SizedBox(height: 10),
+                const SizedBox(height: 20),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed:
-                          selectedDepartment != null &&
-                                  selectedSectionCode != null
-                              ? () async {
-                                // Show loading indicator
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder:
-                                      (context) => const Center(
-                                        child: CircularProgressIndicator(
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Color(0xFF34A853),
-                                              ),
+                    child: Obx(
+                      () => ElevatedButton(
+                        onPressed:
+                            controller.selectedDepartmentId.value.isNotEmpty &&
+                                    controller
+                                        .selectedSectionCode
+                                        .value
+                                        .isNotEmpty
+                                ? () async {
+                                  // Show loading indicator
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder:
+                                        (context) => const Center(
+                                          child: CircularProgressIndicator(
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Color(0xFF34A853),
+                                                ),
+                                          ),
                                         ),
-                                      ),
-                                );
-
-                                try {
-                                  await controller.completeSelection();
-                                  // Close loading dialog
-                                  Navigator.of(context).pop();
-                                  // Navigate to home dashboard
-                                  Get.offAllNamed('/home');
-                                } catch (e) {
-                                  // Close loading dialog
-                                  Navigator.of(context).pop();
-                                  // Show error message
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Error completing selection: $e',
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
                                   );
+
+                                  try {
+                                    await controller.completeSelection();
+                                    // Close loading dialog
+                                    Navigator.of(context).pop();
+                                    // Navigate to home dashboard
+                                    Get.offAllNamed('/home');
+                                  } catch (e) {
+                                    // Close loading dialog
+                                    Navigator.of(context).pop();
+                                    // Show error message
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Error completing selection: $e',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 }
-                              }
-                              : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            selectedDepartment != null &&
-                                    selectedSectionCode != null
-                                ? const Color(0xFF43A047)
-                                : Colors.grey,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(56),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
+                                : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              controller
+                                          .selectedDepartmentId
+                                          .value
+                                          .isNotEmpty &&
+                                      controller
+                                          .selectedSectionCode
+                                          .value
+                                          .isNotEmpty
+                                  ? const Color(0xFF43A047)
+                                  : Colors.grey,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
                         ),
+                        child: const Text('Complete Selection'),
                       ),
-                      child: const Text('Complete Selection'),
                     ),
                   ),
                 ),

@@ -9,12 +9,14 @@ import '../../shared/widgets/safe_asset_image.dart';
 import 'assignment_screen.dart';
 import 'activity_screen.dart';
 import 'quiz_screen_new.dart';
+import 'pit_screen.dart';
+import 'material_screen.dart';
 import 'create_controller.dart';
 import 'quiz_controller.dart';
 import '../instructor_dashboard_controller.dart';
 
 class CreateScreen extends StatefulWidget {
-  const CreateScreen({Key? key}) : super(key: key);
+  const CreateScreen({super.key});
 
   @override
   State<CreateScreen> createState() => _CreateScreenState();
@@ -32,21 +34,35 @@ class _CreateScreenState extends State<CreateScreen>
   bool _showPeriodDropdown = false;
   String? _selectedType;
   String? _selectedPeriod;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
-  final List<String> _types = ['Assignment', 'Activity', 'Material', 'Quiz'];
+  final List<String> _types = [
+    'Assignment',
+    'Activity',
+    'Material',
+    'Quiz',
+    'PIT',
+  ];
   final List<String> _periods = ['Prelim', 'Midterm', 'Final'];
+  final List<String> _pitPeriods = ['Midterm', 'Final'];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Initial data load
-    _refreshData();
+    // Initial data load after build completes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _refreshData();
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -101,13 +117,27 @@ class _CreateScreenState extends State<CreateScreen>
       _selectedType = type;
       _selectedPeriod = null; // Reset period when type changes
 
-      if (type == 'Assignment' || type == 'Activity' || type == 'Quiz') {
+      if (type == 'Assignment' ||
+          type == 'Activity' ||
+          type == 'Quiz' ||
+          type == 'PIT') {
         // Show period dropdown first, don't navigate yet
         _showPeriodDropdown = true;
         // Keep type dropdown visible until period is selected
         _showTypeDropdown = true;
+      } else if (type == 'Material') {
+        // For Material, navigate directly without period selection
+        _showTypeDropdown = false;
+        _showPeriodDropdown = false;
+        _navigateToMaterial();
       }
     });
+  }
+
+  void _navigateToMaterial() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (context) => const MaterialScreen()))
+        .then((_) => _refreshData()); // Refresh data when returning
   }
 
   void _selectPeriod(String period) {
@@ -142,10 +172,16 @@ class _CreateScreenState extends State<CreateScreen>
             ),
           )
           .then((_) => _refreshData()); // Refresh data when returning
+    } else if (_selectedType == 'PIT') {
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(builder: (context) => PITScreen(period: period)),
+          )
+          .then((_) => _refreshData()); // Refresh data when returning
     }
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState([bool isSearching = false]) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -163,39 +199,57 @@ class _CreateScreenState extends State<CreateScreen>
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'No items created yet',
-            style: TextStyle(
+          Text(
+            isSearching ? 'No items found' : 'No items created yet',
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 20,
               color: Colors.black,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Create assignments, activities, materials, or quizzes for your classes.',
-            style: TextStyle(fontSize: 16, color: Colors.black54),
+          Text(
+            isSearching
+                ? 'Try adjusting your search query to find what you\'re looking for.'
+                : 'Create assignments, activities, materials, or quizzes for your classes.',
+            style: const TextStyle(fontSize: 16, color: Colors.black54),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _toggleTypeDropdown,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text(
-              'Create Your First Item',
-              style: TextStyle(color: Colors.white),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF34A853),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          if (!isSearching) ...[
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _toggleTypeDropdown,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                'Create Your First Item',
+                style: TextStyle(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF34A853),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
+  }
+
+  List<Map<String, dynamic>> _getFilteredItems() {
+    if (_searchQuery.isEmpty) {
+      return _createController.createdItems.toList();
+    }
+
+    return _createController.createdItems.where((item) {
+      final title = (item['title'] ?? '').toString().toLowerCase();
+      return title.contains(_searchQuery);
+    }).toList();
   }
 
   Widget _buildCreatedItemsList() {
@@ -228,7 +282,7 @@ class _CreateScreenState extends State<CreateScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${_createController.createdItems.length} items',
+                  '${_getFilteredItems().length} items',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -237,6 +291,60 @@ class _CreateScreenState extends State<CreateScreen>
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          // Search bar
+          Container(
+            width: double.infinity,
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              children: [
+                SafeAssetImage(
+                  assetPath: 'assets/instructor/icons/akar-icons_search.png',
+                  width: 20,
+                  color: Color(0xFFBDBDBD),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText:
+                          'Search by title (Assignment, Activity, Material, Quiz, PIT)...',
+                      border: InputBorder.none,
+                      hintStyle: TextStyle(color: Color(0xFFBDBDBD)),
+                    ),
+                    style: TextStyle(fontSize: 15),
+                    cursorColor: Colors.black54,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value.toLowerCase();
+                      });
+                    },
+                  ),
+                ),
+                if (_searchQuery.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.clear,
+                      size: 20,
+                      color: Color(0xFFBDBDBD),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _searchQuery = '';
+                        _searchController.clear();
+                      });
+                    },
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           // Error message
@@ -267,7 +375,8 @@ class _CreateScreenState extends State<CreateScreen>
                 ],
               ),
             ),
-          Expanded(
+          SizedBox(
+            height: 600, // Fixed height for the list area
             child:
                 _createController.isLoading.value
                     ? const Center(
@@ -290,12 +399,12 @@ class _CreateScreenState extends State<CreateScreen>
                         ],
                       ),
                     )
-                    : _createController.createdItems.isEmpty
-                    ? _buildEmptyState()
+                    : _getFilteredItems().isEmpty
+                    ? _buildEmptyState(_searchQuery.isNotEmpty)
                     : ListView.builder(
-                      itemCount: _createController.createdItems.length,
+                      itemCount: _getFilteredItems().length,
                       itemBuilder: (context, index) {
-                        final item = _createController.createdItems[index];
+                        final item = _getFilteredItems()[index];
                         return _buildCreatedItemCard(item);
                       },
                     ),
@@ -403,9 +512,12 @@ class _CreateScreenState extends State<CreateScreen>
                 if (item['instruction'] != null &&
                     item['instruction'].toString().isNotEmpty) ...[
                   Text(
-                    item['instruction'].toString().length > 100
-                        ? '${item['instruction'].toString().substring(0, 100)}...'
-                        : item['instruction'].toString(),
+                    () {
+                      final instruction = item['instruction'].toString();
+                      return instruction.length > 100
+                          ? '${instruction.substring(0, 100)}...'
+                          : instruction;
+                    }(),
                     style: const TextStyle(fontSize: 13, color: Colors.black54),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -414,9 +526,12 @@ class _CreateScreenState extends State<CreateScreen>
                 ] else if (item['description'] != null &&
                     item['description'].toString().isNotEmpty) ...[
                   Text(
-                    item['description'].toString().length > 100
-                        ? '${item['description'].toString().substring(0, 100)}...'
-                        : item['description'].toString(),
+                    () {
+                      final description = item['description'].toString();
+                      return description.length > 100
+                          ? '${description.substring(0, 100)}...'
+                          : description;
+                    }(),
                     style: const TextStyle(fontSize: 13, color: Colors.black54),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -587,6 +702,21 @@ class _CreateScreenState extends State<CreateScreen>
                       .then(
                         (_) => _refreshData(),
                       ); // Refresh data when returning
+                } else if (item['type'] == 'Material') {
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder:
+                              (context) => MaterialScreen(
+                                isEdit: true,
+                                itemId: item['id'],
+                                initialData: item,
+                              ),
+                        ),
+                      )
+                      .then(
+                        (_) => _refreshData(),
+                      ); // Refresh data when returning
                 }
               } else if (value == 'delete') {
                 // Show confirmation dialog
@@ -661,6 +791,8 @@ class _CreateScreenState extends State<CreateScreen>
         return Icons.description;
       case 'Quiz':
         return Icons.quiz_outlined;
+      case 'PIT':
+        return Icons.school;
       default:
         return Icons.description;
     }
@@ -688,11 +820,13 @@ class _CreateScreenState extends State<CreateScreen>
                         instructorName:
                             instructorController.instructorName.value,
                         instructorRole: 'Instructor',
+                        profileImageUrl:
+                            instructorController.profileImageUrl.value,
                       ),
                     ),
                     // Main content
                     Expanded(
-                      child: Padding(
+                      child: SingleChildScrollView(
                         padding: const EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,7 +906,7 @@ class _CreateScreenState extends State<CreateScreen>
 
                             const SizedBox(height: 48),
                             // Content Area - Shows either created items or empty state
-                            Expanded(child: _buildCreatedItemsList()),
+                            _buildCreatedItemsList(),
                           ],
                         ),
                       ),
@@ -813,59 +947,55 @@ class _CreateScreenState extends State<CreateScreen>
                         ),
                       ),
                     ),
-                    ..._types
-                        .map(
-                          (type) => GestureDetector(
-                            onTap: () => _selectType(type),
-                            child: Container(
-                              width: 160,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              margin: const EdgeInsets.only(
-                                bottom: 8,
-                                left: 8,
-                                right: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    _selectedType == type
-                                        ? const Color(
-                                          0xFF34A853,
-                                        ).withOpacity(0.1)
-                                        : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  SafeAssetImage(
-                                    assetPath:
-                                        type == 'Material'
-                                            ? 'assets/instructor/images/arcticons_onlyoffice-documents.png'
-                                            : 'assets/instructor/images/arcticons_documents.png',
-                                    width: 20,
-                                    height: 20,
-                                    color: Colors.black,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    type,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color:
-                                          _selectedType == type
-                                              ? Colors.black
-                                              : Colors.black45,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                    ..._types.map(
+                      (type) => GestureDetector(
+                        onTap: () => _selectType(type),
+                        child: Container(
+                          width: 160,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
-                        )
-                        .toList(),
+                          margin: const EdgeInsets.only(
+                            bottom: 8,
+                            left: 8,
+                            right: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                _selectedType == type
+                                    ? const Color(0xFF34A853).withOpacity(0.1)
+                                    : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              SafeAssetImage(
+                                assetPath:
+                                    type == 'Material'
+                                        ? 'assets/instructor/images/arcticons_onlyoffice-documents.png'
+                                        : 'assets/instructor/images/arcticons_documents.png',
+                                width: 20,
+                                height: 20,
+                                color: Colors.black,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                type,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color:
+                                      _selectedType == type
+                                          ? Colors.black
+                                          : Colors.black45,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                   ],
                 ),
@@ -875,7 +1005,8 @@ class _CreateScreenState extends State<CreateScreen>
           if (_showPeriodDropdown &&
               (_selectedType == 'Assignment' ||
                   _selectedType == 'Activity' ||
-                  _selectedType == 'Quiz'))
+                  _selectedType == 'Quiz' ||
+                  _selectedType == 'PIT'))
             Positioned(
               top: 350, // Same top position as type dropdown
               left: 500, // Position to the right of type dropdown with gap
@@ -905,50 +1036,46 @@ class _CreateScreenState extends State<CreateScreen>
                         ),
                       ),
                     ),
-                    ..._periods
-                        .map(
-                          (period) => GestureDetector(
-                            onTap: () => _selectPeriod(period),
-                            child: Container(
-                              width: 160,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              margin: const EdgeInsets.only(
-                                bottom: 8,
-                                left: 8,
-                                right: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    _selectedPeriod == period
-                                        ? const Color(
-                                          0xFF34A853,
-                                        ).withOpacity(0.1)
-                                        : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    period,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color:
-                                          _selectedPeriod == period
-                                              ? Colors.black
-                                              : Colors.black45,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                    ...(_selectedType == 'PIT' ? _pitPeriods : _periods).map(
+                      (period) => GestureDetector(
+                        onTap: () => _selectPeriod(period),
+                        child: Container(
+                          width: 160,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
-                        )
-                        .toList(),
+                          margin: const EdgeInsets.only(
+                            bottom: 8,
+                            left: 8,
+                            right: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                _selectedPeriod == period
+                                    ? const Color(0xFF34A853).withOpacity(0.1)
+                                    : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 12),
+                              Text(
+                                period,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color:
+                                      _selectedPeriod == period
+                                          ? Colors.black
+                                          : Colors.black45,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                   ],
                 ),

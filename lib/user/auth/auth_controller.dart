@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import '../../shared/services/online_status_service.dart';
 
 class AuthController extends GetxController {
   final _auth = FirebaseAuth.instance;
@@ -101,6 +102,9 @@ class AuthController extends GetxController {
       isLoggedIn = true;
       errorMessage = null;
 
+      // Set user as online after successful login
+      await OnlineStatusService().setOnline();
+
       return {
         'success': true,
         'message': 'Login successful!',
@@ -159,6 +163,20 @@ class AuthController extends GetxController {
 
   Future<void> logout() async {
     try {
+      // Set user as offline before signing out (with timeout)
+      try {
+        await OnlineStatusService().setOffline().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            log(
+              'OnlineStatusService.setOffline() timed out, continuing logout',
+            );
+          },
+        );
+      } catch (e) {
+        log('Error setting offline status: $e, continuing logout');
+      }
+
       // Sign out from Firebase Auth
       await _auth.signOut();
 
@@ -183,12 +201,39 @@ class AuthController extends GetxController {
     }
   }
 
-  Future<void> resetPassword(String email) async {
+  Future<Map<String, dynamic>> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
+      return {
+        'success': true,
+        'message':
+            'Password reset link sent to $email. Please check your inbox.',
+      };
     } on FirebaseAuthException catch (e) {
       log('Password reset error: ${e.message}');
-      rethrow;
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No account found with this email address.';
+          break;
+        case 'invalid-email':
+          message = 'The email address is not valid.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many requests. Please try again later.';
+          break;
+        default:
+          message =
+              e.message ?? 'Failed to send reset email. Please try again.';
+      }
+      return {'success': false, 'message': message, 'error': e.code};
+    } catch (e) {
+      log('Unexpected password reset error: $e');
+      return {
+        'success': false,
+        'message': 'An unexpected error occurred. Please try again.',
+        'error': e.toString(),
+      };
     }
   }
 

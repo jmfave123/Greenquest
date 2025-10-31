@@ -1,38 +1,161 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:greenquest/user/submit/assignment/assignment_controller.dart';
-import 'package:greenquest/user/submit/assignment/assignment_detail_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:greenquest/user/submit/quiz_new/quiz_controller.dart';
+import 'package:greenquest/user/submit/quiz_new/quiz_detail_screen.dart';
 
 class QuizListScreen extends StatefulWidget {
-  const QuizListScreen({Key? key}) : super(key: key);
+  const QuizListScreen({super.key});
 
   @override
   State<QuizListScreen> createState() => _QuizListScreenState();
 }
 
 class _QuizListScreenState extends State<QuizListScreen> {
-  AssignmentController? controller;
+  QuizController? controller;
 
   @override
   void initState() {
     super.initState();
     try {
-      controller = Get.put(AssignmentController(), permanent: false);
+      // Try to find existing controller first, if not found create new one
+      try {
+        controller = Get.find<QuizController>();
+      } catch (e) {
+        // Controller not found, create new one
+        controller = Get.put(QuizController(), permanent: true);
+      }
     } catch (e) {
-      print('Error initializing AssignmentController: $e');
+      print('Error initializing QuizController: $e');
     }
   }
 
   @override
   void dispose() {
-    try {
-      if (controller != null) {
-        Get.delete<AssignmentController>();
-      }
-    } catch (e) {
-      print('Error disposing AssignmentController: $e');
-    }
+    // Don't delete the controller as it's permanent
     super.dispose();
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color badgeColor;
+    String badgeText;
+    IconData badgeIcon;
+
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        badgeColor = const Color(0xFF2196F3); // Blue
+        badgeText = 'Submitted';
+        badgeIcon = Icons.check_circle;
+        break;
+      case 'draft':
+        badgeColor = const Color(0xFFFF9800); // Orange
+        badgeText = 'Draft';
+        badgeIcon = Icons.edit;
+        break;
+      case 'graded':
+        badgeColor = const Color(0xFF34A853); // Green
+        badgeText = 'Graded';
+        badgeIcon = Icons.star;
+        break;
+      case 'needs_revision':
+        badgeColor = const Color(0xFFF44336); // Red
+        badgeText = 'Revise';
+        badgeIcon = Icons.refresh;
+        break;
+      default: // 'not_submitted'
+        badgeColor = const Color(0xFF9E9E9E); // Gray
+        badgeText = 'Not Started';
+        badgeIcon = Icons.radio_button_unchecked;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(badgeIcon, color: Colors.white, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            badgeText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDisplayDate(dynamic dateData) {
+    if (dateData == null) return 'Unknown Date';
+
+    if (dateData is String) {
+      if (dateData.contains(' ') &&
+          !dateData.contains('T') &&
+          !dateData.contains('-')) {
+        return dateData;
+      }
+    }
+
+    try {
+      DateTime date;
+      if (dateData is DateTime) {
+        date = dateData;
+      } else if (dateData is String) {
+        if (dateData.contains('T')) {
+          date = DateTime.parse(dateData);
+        } else if (dateData.contains('-')) {
+          date = DateTime.parse(dateData);
+        } else {
+          date = DateTime.parse(dateData);
+        }
+      } else if (dateData is Timestamp) {
+        date = dateData.toDate();
+      } else {
+        return 'Unknown Date';
+      }
+
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      final month = months[date.month - 1];
+      final day = date.day.toString().padLeft(2, '0');
+      final year = date.year;
+
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
+    } catch (e) {
+      print('Error formatting date: $e');
+      return 'Unknown Date';
+    }
   }
 
   @override
@@ -102,7 +225,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
             icon: const Icon(Icons.refresh, color: Colors.black),
             onPressed: () async {
               if (controller != null) {
-                await controller!.refreshAssignments();
+                await controller!.refreshQuizzes();
               }
             },
             tooltip: 'Refresh quizzes',
@@ -140,7 +263,52 @@ class _QuizListScreenState extends State<QuizListScreen> {
                   );
                 }
 
-                if (controller!.assignments.isEmpty) {
+                // Show error message if there's an error
+                if (controller!.errorMessage.value.isNotEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error Loading Quizzes',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            controller!.errorMessage.value,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            controller!.clearError();
+                            controller!.refreshQuizzes();
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (controller!.quizzes.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -181,12 +349,12 @@ class _QuizListScreenState extends State<QuizListScreen> {
                     horizontal: 16,
                     vertical: 16,
                   ),
-                  itemCount: controller!.assignments.length,
+                  itemCount: controller!.quizzes.length,
                   itemBuilder: (context, i) {
-                    final assignment = controller!.assignments[i];
+                    final quiz = controller!.quizzes[i];
 
-                    // Validate assignment data before navigation
-                    if (assignment.isEmpty) {
+                    // Validate quiz data before navigation
+                    if (quiz.isEmpty) {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(12),
@@ -205,16 +373,14 @@ class _QuizListScreenState extends State<QuizListScreen> {
 
                     return GestureDetector(
                       onTap: () {
-                        // Double-check assignment is valid before navigation
-                        if (assignment.isNotEmpty) {
-                          controller!.setSelectedAssignment(assignment);
+                        // Double-check quiz is valid before navigation
+                        if (quiz.isNotEmpty) {
+                          controller!.setSelectedQuiz(quiz);
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder:
-                                  (_) => AssignmentDetailScreen(
-                                    assignment: assignment,
-                                  ),
+                                  (_) => QuizDetailScreen(assignment: quiz),
                             ),
                           );
                         }
@@ -255,7 +421,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${assignment['instructorName']} posted new quiz: ${assignment['title']}',
+                                    '${quiz['instructorName']} posted new quiz: ${quiz['title']}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w500,
                                       fontSize: 15,
@@ -265,7 +431,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    assignment['createdAt'] ?? 'Unknown Date',
+                                    _formatDisplayDate(quiz['createdAt']),
                                     style: const TextStyle(
                                       color: Colors.grey,
                                       fontSize: 13,
@@ -274,6 +440,15 @@ class _QuizListScreenState extends State<QuizListScreen> {
                                 ],
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            // Status Badge
+                            Obx(() {
+                              final quizId = quiz['id']?.toString();
+                              final status =
+                                  controller?.submissionStatus[quizId] ??
+                                  'not_submitted';
+                              return _buildStatusBadge(status);
+                            }),
                           ],
                         ),
                       ),

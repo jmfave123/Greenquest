@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,7 +8,7 @@ import 'package:get/get.dart';
 class SelectController extends GetxController {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
-  RxList instructors = [{}].obs;
+  RxList instructors = [].obs;
   RxList courses = [{}].obs;
   RxList departments = [{}].obs;
   RxList sections = [{}].obs;
@@ -19,15 +20,39 @@ class SelectController extends GetxController {
   RxString selectedDepartmentId = ''.obs;
   RxString selectedSectionCode = ''.obs;
   RxString studentName = ''.obs; // currently logged-in student name
+  RxString searchQuery = ''.obs; // search query for instructors
+
+  StreamSubscription<DocumentSnapshot>? _instructorSubscription;
 
   @override
   void onInit() {
     super.onInit();
-    getCourses(); // Automatically fetch courses when controller is created
-    getInstructors(); // Automatically fetch instructors when controller is created
-    getDepartments(); // Fetch departments
-    _loadCurrentStudentName(); // Load current student name
-    checkUserSelectionStatus(); // Check if user has already completed selection
+    // Load initial data needed by the selection screens
+    getInstructors();
+    getCourses();
+    getDepartments();
+    // Check if the user already has a selection (for navigation purposes only)
+    checkUserSelectionStatus();
+  }
+
+  // Computed property for filtered instructors
+  RxList get filteredInstructors {
+    if (searchQuery.value.isEmpty) {
+      return instructors;
+    }
+    return instructors
+        .where((instructor) {
+          final name = instructor['name']?.toString().toLowerCase() ?? '';
+          return name.contains(searchQuery.value.toLowerCase());
+        })
+        .toList()
+        .obs;
+  }
+
+  @override
+  void onClose() {
+    _instructorSubscription?.cancel();
+    super.onClose();
   }
 
   Future<void> getInstructors() async {
@@ -39,11 +64,30 @@ class SelectController extends GetxController {
       }
       QuerySnapshot querySnapshot =
           await _firestore.collection('instructors').get();
+
+      // Filter out instructors without names and ensure they have required fields
       instructors.value =
-          querySnapshot.docs.map((doc) {
-            return {'uid': doc.id, ...doc.data() as Map<String, dynamic>};
-          }).toList();
-      // log(instructors.toString());
+          querySnapshot.docs
+              .map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return {
+                  'uid': doc.id,
+                  ...data,
+                  // Ensure profile image URL is available
+                  'profileImageUrl':
+                      data['profileImageUrl'] ??
+                      data['profileImage'] ??
+                      data['img'],
+                };
+              })
+              .where((instructor) {
+                // Only include instructors that have a name and it's not empty
+                String name = instructor['name'] ?? '';
+                return name.isNotEmpty && name.trim().isNotEmpty;
+              })
+              .toList();
+
+      log('Loaded ${instructors.length} instructors with names');
     } catch (e) {
       log('Error fetching instructors: $e');
     } finally {
@@ -88,34 +132,59 @@ class SelectController extends GetxController {
     }
   }
 
-  Future<void> getSectionsByDepartment(String departmentId) async {
-    try {
-      QuerySnapshot querySnapshot =
-          await _firestore
-              .collection('sections')
-              .where('departmentId', isEqualTo: departmentId)
-              .get();
-      sections.value =
-          querySnapshot.docs.map((doc) {
-            return {'uid': doc.id, ...doc.data() as Map<String, dynamic>};
-          }).toList();
-    } catch (e) {
-      log('Error fetching sections: $e');
-    }
-  }
-
   Future<void> selectInstructor(
     String instructorId,
     String instructorName,
   ) async {
     try {
+      log('==================== SELECT INSTRUCTOR ====================');
+      log('Instructor ID: $instructorId');
+      log('Instructor Name: $instructorName');
+
       selectedInstructorId.value = instructorId;
       selectedInstructorName.value = instructorName;
 
+      // Cancel previous subscription
+      _instructorSubscription?.cancel();
+      log('Cancelled previous subscription');
+
       // Save instructor selection immediately to user document
       await saveInstructorSelection();
+      log('Saved instructor selection to user document');
 
-      // Get instructor assignments
+      // Listen to instructor document changes for real-time updates
+      log('Setting up Firestore listener for instructor: $instructorId');
+      _instructorSubscription = _firestore
+          .collection('instructors')
+          .doc(instructorId)
+          .snapshots()
+          .listen((instructorDoc) {
+            log('--- Firestore snapshot received ---');
+            if (instructorDoc.exists) {
+              Map<String, dynamic> data =
+                  instructorDoc.data() as Map<String, dynamic>;
+              List<Map<String, dynamic>> newAssignments =
+                  List<Map<String, dynamic>>.from(data['assignments'] ?? []);
+              log(
+                'New assignments from Firestore: ${newAssignments.length} items',
+              );
+              for (var assignment in newAssignments) {
+                log(
+                  '  - ${assignment['departmentCode']}-${assignment['sectionCode']}',
+                );
+              }
+
+              instructorAssignments.value = newAssignments;
+              log('Updated instructorAssignments observable');
+
+              // Sections will be loaded on-demand when departments are expanded
+            } else {
+              log('Instructor document does not exist!');
+            }
+          });
+
+      // Initial load
+      log('Performing initial load of instructor data...');
       DocumentSnapshot instructorDoc =
           await _firestore.collection('instructors').doc(instructorId).get();
 
@@ -125,14 +194,16 @@ class SelectController extends GetxController {
         instructorAssignments.value = List<Map<String, dynamic>>.from(
           data['assignments'] ?? [],
         );
+        log('Initial load: ${instructorAssignments.length} assignments');
 
-        // Load sections for each assignment
-        for (var assignment in instructorAssignments) {
-          await getSectionsByDepartment(assignment['departmentId']);
-        }
+        // Sections will be loaded on-demand when departments are expanded
+      } else {
+        log('Instructor document not found on initial load');
       }
+
+      log('==========================================================');
     } catch (e) {
-      log('Error selecting instructor: $e');
+      log('✗ Error selecting instructor: $e');
     }
   }
 
@@ -141,12 +212,12 @@ class SelectController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      // Save user selection to Firestore
-      await _firestore.collection('instructors').doc(user.uid).set({
-        'instructorId': selectedInstructorId.value,
-        'instructorName': selectedInstructorName.value,
-        'assignments': instructorAssignments.toList(),
-        'isComplete': true,
+      // Save user selection to Firestore (in users collection, not instructors)
+      await _firestore.collection('users').doc(user.uid).update({
+        'selectedInstructorId': selectedInstructorId.value,
+        'selectedInstructorName': selectedInstructorName.value,
+        'instructorAssignments': instructorAssignments.toList(),
+        'selectionComplete': true,
         'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -159,11 +230,13 @@ class SelectController extends GetxController {
         'selectedInstructorName': selectedInstructorName.value,
         'selectedSectionCode': selectedSectionCode.value,
         'selectionComplete': true,
+        'enrollmentStatus': 'pending', // Set as pending for instructor approval
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Enroll student in instructor's classes
-      await _enrollStudentInInstructorClasses();
+      // NOTE: Students are now only created in instructors/{instructorId}/students
+      // AFTER instructor approval. No need to enroll in classes subcollection.
+      // await _enrollStudentInInstructorClasses();
 
       log('Selection completed successfully');
     } catch (e) {
@@ -190,21 +263,6 @@ class SelectController extends GetxController {
     }
   }
 
-  // Loads the currently authenticated student's display name for UI
-  Future<void> _loadCurrentStudentName() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (!userDoc.exists) return;
-      final data = userDoc.data() as Map<String, dynamic>;
-      studentName.value =
-          data['name'] ?? data['displayName'] ?? data['fullName'] ?? '';
-    } catch (e) {
-      log('Error loading student name: $e');
-    }
-  }
-
   Future<void> checkUserSelectionStatus() async {
     try {
       final user = _auth.currentUser;
@@ -216,30 +274,27 @@ class SelectController extends GetxController {
 
       if (userDoc.exists) {
         Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-        String instructorId = userData['selectedInstructorId'] ?? '';
-        String instructorName = userData['selectedInstructorName'] ?? '';
+        String enrollmentStatus = userData['enrollmentStatus'] ?? 'none';
+        bool selectionComplete = userData['selectionComplete'] ?? false;
 
-        if (instructorId.isNotEmpty) {
-          selectedInstructorId.value = instructorId;
-          selectedInstructorName.value = instructorName;
-        }
-      }
-
-      // Check selection completion status
-      DocumentSnapshot selectionDoc =
-          await _firestore.collection('instructors').doc(user.uid).get();
-
-      if (selectionDoc.exists) {
-        Map<String, dynamic> data = selectionDoc.data() as Map<String, dynamic>;
-        bool isComplete = data['isComplete'] ?? false;
-
-        if (isComplete) {
+        // If user is approved, they don't need to select again
+        if (selectionComplete && enrollmentStatus == 'approved') {
           isSelectionComplete.value = true;
-          instructorAssignments.value = List<Map<String, dynamic>>.from(
-            data['assignments'] ?? [],
-          );
+          // Navigate directly to home
+          Get.offAllNamed('/home');
+          return;
+        }
+
+        // If user is pending or rejected, show appropriate screen
+        if (selectionComplete &&
+            (enrollmentStatus == 'pending' || enrollmentStatus == 'rejected')) {
+          Get.offAllNamed('/pending-approval');
+          return;
         }
       }
+
+      // Check selection completion status from users collection
+      // (This is now handled in the user document check above)
     } catch (e) {
       log('Error checking selection status: $e');
     }
@@ -278,6 +333,11 @@ class SelectController extends GetxController {
         // Try to get the selected section from user data or use a default
         String sectionCode = userData['selectedSectionCode'] ?? 'BSIT-4D';
         selectedSectionCode.value = sectionCode;
+
+        // Get instructor assignments from user data
+        instructorAssignments.value = List<Map<String, dynamic>>.from(
+          userData['instructorAssignments'] ?? [],
+        );
 
         // Enroll the student
         await _enrollStudentInInstructorClasses();
@@ -358,6 +418,8 @@ class SelectController extends GetxController {
                   'studentName': studentName,
                   'enrolledAt': FieldValue.serverTimestamp(),
                   'isActive': true,
+                  'enrollmentStatus':
+                      'pending', // Set as pending for instructor approval
                 });
 
             log('Student $studentName enrolled in class $classSection');
@@ -372,33 +434,39 @@ class SelectController extends GetxController {
       // If no classes found in instructor's classes collection,
       // try to find or create a class based on the selected section
       if (!enrolled) {
-        // Look for existing class with this section
+        // Extract section code from selectedSectionCode (e.g., "BSIT-4D" -> "4D")
+        String selectedSectionOnly = selectedSectionCode.value;
+        if (selectedSectionOnly.contains('-')) {
+          selectedSectionOnly = selectedSectionOnly.split('-').last;
+        }
+
+        // Look for existing class with this section (use section part only)
         QuerySnapshot existingClasses =
             await _firestore
                 .collection('instructors')
                 .doc(selectedInstructorId.value)
                 .collection('classes')
-                .where('section', isEqualTo: selectedSectionCode.value)
+                .where('section', isEqualTo: selectedSectionOnly)
                 .get();
 
         String classId;
         if (existingClasses.docs.isNotEmpty) {
           classId = existingClasses.docs.first.id;
         } else {
-          // Create a new class for this section
+          // Create a new class for this section (use section part only)
           DocumentReference newClassRef = await _firestore
               .collection('instructors')
               .doc(selectedInstructorId.value)
               .collection('classes')
               .add({
-                'section': selectedSectionCode.value,
+                'section': selectedSectionOnly,
                 'instructorId': selectedInstructorId.value,
                 'instructorName': selectedInstructorName.value,
                 'createdAt': FieldValue.serverTimestamp(),
                 'isActive': true,
               });
           classId = newClassRef.id;
-          log('Created new class for section ${selectedSectionCode.value}');
+          log('Created new class for section $selectedSectionOnly');
         }
 
         // Enroll student in this class
@@ -414,11 +482,11 @@ class SelectController extends GetxController {
               'studentName': studentName,
               'enrolledAt': FieldValue.serverTimestamp(),
               'isActive': true,
+              'enrollmentStatus':
+                  'pending', // Set as pending for instructor approval
             });
 
-        log(
-          'Student $studentName enrolled in section ${selectedSectionCode.value}',
-        );
+        log('Student $studentName enrolled in section $selectedSectionOnly');
       }
     } catch (e) {
       log('Error enrolling student in classes: $e');

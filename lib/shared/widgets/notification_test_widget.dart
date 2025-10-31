@@ -3,7 +3,7 @@ import '../services/notification_service.dart';
 import '../utils/notification_helper.dart';
 
 class NotificationTestWidget extends StatelessWidget {
-  const NotificationTestWidget({Key? key}) : super(key: key);
+  const NotificationTestWidget({super.key});
 
   @override
   Widget build(BuildContext context) {

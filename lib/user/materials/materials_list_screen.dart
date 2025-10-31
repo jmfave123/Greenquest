@@ -1,143 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../shared/login/custom_drawer.dart';
-import 'materials_detail_screen.dart';
 import 'materials_list_screen_controller.dart';
+import 'materials_detail_screen.dart';
 
 class MaterialsListScreen extends StatefulWidget {
-  const MaterialsListScreen({Key? key}) : super(key: key);
+  const MaterialsListScreen({super.key});
 
   @override
   State<MaterialsListScreen> createState() => _MaterialsListScreenState();
 }
 
 class _MaterialsListScreenState extends State<MaterialsListScreen> {
-  int selectedDrawerIndex = 3;
   MaterialsListScreenController? controller;
 
   @override
   void initState() {
     super.initState();
-    // Initialize controller with proper error handling
-    try {
-      controller = Get.put(MaterialsListScreenController(), permanent: false);
-    } catch (e) {
-      print('Error initializing controller: $e');
-      // Fallback: try to find existing controller
-      try {
-        controller = Get.find<MaterialsListScreenController>();
-      } catch (e2) {
-        print('Error finding existing controller: $e2');
-        controller = null;
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    try {
-      if (controller != null) {
-        Get.delete<MaterialsListScreenController>();
-      }
-    } catch (e) {
-      print('Error disposing controller: $e');
-    }
-    super.dispose();
+    controller = Get.put(MaterialsListScreenController());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: CustomDrawer(
-        selectedIndex: selectedDrawerIndex,
-        onSelect: (i) {
-          setState(() => selectedDrawerIndex = i);
-          Navigator.pop(context);
-        },
-      ),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Builder(
-          builder:
-              (context) => IconButton(
-                icon: const Icon(Icons.menu, color: Colors.black),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              ),
+        title: const Text(
+          'Materials',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        title:
-            controller == null
-                ? const Text(
-                  'Materials',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                  ),
-                )
-                : Obx(
-                  () => Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        controller!.currentInstructorUid.value.isNotEmpty
-                            ? 'Materials'
-                            : 'All Materials',
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (controller!.currentInstructorUid.value.isNotEmpty &&
-                          controller!.currentInstructorName.value.isNotEmpty)
-                        Text(
-                          'by ${controller!.currentInstructorName.value}',
-                          style: const TextStyle(
-                            color: Colors.black54,
-                            fontSize: 12,
-                            fontWeight: FontWeight.normal,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-        centerTitle: true,
+        backgroundColor: const Color(0xFF34A853),
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.swap_horiz, color: Colors.black),
             onPressed: () {
-              if (controller != null) {
-                if (controller!.currentInstructorUid.value.isNotEmpty) {
-                  // Switch to all materials
-                  controller!.currentInstructorUid.value = '';
-                  controller!.currentInstructorName.value = '';
-                  controller!.loadMaterials();
-                } else {
-                  // Switch to selected instructor materials
-                  controller!.loadCurrentInstructorMaterials();
-                }
-              }
+              controller?.loadCurrentInstructorMaterials();
             },
-            tooltip:
-                'Toggle between Selected Instructor Materials and All Materials',
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh',
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: () {
-              if (controller != null) {
-                controller!.refreshMaterials();
-              }
-            },
-            tooltip: 'Refresh Materials',
-          ),
-          // IconButton(
-          //   icon: const Icon(Icons.bug_report, color: Colors.black),
-          //   onPressed: () {
-          //     if (controller != null) {
-          //       _showDebugInfo();
-          //     }
-          //   },
-          //   tooltip: 'Debug Info',
-          // ),
         ],
       ),
       backgroundColor: Colors.white,
@@ -202,6 +101,27 @@ class _MaterialsListScreenState extends State<MaterialsListScreen> {
                             color: Colors.grey,
                           ),
                         ),
+                        if (controller!.userSectionCode.value.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF34A853).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              'Filtered for section: ${controller!.userSectionCode.value}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF34A853),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   );
@@ -209,149 +129,205 @@ class _MaterialsListScreenState extends State<MaterialsListScreen> {
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    final isTablet = constraints.maxWidth > 600;
-                    final crossAxisCount = isTablet ? 3 : 2;
-                    final childAspectRatio = isTablet ? 0.8 : 0.75;
-                    final gridPadding = isTablet ? 32.0 : 16.0;
-                    return Column(
-                      children: [
-                        Expanded(
-                          child: GridView.builder(
-                            padding: EdgeInsets.all(gridPadding),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: crossAxisCount,
-                                  crossAxisSpacing: gridPadding,
-                                  mainAxisSpacing: gridPadding,
-                                  childAspectRatio: childAspectRatio,
+                    final screenWidth = constraints.maxWidth;
+                    final isMobile = screenWidth < 600;
+                    final isTablet = screenWidth >= 600 && screenWidth < 1200;
+
+                    // Modern responsive configuration
+                    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+                    final childAspectRatio =
+                        2.2; // Much wider ratio to reduce height
+                    final gridPadding =
+                        isMobile ? 20.0 : (isTablet ? 24.0 : 32.0);
+                    final cardPadding =
+                        isMobile ? 6.0 : (isTablet ? 8.0 : 10.0);
+                    final titleFontSize =
+                        isMobile ? 16.0 : (isTablet ? 18.0 : 20.0);
+                    final descriptionFontSize =
+                        isMobile ? 12.0 : (isTablet ? 14.0 : 16.0);
+                    final iconSize = isMobile ? 14.0 : (isTablet ? 16.0 : 18.0);
+
+                    return SafeArea(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                        ),
+                        child: GridView.builder(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: gridPadding,
+                            vertical: gridPadding,
+                          ),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: isMobile ? 12.0 : 16.0,
+                                mainAxisSpacing: gridPadding,
+                                childAspectRatio: childAspectRatio,
+                              ),
+                          itemCount: controller!.materials.length,
+                          itemBuilder: (context, i) {
+                            final material = controller!.materials[i];
+
+                            // Validate material data before navigation
+                            if (material.isEmpty) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(18),
                                 ),
-                            itemCount: controller!.materials.length,
-                            itemBuilder: (context, i) {
-                              final material = controller!.materials[i];
+                                child: const Center(
+                                  child: Text('Invalid Material'),
+                                ),
+                              );
+                            }
 
-                              // Validate material data before navigation
-                              if (material.isEmpty) {
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[100],
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  child: const Center(
-                                    child: Text(
-                                      'Invalid Material',
-                                      style: TextStyle(color: Colors.grey),
+                            return GestureDetector(
+                              onTap: () {
+                                // Double-check material is valid before navigation
+                                if (material.isNotEmpty) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder:
+                                          (_) => MaterialsDetailScreen(
+                                            material: material,
+                                          ),
                                     ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF34A853,
+                                    ).withOpacity(0.1),
+                                    width: 1,
                                   ),
-                                );
-                              }
-
-                              return GestureDetector(
-                                onTap: () {
-                                  // Double-check material is valid before navigation
-                                  if (material.isNotEmpty) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder:
-                                            (_) => MaterialsDetailScreen(
-                                              material: material,
-                                            ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(18),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 6,
-                                        offset: Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF34A853,
+                                      ).withOpacity(0.08),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.all(cardPadding),
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      ClipRRect(
-                                        borderRadius: const BorderRadius.only(
-                                          topLeft: Radius.circular(18),
-                                          topRight: Radius.circular(18),
-                                        ),
-                                        child: _getMaterialImage(
-                                          material['topic'],
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: EdgeInsets.all(
-                                          isTablet ? 18 : 12,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              material['title'],
+                                      // Header with title and status
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 4,
+                                            height: 20,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF34A853),
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              (material['title'] ?? 'No Title')
+                                                  .toString(),
                                               style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: isTablet ? 17 : 15,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: titleFontSize,
+                                                color: Colors.black87,
                                               ),
                                               maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                             ),
-                                            SizedBox(height: isTablet ? 8 : 6),
-                                            Text(
-                                              material['topic'],
-                                              style: TextStyle(
-                                                fontSize: isTablet ? 13 : 11,
-                                                color: Colors.black54,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+
+                                      // Description
+                                      Text(
+                                        (material['description'] ??
+                                                'No description')
+                                            .toString(),
+                                        style: TextStyle(
+                                          fontSize: descriptionFontSize,
+                                          color: Colors.black54,
+                                          height: 1.2,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+
+                                      const Spacer(),
+
+                                      // Footer with date and instructor
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.05),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.access_time,
+                                              color: const Color(0xFF34A853),
+                                              size: iconSize - 2,
                                             ),
-                                            SizedBox(
-                                              height: isTablet ? 14 : 10,
-                                            ),
-                                            const Divider(
-                                              height: 1,
-                                              thickness: 1,
-                                              color: Color(0xFFE0E0E0),
-                                            ),
-                                            SizedBox(
-                                              height: isTablet ? 14 : 10,
-                                            ),
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.circle,
-                                                  color: Color(0xFF34A853),
-                                                  size: 12,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  material['createdAt'] ??
-                                                      'Unknown Date',
-                                                  style: TextStyle(
-                                                    color: Color(0xFF34A853),
-                                                    fontSize:
-                                                        isTablet ? 10 : 10,
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text(
+                                                (material['createdAt'] ??
+                                                        'Unknown Date')
+                                                    .toString(),
+                                                style: TextStyle(
+                                                  color: const Color(
+                                                    0xFF34A853,
                                                   ),
+                                                  fontSize:
+                                                      descriptionFontSize - 1,
+                                                  fontWeight: FontWeight.w500,
                                                 ),
-                                              ],
-                                            ),
-                                            SizedBox(height: isTablet ? 8 : 6),
-                                            Text(
-                                              'By: ${material['instructorName']}',
-                                              style: TextStyle(
-                                                fontSize: isTablet ? 12 : 10,
-                                                color: Colors.black54,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Icon(
+                                              Icons.person_outline,
+                                              color: Colors.black54,
+                                              size: iconSize - 2,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                (material['instructorName'] ??
+                                                        'Unknown Instructor')
+                                                    .toString(),
+                                                style: TextStyle(
+                                                  fontSize:
+                                                      descriptionFontSize - 1,
+                                                  color: Colors.black54,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -359,155 +335,15 @@ class _MaterialsListScreenState extends State<MaterialsListScreen> {
                                     ],
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            );
+                          },
                         ),
-                      ],
+                      ),
                     );
                   },
                 );
               }),
-    );
-  }
-
-  /// Show debug information
-  void _showDebugInfo() {
-    if (controller == null) return;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Debug Information'),
-            content: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Current Instructor UID: ${controller!.currentInstructorUid.value}',
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Current Instructor Name: ${controller!.currentInstructorName.value}',
-                  ),
-                  const SizedBox(height: 8),
-                  Text('Materials Count: ${controller!.materials.length}'),
-                  const SizedBox(height: 8),
-                  Text('Is Loading: ${controller!.isLoading.value}'),
-                  const SizedBox(height: 8),
-                  Text('Error Message: ${controller!.errorMessage.value}'),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Materials:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ...controller!.materials
-                      .take(5)
-                      .map(
-                        (material) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            '• ${material['title']} - ${material['topic']}',
-                          ),
-                        ),
-                      ),
-                  if (controller!.materials.length > 5)
-                    Text('... and ${controller!.materials.length - 5} more'),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  controller!.loadCurrentInstructorMaterials();
-                },
-                child: const Text('Reload'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // Test with the specific instructor from the image
-                  controller!.testLoadMaterialsForInstructor(
-                    '6df36lEI0GPbSRCLSHDyZPQMFrn2',
-                  );
-                },
-                child: const Text('Test Load'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // List all instructors for debugging
-                  controller!.listAllInstructors();
-                },
-                child: const Text('List Instructors'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // Load materials for the specific instructor from Firestore image
-                  controller!.loadMaterialsForInstructorByUid(
-                    '6df36lEI0GPbSRCLSHDyZPQMFrn2',
-                  );
-                },
-                child: const Text('Load Test Materials'),
-              ),
-            ],
-          ),
-    );
-  }
-
-  /// Get appropriate image based on material topic
-  Widget _getMaterialImage(String topic) {
-    // Default images based on topic
-    String imagePath;
-    double imageHeight = 120.0;
-
-    if (topic.toLowerCase().contains('climate') ||
-        topic.toLowerCase().contains('environment') ||
-        topic.toLowerCase().contains('change')) {
-      imagePath = 'assets/images/image 328.png';
-    } else if (topic.toLowerCase().contains('deforestation') ||
-        topic.toLowerCase().contains('forest') ||
-        topic.toLowerCase().contains('understanding')) {
-      imagePath = 'assets/images/engineering-supplies-blueprint 2.png';
-    } else if (topic.toLowerCase().contains('renewable') ||
-        topic.toLowerCase().contains('energy')) {
-      imagePath = 'assets/images/image 328.png';
-    } else {
-      // Default to climate change image for better visual appeal
-      imagePath = 'assets/images/image 328.png';
-    }
-
-    return Image.asset(
-      imagePath,
-      height: imageHeight,
-      width: double.infinity,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          height: imageHeight,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF34A853).withOpacity(0.8),
-                const Color(0xFF34A853).withOpacity(0.4),
-              ],
-            ),
-          ),
-          child: const Icon(Icons.library_books, size: 40, color: Colors.white),
-        );
-      },
     );
   }
 }

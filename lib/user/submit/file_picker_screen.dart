@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/controllers/file_submission_controller.dart';
 import '../../shared/services/file_upload_service.dart';
+import 'submission_success_screen.dart';
 
 class FilePickerScreen extends StatefulWidget {
   final String assignmentId;
   final String activityId;
-  final String type; // 'assignment' or 'activity'
+  final String quizId;
+  final String pitId;
+  final String type; // 'assignment', 'activity', 'quiz', or 'pit'
   final Map<String, dynamic> itemData;
 
   const FilePickerScreen({
-    Key? key,
+    super.key,
     this.assignmentId = '',
     this.activityId = '',
+    this.quizId = '',
+    this.pitId = '',
     required this.type,
     required this.itemData,
-  }) : super(key: key);
+  });
 
   @override
   State<FilePickerScreen> createState() => _FilePickerScreenState();
@@ -36,6 +42,80 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
     super.dispose();
   }
 
+  String _formatDisplayDate(dynamic dateData) {
+    if (dateData == null) return 'Unknown Date';
+
+    // If it's already a formatted string from the controller, return as is
+    if (dateData is String) {
+      // Check if it's already in a readable format (like "July 28")
+      if (dateData.contains(' ') &&
+          !dateData.contains('T') &&
+          !dateData.contains('-')) {
+        return dateData;
+      }
+    }
+
+    try {
+      DateTime date;
+
+      if (dateData is DateTime) {
+        date = dateData;
+      } else if (dateData is String) {
+        // Handle different string formats
+        if (dateData.contains('T')) {
+          // ISO format with T
+          date = DateTime.parse(dateData);
+        } else if (dateData.contains('-')) {
+          // Date format YYYY-MM-DD
+          date = DateTime.parse(dateData);
+        } else {
+          // Try parsing as is
+          date = DateTime.parse(dateData);
+        }
+      } else if (dateData is Timestamp) {
+        date = dateData.toDate();
+      } else {
+        return 'Unknown Date';
+      }
+
+      // Format as "MMM dd, yyyy hh:mm AM/PM"
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      final month = months[date.month - 1];
+      final day = date.day.toString().padLeft(2, '0');
+      final year = date.year;
+
+      // Format time in 12-hour format
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
+    } catch (e) {
+      print('Error formatting date: $e');
+      return 'Unknown Date';
+    }
+  }
+
   Future<void> _handleSubmission() async {
     if (controller.selectedFiles.isEmpty) {
       Get.snackbar(
@@ -50,13 +130,17 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
 
     // First upload the files
     bool uploadSuccess = await controller.uploadFiles(
-      folder: 'submissions/${widget.type}s',
+      folder: 'greenquest/submissions/${widget.type}s',
       tags: {
         'type': widget.type,
         'id':
             widget.type == 'assignment'
                 ? widget.assignmentId
-                : widget.activityId,
+                : widget.type == 'activity'
+                ? widget.activityId
+                : widget.type == 'quiz'
+                ? widget.quizId
+                : widget.pitId,
       },
     );
 
@@ -77,7 +161,7 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
       return;
     }
 
-    // Then submit the assignment/activity
+    // Then submit the assignment/activity/quiz
     bool submissionSuccess = false;
     if (widget.type == 'assignment') {
       submissionSuccess = await controller.submitAssignment(
@@ -87,9 +171,25 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
         sectionId: sectionInfo['sectionId'] ?? '',
         sectionName: sectionInfo['sectionName'] ?? '',
       );
-    } else {
+    } else if (widget.type == 'activity') {
       submissionSuccess = await controller.submitActivity(
         activityId: widget.activityId,
+        instructorId: sectionInfo['instructorId'] ?? '',
+        instructorName: sectionInfo['instructorName'] ?? '',
+        sectionId: sectionInfo['sectionId'] ?? '',
+        sectionName: sectionInfo['sectionName'] ?? '',
+      );
+    } else if (widget.type == 'quiz') {
+      submissionSuccess = await controller.submitQuiz(
+        quizId: widget.quizId,
+        instructorId: sectionInfo['instructorId'] ?? '',
+        instructorName: sectionInfo['instructorName'] ?? '',
+        sectionId: sectionInfo['sectionId'] ?? '',
+        sectionName: sectionInfo['sectionName'] ?? '',
+      );
+    } else if (widget.type == 'pit') {
+      submissionSuccess = await controller.submitPit(
+        pitId: widget.pitId,
         instructorId: sectionInfo['instructorId'] ?? '',
         instructorName: sectionInfo['instructorName'] ?? '',
         sectionId: sectionInfo['sectionId'] ?? '',
@@ -98,8 +198,15 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
     }
 
     if (submissionSuccess) {
-      // Navigate back to the previous screen
-      Get.back(result: true);
+      // Navigate to success screen
+      Get.off(
+        () => SubmissionSuccessScreen(
+          submissionType: widget.type,
+          itemTitle: widget.itemData['title'] ?? 'No Title',
+          instructorName: sectionInfo['instructorName'] ?? 'Unknown Instructor',
+          sectionName: sectionInfo['sectionName'] ?? 'Unknown Section',
+        ),
+      );
     }
   }
 
@@ -115,7 +222,13 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Submit ${widget.type == 'assignment' ? 'Assignment' : 'Activity'}',
+          'Submit ${widget.type == 'assignment'
+              ? 'Assignment'
+              : widget.type == 'activity'
+              ? 'Activity'
+              : widget.type == 'quiz'
+              ? 'Quiz'
+              : 'PIT'}',
           style: const TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
@@ -152,35 +265,73 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      widget.itemData['topic'] ?? 'No Topic',
+                      'Description: ${widget.itemData['instruction'] ?? 'No description available'}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.black54,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.person, size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Text(
-                          widget.itemData['instructorName'] ??
-                              'Unknown Instructor',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person,
+                              size: 16,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Instructor: ${widget.itemData['instructorName'] ?? 'Unknown Instructor'}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Due: ${widget.itemData['dueDate'] ?? 'No due date'}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.schedule,
+                              size: 16,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Due: ${_formatDisplayDate(widget.itemData['dueDate'])}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
                         ),
+                        if (widget.itemData['points'] != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.stars,
+                                size: 16,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Points: ${widget.itemData['points']}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -199,9 +350,33 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'You can select multiple files (PDF, DOC, images, etc.)',
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E8),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF4CAF50), width: 1),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Color(0xFF4CAF50),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'You can select multiple files at once! Choose PDF, DOC, images, etc. You can also add more files later.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 16),
@@ -216,9 +391,11 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
                           ? null
                           : controller.pickFiles,
                   icon: const Icon(Icons.attach_file, color: Colors.green),
-                  label: const Text(
-                    'Choose Files',
-                    style: TextStyle(
+                  label: Text(
+                    controller.selectedFiles.isEmpty
+                        ? 'Choose Files (Multiple Selection)'
+                        : 'Add More Files',
+                    style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w600,
                     ),
@@ -234,6 +411,43 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
               ),
 
               const SizedBox(height: 16),
+
+              // Selected Files Header
+              if (controller.selectedFiles.isNotEmpty) ...[
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Selected Files (${controller.selectedFiles.length})',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (controller.selectedFiles.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () => controller.clearFiles(),
+                        icon: const Icon(
+                          Icons.clear_all,
+                          color: Colors.red,
+                          size: 16,
+                        ),
+                        label: const Text(
+                          'Clear All',
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
 
               // Selected Files List
               Expanded(

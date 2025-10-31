@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class InstructorForgotPasswordScreen extends StatefulWidget {
-  const InstructorForgotPasswordScreen({Key? key}) : super(key: key);
+  const InstructorForgotPasswordScreen({super.key});
 
   @override
-  State<InstructorForgotPasswordScreen> createState() => _InstructorForgotPasswordScreenState();
+  State<InstructorForgotPasswordScreen> createState() =>
+      _InstructorForgotPasswordScreenState();
 }
 
-class _InstructorForgotPasswordScreenState extends State<InstructorForgotPasswordScreen> {
+class _InstructorForgotPasswordScreenState
+    extends State<InstructorForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
   String? _error;
   String? _success;
@@ -33,28 +35,52 @@ class _InstructorForgotPasswordScreenState extends State<InstructorForgotPasswor
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text('Forgot Password', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26)),
+              const Text(
+                'Forgot Password',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
+              ),
               const SizedBox(height: 6),
-              const Text('Enter your email to receive a password reset link.', style: TextStyle(color: Colors.black54, fontSize: 15)),
+              const Text(
+                'Enter your email to receive a password reset link.',
+                style: TextStyle(color: Colors.black54, fontSize: 15),
+              ),
               const SizedBox(height: 24),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Email Address', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                child: Text(
+                  'Email Address',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
               ),
               const SizedBox(height: 6),
               TextField(
                 controller: _emailController,
                 decoration: InputDecoration(
                   hintText: 'Enter your email',
-                  hintStyle: TextStyle(fontWeight: FontWeight.bold,color: Colors.black45, fontSize: 14),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  hintStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black45,
+                    fontSize: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(6),
                     borderSide: BorderSide(color: Color(0xFF34A853), width: 2),
@@ -79,10 +105,15 @@ class _InstructorForgotPasswordScreenState extends State<InstructorForgotPasswor
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF34A853),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                     ),
                     onPressed: _sendResetLink,
-                    child: const Text('Send Reset Link', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    child: const Text(
+                      'Send Reset Link',
+                      style: TextStyle(fontSize: 16, color: Colors.white),
+                    ),
                   ),
                 ),
               ),
@@ -97,7 +128,10 @@ class _InstructorForgotPasswordScreenState extends State<InstructorForgotPasswor
                       children: [
                         TextSpan(
                           text: 'Sign In',
-                          style: TextStyle(color: Color(0xFF222B45), fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Color(0xFF222B45),
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -110,4 +144,4 @@ class _InstructorForgotPasswordScreenState extends State<InstructorForgotPasswor
       ),
     );
   }
-} 
+}

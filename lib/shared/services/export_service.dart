@@ -1,0 +1,1666 @@
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:universal_html/html.dart' as html;
+
+class ExportService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// Helper function to format student name from "Jv P. Tenefrancia" to "Tenefrancia, Jv P."
+  String _formatStudentName(String name) {
+    if (name.isEmpty) return '';
+
+    // Split the name into parts
+    final parts = name.trim().split(' ');
+
+    if (parts.length < 2) return name; // If only one word, return as is
+
+    // Last part is the last name, everything else is first/middle name
+    final lastName = parts.last;
+    final firstMiddleName = parts.sublist(0, parts.length - 1).join(' ');
+
+    return '$lastName, $firstMiddleName';
+  }
+
+  /// Export the complete Class Record (Midterm, Final, Computed) for testing
+  Future<void> exportCompleteClassRecord({
+    required List<Map<String, dynamic>> students,
+    required List<Map<String, dynamic>> classStandingItems,
+    required List<Map<String, dynamic>> quizPrelimItems,
+    required List<Map<String, dynamic>> midtermExamItems,
+    required List<Map<String, dynamic>> pitItems,
+    required List<Map<String, dynamic>> finalClassStandingItems,
+    required List<Map<String, dynamic>> finalQuizItems,
+    required List<Map<String, dynamic>> finalExamItems,
+    required List<Map<String, dynamic>> finalPitItems,
+    required String sectionName,
+    required String courseName,
+    required String instructorName,
+    required String departmentName,
+  }) async {
+    try {
+      final Workbook workbook = Workbook();
+      final Worksheet sheet = workbook.worksheets[0];
+      sheet.name = 'Class Record';
+
+      // Build headers similar to the grid layout
+      _setupCompleteHeaders(
+        sheet,
+        classStandingItems,
+        quizPrelimItems,
+        midtermExamItems,
+        pitItems,
+        finalClassStandingItems,
+        finalQuizItems,
+        finalExamItems,
+        finalPitItems,
+        sectionName,
+        courseName,
+        instructorName,
+        departmentName,
+      );
+
+      // Write Max Points row (aligned below detailed column headers)
+      int startRow = 11; // headers at row 10, max points at 11
+      _writeMaxPointsRow(
+        sheet,
+        startRow,
+        classStandingItems,
+        quizPrelimItems,
+        midtermExamItems,
+        pitItems,
+        finalClassStandingItems,
+        finalQuizItems,
+        finalExamItems,
+        finalPitItems,
+      );
+
+      // Write students
+      for (int i = 0; i < students.length; i++) {
+        final student = students[i];
+        final row = startRow + 1 + i;
+        int col = 1;
+
+        // No, ID, Names
+        sheet.getRangeByName('${_getColumnLetter(col++)}$row').setNumber(i + 1);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(student['idNumber'] ?? '');
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(_formatStudentName(student['name'] ?? ''));
+
+        // Class Standing items
+        for (var item in classStandingItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        // Total (SRC) and CPA
+        final csTotal = _calculateGroupTotal(student, classStandingItems);
+        final csPct = _calculateGroupPercent(student, classStandingItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(csTotal.toString());
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${csPct.round()}%');
+
+        // Quiz/Prelim items
+        for (var item in quizPrelimItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        final qpTotal = _calculateGroupTotal(student, quizPrelimItems);
+        final qpPct = _calculateGroupPercent(student, quizPrelimItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(qpTotal.toString());
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${qpPct.round()}%');
+
+        // Midterm Exam items
+        for (var item in midtermExamItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        final mPct = _calculateGroupPercent(student, midtermExamItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${mPct.round()}%');
+
+        // PIT items
+        for (var item in pitItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        final pitTotal = _calculateGroupTotal(student, pitItems);
+        final pitPct = _calculateGroupPercent(student, pitItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(pitTotal.toString());
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${pitPct.round()}%');
+
+        // Lecture (Midterm)
+        final mga = _calculateRawMGAFromGroups(
+          student,
+          classStandingItems,
+          quizPrelimItems,
+          midtermExamItems,
+          pitItems,
+        );
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${(mga * 100).round()}%');
+        final midLec = _gradePointFromRatio(mga);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(midLec.toStringAsFixed(3));
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(midLec.toStringAsFixed(3));
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(_mapGradePointToEquivalent(midLec));
+
+        // Final Class Standing items
+        for (var item in finalClassStandingItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        final fcsTotal = _calculateGroupTotal(student, finalClassStandingItems);
+        final fcsPct = _calculateGroupPercent(student, finalClassStandingItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(fcsTotal.toString());
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${fcsPct.round()}%');
+
+        // Final Quiz items
+        for (var item in finalQuizItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        final fqTotal = _calculateGroupTotal(student, finalQuizItems);
+        final fqPct = _calculateGroupPercent(student, finalQuizItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(fqTotal.toString());
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${fqPct.round()}%');
+
+        // Final Exam items
+        for (var item in finalExamItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        final fPct = _calculateGroupPercent(student, finalExamItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${fPct.round()}%');
+
+        // Final PIT items
+        for (var item in finalPitItems) {
+          final key = _makeItemKey(item);
+          sheet
+              .getRangeByName('${_getColumnLetter(col++)}$row')
+              .setText(_readScore(student, key));
+        }
+        final fpitTotal = _calculateGroupTotal(student, finalPitItems);
+        final fpitPct = _calculateGroupPercent(student, finalPitItems);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(fpitTotal.toString());
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${fpitPct.round()}%');
+
+        // Final Lecture
+        final fga = _calculateRawMGAFromGroups(
+          student,
+          finalClassStandingItems,
+          finalQuizItems,
+          finalExamItems,
+          finalPitItems,
+        );
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText('${(fga * 100).round()}%');
+        final finLec = _gradePointFromRatio(fga);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(finLec.toStringAsFixed(3));
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(finLec.toStringAsFixed(3));
+        final ftg = _mapGradePointToEquivalent(finLec);
+        sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText(ftg);
+
+        // Computed Final Grade section
+        final mtg = _mapGradePointToEquivalentAsNumber(midLec);
+        final ftgNum = _mapGradePointToEquivalentAsNumber(finLec);
+
+        double comp12 = 0.5 * mtg + 0.5 * ftgNum;
+        double comp13 = (1.0 / 3.0) * mtg + (2.0 / 3.0) * ftgNum;
+
+        // 1/2 MTG + 1/2 FTG
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(comp12.toStringAsFixed(2));
+        // For Removal (cap > 3.50 -> 5.00)
+        final comp12Mapped = _gradeLadder(comp12);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(
+              comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2),
+            );
+        // After Removal (copy For Removal)
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(
+              comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2),
+            );
+        // Description
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(_descFromNumeric(comp12));
+
+        // 1/3 MTG + 2/3 FTG
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(comp13.toStringAsFixed(2));
+        final comp13Mapped = _gradeLadder(comp13);
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(
+              comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2),
+            );
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(
+              comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2),
+            );
+        sheet
+            .getRangeByName('${_getColumnLetter(col++)}$row')
+            .setText(_descFromNumeric(comp13));
+
+        // Row borders
+        final rowRange = sheet.getRangeByName(
+          'A$row:${_getColumnLetter(col - 1)}$row',
+        );
+        rowRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+      }
+
+      _autoFitColumns(sheet);
+      await _saveAndOpenFile(workbook, '${sectionName}_ClassRecord');
+    } catch (e) {
+      Get.snackbar(
+        'Export Error',
+        'Failed to export complete class record: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  void _setupCompleteHeaders(
+    Worksheet sheet,
+    List<Map<String, dynamic>> classStandingItems,
+    List<Map<String, dynamic>> quizPrelimItems,
+    List<Map<String, dynamic>> midtermExamItems,
+    List<Map<String, dynamic>> pitItems,
+    List<Map<String, dynamic>> finalClassStandingItems,
+    List<Map<String, dynamic>> finalQuizItems,
+    List<Map<String, dynamic>> finalExamItems,
+    List<Map<String, dynamic>> finalPitItems,
+    String sectionName,
+    String courseName,
+    String instructorName,
+    String departmentName,
+  ) {
+    int row = 1;
+
+    // Calculate group sizes
+    final csGroup = classStandingItems.length + 2; // items + SRC + CPA
+    final qpGroup = quizPrelimItems.length + 2; // items + SRQ + QA
+    final meGroup = midtermExamItems.length + 1; // items + M
+    final pitGroup = pitItems.length + 2; // items + total + %
+    final midLectureGroup = 4; // MGA + Mid Lec + Mid GP + Midterm Grade
+    final midtermGroup =
+        csGroup + qpGroup + meGroup + pitGroup + midLectureGroup;
+
+    final fcsGroup = finalClassStandingItems.length + 2;
+    final fqGroup = finalQuizItems.length + 2;
+    final feGroup = finalExamItems.length + 1;
+    final fpitGroup = finalPitItems.length + 2;
+    final finalLectureGroup = 4;
+    final finalGroup =
+        fcsGroup + fqGroup + feGroup + fpitGroup + finalLectureGroup;
+
+    final computedGroup = 8;
+
+    // Row 1: Department (merged across all columns)
+    final totalColumns = 3 + midtermGroup + finalGroup + computedGroup;
+    sheet.getRangeByName('A1:${_getColumnLetter(totalColumns)}1').merge();
+    sheet
+        .getRangeByName('A1')
+        .setText('Department of NATIONAL SERVICE TRAINING PROGRAM');
+    sheet.getRangeByName('A1').cellStyle.bold = true;
+    sheet.getRangeByName('A1').cellStyle.backColor = '#E3F2FD';
+
+    // Row 7: Top stacked headers for sections
+    row = 7;
+    int col = 1;
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + 3 - 1)}$row',
+        )
+        .merge();
+    // spacer for student info columns
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('');
+    col += 3;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + midtermGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Midterm Grade');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#E3F2FD';
+    col += midtermGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalGroup - 1)}$row',
+        )
+        .merge();
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Final Grade');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#E3F2FD';
+    col += finalGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + computedGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Computed Final Grade');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#66BB6A';
+
+    // Row 8: Lecture 100% over midterm and final groups
+    row = 8;
+    col = 4;
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + midtermGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Lecture 100%');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFE082';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+
+    col += midtermGroup;
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Lecture 100%');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFE082';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+
+    // Computed group spacer
+    col += finalGroup;
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + computedGroup - 1)}$row',
+        )
+        .merge();
+
+    // Row 9: Category headers for midterm and final groups
+    row = 9;
+    col = 4; // midterm start
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + csGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Class Standing Performance Items (10%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += csGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + qpGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Quiz/Prelim Performance Item (40%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += qpGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + meGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Midterm Exam (30%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += meGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + pitGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Per Inno Task (20%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += pitGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + midLectureGroup - 1)}$row',
+        )
+        .merge();
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Lecture');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+
+    // Final categories
+    col = 4 + midtermGroup;
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fcsGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Class Standing Performance Items (10%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += fcsGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fqGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Quiz/Pre-final\nPerformance Item (40%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.wrapText =
+        true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += fqGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + feGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Final Exam (30%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += feGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fpitGroup - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(col)}$row')
+        .setText('Per Inno Task (20%)');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    col += fpitGroup;
+
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalLectureGroup - 1)}$row',
+        )
+        .merge();
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Lecture');
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
+        '#FFF59D';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
+        HAlignType.center;
+
+    // Row 10: Detailed column headers
+    row = 10;
+    col = 1;
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('');
+
+    for (var item in classStandingItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (SRC)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('CPA');
+
+    for (var item in quizPrelimItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (SRQ)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('QA');
+
+    for (var item in midtermExamItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('M');
+
+    for (var item in pitItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (PIT)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('PIT%');
+
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('MGA');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Mid Lec Grade Poi');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Mid Grade Point');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Midterm Grade');
+
+    for (var item in finalClassStandingItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (SRC)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('CPA');
+
+    for (var item in finalQuizItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (SRQ)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('QA');
+
+    for (var item in finalExamItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('F');
+
+    for (var item in finalPitItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? '');
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (PIT)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('PIT%');
+
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('FGA');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Fin Lec Grade Poi');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Fin Grade Point');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Final Period Grade');
+
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('1/2 MTG + 1/2 FTG');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('1/2 MTG + 1/2 FTG (For Removal)');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('1/2 MTG + 1/2 FTG (After Removal)');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Description');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('1/3 MTG + 2/3 FTG');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('1/3 MTG + 2/3 FTG (For Removal)');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('1/3 MTG + 2/3 FTG (After Removal)');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Description');
+
+    final headerRange = sheet.getRangeByName(
+      'A$row:${_getColumnLetter(col - 1)}$row',
+    );
+    headerRange.cellStyle.bold = true;
+    headerRange.cellStyle.backColor = '#F8FAFB';
+    headerRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+
+    // Make the first three header cells (No., ID Number, Names) appear white
+    // to look like normal cells after removing labels.
+    final infoHeaderRange = sheet.getRangeByName('A$row:C$row');
+    infoHeaderRange.cellStyle.backColor = '#FFFFFF';
+  }
+
+  void _writeMaxPointsRow(
+    Worksheet sheet,
+    int row,
+    List<Map<String, dynamic>> classStandingItems,
+    List<Map<String, dynamic>> quizPrelimItems,
+    List<Map<String, dynamic>> midtermExamItems,
+    List<Map<String, dynamic>> pitItems,
+    List<Map<String, dynamic>> finalClassStandingItems,
+    List<Map<String, dynamic>> finalQuizItems,
+    List<Map<String, dynamic>> finalExamItems,
+    List<Map<String, dynamic>> finalPitItems,
+  ) {
+    int col = 1;
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('No.');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('ID Number');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('Names');
+
+    int csMax = _maxPoints(classStandingItems);
+    for (var item in classStandingItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(csMax.toString());
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    int qpMax = _maxPoints(quizPrelimItems);
+    for (var item in quizPrelimItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(qpMax.toString());
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    for (var item in midtermExamItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    int pitMax = _maxPoints(pitItems);
+    for (var item in pitItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(pitMax.toString());
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+
+    int fcsMax = _maxPoints(finalClassStandingItems);
+    for (var item in finalClassStandingItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(fcsMax.toString());
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    int fqMax = _maxPoints(finalQuizItems);
+    for (var item in finalQuizItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(fqMax.toString());
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    for (var item in finalExamItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    int fpitMax = _maxPoints(finalPitItems);
+    for (var item in finalPitItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText((item['points'] ?? 0).toString());
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(fpitMax.toString());
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+
+    // Computed section defaults
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('Excellent');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('Excellent');
+
+    final rowRange = sheet.getRangeByName(
+      'A$row:${_getColumnLetter(col - 1)}$row',
+    );
+    rowRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+    rowRange.cellStyle.backColor = '#EEEEEE';
+  }
+
+  // Helpers used by the full export (mirror grid logic)
+  String _makeItemKey(Map<String, dynamic> item) {
+    return '${(item['title'] ?? '').toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
+  }
+
+  String _readScore(Map<String, dynamic> student, String key) {
+    return (student[key]?.toString() ?? '');
+  }
+
+  int _maxPoints(List<Map<String, dynamic>> items) {
+    return items.fold(
+      0,
+      (sum, it) => sum + ((it['points'] ?? 0) as num).toInt(),
+    );
+  }
+
+  int _calculateGroupTotal(
+    Map<String, dynamic> student,
+    List<Map<String, dynamic>> items,
+  ) {
+    int total = 0;
+    for (var item in items) {
+      final key = _makeItemKey(item);
+      final v = int.tryParse(student[key]?.toString() ?? '0');
+      if (v != null) total += v;
+    }
+    return total;
+  }
+
+  double _calculateGroupPercent(
+    Map<String, dynamic> student,
+    List<Map<String, dynamic>> items,
+  ) {
+    final total = _calculateGroupTotal(student, items);
+    final maxTotal = _maxPoints(items);
+    if (maxTotal == 0) return 0.0;
+    return (total / maxTotal) * 100.0;
+  }
+
+  double _fraction(
+    Map<String, dynamic> student,
+    List<Map<String, dynamic>> items,
+  ) {
+    final maxTotal = _maxPoints(items);
+    if (maxTotal == 0) return 0.0;
+    final total = _calculateGroupTotal(student, items);
+    return total / maxTotal;
+  }
+
+  double _calculateRawMGAFromGroups(
+    Map<String, dynamic> student,
+    List<Map<String, dynamic>> cs,
+    List<Map<String, dynamic>> qp,
+    List<Map<String, dynamic>> exam,
+    List<Map<String, dynamic>> pit,
+  ) {
+    final cpa = _fraction(student, cs);
+    final qa = _fraction(student, qp);
+    final ex = _fraction(student, exam);
+    final p = _fraction(student, pit);
+    return 0.10 * cpa + 0.40 * qa + 0.30 * ex + 0.20 * p;
+  }
+
+  double _gradePointFromRatio(double ratio) {
+    if (ratio >= 0.7) {
+      return (23.0 / 3.0) - (20.0 / 3.0) * ratio;
+    } else {
+      return 5.0 - (20.0 / 7.0) * ratio;
+    }
+  }
+
+  String _mapGradePointToEquivalent(double gradePoint) {
+    final gp = double.parse(gradePoint.toStringAsFixed(3));
+    for (final range in _midtermGradeIntervals) {
+      if (gp >= range[0] && gp < range[1]) {
+        return range[2].toStringAsFixed(2);
+      }
+    }
+    return '5.00';
+  }
+
+  double _mapGradePointToEquivalentAsNumber(double gradePoint) {
+    return double.tryParse(_mapGradePointToEquivalent(gradePoint)) ?? 5.00;
+  }
+
+  double _gradeLadder(double numericGrade) {
+    final gp = double.parse(numericGrade.toStringAsFixed(3));
+    for (final range in _midtermGradeIntervals) {
+      if (gp >= range[0] && gp < range[1]) {
+        return range[2];
+      }
+    }
+    return 5.00;
+  }
+
+  String _descFromNumeric(double numGrade) {
+    if (numGrade <= 1.00) return 'Excellent';
+    if (numGrade <= 2.99) return 'Passed';
+    return 'Failed';
+  }
+
+  // Reuse the same intervals used in the grid for grade mapping
+  static const List<List<double>> _midtermGradeIntervals = [
+    [1.000, 1.125, 1.00],
+    [1.125, 1.375, 1.25],
+    [1.375, 1.625, 1.50],
+    [1.625, 1.875, 1.75],
+    [1.875, 2.125, 2.00],
+    [2.125, 2.375, 2.25],
+    [2.375, 2.625, 2.50],
+    [2.625, 2.875, 2.75],
+    [2.875, 3.125, 3.00],
+    [3.125, 3.375, 3.25],
+    [3.375, 3.625, 3.50],
+    [3.625, 3.875, 3.75],
+    [3.875, 4.125, 4.00],
+    [4.125, 4.375, 4.25],
+    [4.375, 4.625, 4.50],
+    [4.625, 4.875, 4.75],
+    [4.875, 5.125, 5.00],
+  ];
+
+  int _totalColumnCount(
+    List<Map<String, dynamic>> cs,
+    List<Map<String, dynamic>> qp,
+    List<Map<String, dynamic>> me,
+    List<Map<String, dynamic>> pit,
+    List<Map<String, dynamic>> fcs,
+    List<Map<String, dynamic>> fq,
+    List<Map<String, dynamic>> fe,
+    List<Map<String, dynamic>> fpit,
+  ) {
+    // No, ID, Names
+    int count = 3;
+    count += cs.length + 2; // items + SRC + CPA
+    count += qp.length + 2; // items + SRQ + QA
+    count += me.length + 1; // items + M
+    count += pit.length + 2; // items + PIT total + PIT%
+    count += 4; // MGA + Mid Lec + Mid GP + Midterm Grade
+    count += fcs.length + 2; // final cs + SRC + CPA
+    count += fq.length + 2; // final quiz + SRQ + QA
+    count += fe.length + 1; // final exam + F
+    count += fpit.length + 2; // final pit + total + %
+    count += 4; // FGA + Fin Lec + Fin GP + Final Period Grade
+    count += 8; // computed 8 cols
+    return count;
+  }
+
+  /// Export student list to Excel
+  Future<void> exportStudentList({
+    required List<Map<String, dynamic>> students,
+    required String sectionName,
+    required String courseName,
+    required String instructorName,
+  }) async {
+    try {
+      // Create a new Excel workbook
+      final Workbook workbook = Workbook();
+      final Worksheet sheet = workbook.worksheets[0];
+      sheet.name = 'Student List';
+
+      // Set up headers
+      _setupStudentListHeaders(sheet, sectionName, courseName, instructorName);
+
+      // Add student data
+      _addStudentListData(sheet, students);
+
+      // Auto-fit columns
+      _autoFitColumns(sheet);
+
+      // Save and open file
+      await _saveAndOpenFile(workbook, '${sectionName}_StudentList');
+    } catch (e) {
+      Get.snackbar(
+        'Export Error',
+        'Failed to export student list: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  /// Export complete grade sheet to Excel
+  Future<void> exportGradeSheet({
+    required List<Map<String, dynamic>> students,
+    required List<Map<String, dynamic>> classStandingItems,
+    required List<Map<String, dynamic>> quizPrelimItems,
+    required String sectionName,
+    required String courseName,
+    required String instructorName,
+    required String departmentName,
+  }) async {
+    try {
+      print('🔍 Starting grade sheet export...');
+      print('📊 Students: ${students.length}');
+      print('📋 Class Standing Items: ${classStandingItems.length}');
+      print('📋 Quiz/Prelim Items: ${quizPrelimItems.length}');
+
+      // Create a new Excel workbook
+      print('📝 Creating Excel workbook...');
+      final Workbook workbook = Workbook();
+      final Worksheet sheet = workbook.worksheets[0];
+      sheet.name = 'Grade Sheet';
+
+      // Set up complete headers
+      print('📋 Setting up headers...');
+      _setupGradeSheetHeaders(
+        sheet,
+        classStandingItems,
+        quizPrelimItems,
+        sectionName,
+        courseName,
+        instructorName,
+        departmentName,
+      );
+
+      // Add student data with scores
+      print('👥 Adding student data...');
+      await _addGradeSheetData(
+        sheet,
+        students,
+        classStandingItems,
+        quizPrelimItems,
+      );
+
+      // Auto-fit columns
+      print('📏 Auto-fitting columns...');
+      _autoFitColumns(sheet);
+
+      // Save and open file
+      print('💾 Saving file...');
+      await _saveAndOpenFile(workbook, '${sectionName}_GradeSheet');
+      print('✅ Grade sheet export completed!');
+    } catch (e) {
+      print('❌ Grade sheet export error: $e');
+      Get.snackbar(
+        'Export Error',
+        'Failed to export grade sheet: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  /// Set up headers for student list export
+  void _setupStudentListHeaders(
+    Worksheet sheet,
+    String sectionName,
+    String courseName,
+    String instructorName,
+  ) {
+    int row = 1;
+
+    // Title
+    sheet.getRangeByName('A$row:Z$row').merge();
+    sheet.getRangeByName('A$row').setText('STUDENT LIST');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
+    sheet.getRangeByName('A$row').cellStyle.backColor = '#E3F2FD';
+    row++;
+
+    // Section info
+    sheet.getRangeByName('A$row').setText('Section: $sectionName');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    row++;
+
+    sheet.getRangeByName('A$row').setText('Course: $courseName');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    row++;
+
+    // Move to row 10 for headers
+    row = 10;
+
+    // Column headers
+    sheet.getRangeByName('A$row').setText('No.');
+    sheet.getRangeByName('B$row').setText('ID Number');
+    sheet.getRangeByName('C$row').setText('Student Name');
+    sheet.getRangeByName('D$row').setText('Email');
+    sheet.getRangeByName('E$row').setText('Status');
+
+    // Style headers
+    final headerRange = sheet.getRangeByName('A$row:E$row');
+    headerRange.cellStyle.bold = true;
+    headerRange.cellStyle.backColor = '#F5F5F5';
+    headerRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+  }
+
+  /// Set up complete headers for grade sheet export
+  void _setupGradeSheetHeaders(
+    Worksheet sheet,
+    List<Map<String, dynamic>> classStandingItems,
+    List<Map<String, dynamic>> quizPrelimItems,
+    String sectionName,
+    String courseName,
+    String instructorName,
+    String departmentName,
+  ) {
+    int row = 1;
+
+    // Calculate total columns
+    int totalColumns =
+        3 +
+        classStandingItems.length +
+        2 +
+        2; // No, ID Number, Names + class standing + SRC, CPA + SRQ, QA
+
+    // Row 1: MIDTERM GRADE (merged across all columns)
+    sheet.getRangeByName('A$row:${_getColumnLetter(totalColumns)}$row').merge();
+    sheet.getRangeByName('A$row').setText('MIDTERM GRADE');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
+    sheet.getRangeByName('A$row').cellStyle.backColor = '#E3F2FD'; // Light blue
+    row++;
+
+    // Row 2: LECTURE 100% (merged across all columns)
+    sheet.getRangeByName('A$row:${_getColumnLetter(totalColumns)}$row').merge();
+    sheet.getRangeByName('A$row').setText('LECTURE 100%');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
+    sheet.getRangeByName('A$row').cellStyle.backColor = '#FFE0B2'; // Orange
+    row++;
+
+    // Row 3: Performance Categories
+    int classStandingCols = classStandingItems.length + 2; // items + SRC + CPA
+    int quizPrelimCols = 2; // Only SRQ + QA (no individual items)
+    int startCol = 4; // After No, ID Number, Names
+
+    // Class Standing Performance Items
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(startCol)}$row:${_getColumnLetter(startCol + classStandingCols - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(startCol)}$row')
+        .setText('CLASS STANDING PERFORMANCE ITEMS (10%)');
+    sheet.getRangeByName('${_getColumnLetter(startCol)}$row').cellStyle.bold =
+        true;
+    sheet.getRangeByName('${_getColumnLetter(startCol)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(startCol)}$row')
+        .cellStyle
+        .backColor = '#FFF9C4'; // Yellow
+
+    // Quiz/Prelim Performance Item
+    int quizStartCol = startCol + classStandingCols;
+    sheet
+        .getRangeByName(
+          '${_getColumnLetter(quizStartCol)}$row:${_getColumnLetter(quizStartCol + quizPrelimCols - 1)}$row',
+        )
+        .merge();
+    sheet
+        .getRangeByName('${_getColumnLetter(quizStartCol)}$row')
+        .setText('PRELIM PERFORMANCE ITEM');
+    sheet
+        .getRangeByName('${_getColumnLetter(quizStartCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${_getColumnLetter(quizStartCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(quizStartCol)}$row')
+        .cellStyle
+        .backColor = '#FFF9C4'; // Yellow
+    row++;
+
+    // Row 4: Department and Subject Info
+    sheet
+        .getRangeByName('A$row')
+        .setText('Department of NATIONAL SERVICE TRAINING PROGRAM');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    row++;
+
+    sheet.getRangeByName('A$row').setText('Subject: NSTP 101C');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    row++;
+
+    sheet.getRangeByName('A$row').setText('Section: $sectionName');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    row++;
+
+    sheet.getRangeByName('A$row').setText('Course: $courseName');
+    sheet.getRangeByName('A$row').cellStyle.bold = true;
+    row++;
+
+    // Row 10: Column Headers
+    int col = 1;
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('No.');
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('ID Number'); // Swapped position
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Names'); // Swapped position
+
+    // Class Standing Items
+    for (var item in classStandingItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['title'] ?? 'Unknown');
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (SRC)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('CPA');
+
+    // Quiz/Prelim Items (only totals, no individual items)
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('Total Score (SRQ)');
+    sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('QA');
+
+    // Style headers
+    final headerRange = sheet.getRangeByName(
+      'A$row:${_getColumnLetter(totalColumns)}$row',
+    );
+    headerRange.cellStyle.bold = true;
+    headerRange.cellStyle.backColor = '#F8FAFB';
+    headerRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+    row++;
+
+    // Row 11: Max Points
+    col = 4; // Start after No, ID Number, Names
+    for (var item in classStandingItems) {
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(item['points']?.toString() ?? '');
+    }
+    // Calculate actual SRC total from class standing items
+    double srcTotal = 0;
+    for (var item in classStandingItems) {
+      srcTotal += (item['points'] ?? 0).toDouble();
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(srcTotal.toString()); // SRC total
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('100%'); // CPA
+
+    // Quiz/Prelim max points (only totals)
+    // Calculate actual SRQ total from quiz/prelim items
+    double srqTotal = 0;
+    for (var item in quizPrelimItems) {
+      srqTotal += (item['points'] ?? 0).toDouble();
+    }
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText(srqTotal.toString()); // SRQ total
+    sheet
+        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .setText('100%'); // QA
+  }
+
+  /// Add student data to grade sheet
+  Future<void> _addGradeSheetData(
+    Worksheet sheet,
+    List<Map<String, dynamic>> students,
+    List<Map<String, dynamic>> classStandingItems,
+    List<Map<String, dynamic>> quizPrelimItems,
+  ) async {
+    int dataStartRow = 10; // Start user data at row 10
+
+    for (int i = 0; i < students.length; i++) {
+      final student = students[i];
+      int row = dataStartRow + i;
+      int col = 1;
+
+      // Basic student info
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setNumber(i + 1); // No.
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(student['idNumber'] ?? ''); // ID Number (swapped position)
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(
+            _formatStudentName(student['name'] ?? ''),
+          ); // Student Name (formatted) - swapped position
+
+      // Get student scores
+      Map<String, dynamic> studentScores = await _getStudentScores(
+        student['id'] ?? '',
+        classStandingItems,
+        quizPrelimItems,
+      );
+
+      // Class Standing scores
+      for (var item in classStandingItems) {
+        String key =
+            '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
+        String score = studentScores[key]?.toString() ?? '';
+        sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText(score);
+      }
+
+      // Calculate and add SRC and CPA
+      double src = _calculateSRC(studentScores, classStandingItems);
+      double cpa = _calculateCPA(src, classStandingItems);
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(src.toString());
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText('${cpa.toStringAsFixed(1)}%');
+
+      // Quiz/Prelim scores (only totals, no individual items)
+      // Calculate and add SRQ and QA
+      double srq = _calculateSRQ(studentScores, quizPrelimItems);
+      double qa = _calculateQA(srq, quizPrelimItems);
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText(srq.toString());
+      sheet
+          .getRangeByName('${_getColumnLetter(col++)}$row')
+          .setText('${qa.toStringAsFixed(1)}%');
+
+      // Add borders to row
+      final rowRange = sheet.getRangeByName(
+        'A$row:${_getColumnLetter(col - 1)}$row',
+      );
+      rowRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+    }
+  }
+
+  /// Add student data to student list
+  void _addStudentListData(
+    Worksheet sheet,
+    List<Map<String, dynamic>> students,
+  ) {
+    int dataStartRow = 11; // After headers
+
+    for (int i = 0; i < students.length; i++) {
+      final student = students[i];
+      int row = dataStartRow + i;
+
+      sheet.getRangeByName('A$row').setNumber(i + 1);
+      sheet
+          .getRangeByName('B$row')
+          .setText(
+            student['idNumber'] ?? '',
+          ); // ID Number (already in correct position)
+      sheet
+          .getRangeByName('C$row')
+          .setText(
+            _formatStudentName(student['name'] ?? ''),
+          ); // Student Name (already in correct position)
+      sheet.getRangeByName('D$row').setText(student['email'] ?? '');
+      sheet.getRangeByName('E$row').setText(student['enrollmentStatus'] ?? '');
+
+      // Add borders to row
+      final rowRange = sheet.getRangeByName('A$row:E$row');
+      rowRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+    }
+  }
+
+  /// Get student scores from database
+  Future<Map<String, dynamic>> _getStudentScores(
+    String studentId,
+    List<Map<String, dynamic>> classStandingItems,
+    List<Map<String, dynamic>> quizPrelimItems,
+  ) async {
+    Map<String, dynamic> scores = {};
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return scores;
+
+      // Get scores for class standing items
+      for (var item in classStandingItems) {
+        String itemType =
+            item['type']?.toString().toLowerCase() ?? 'assignment';
+        String collection = _getCollectionName(itemType);
+        String idField = _getIdFieldName(itemType);
+
+        final query =
+            await _firestore
+                .collection(collection)
+                .where('studentId', isEqualTo: studentId)
+                .where(idField, isEqualTo: item['id'])
+                .where('status', isEqualTo: 'graded')
+                .get();
+
+        if (query.docs.isNotEmpty) {
+          final data = query.docs.first.data();
+          String key =
+              '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
+          scores[key] = data['grade'] ?? 0;
+        }
+      }
+
+      // Get scores for quiz/prelim items
+      for (var item in quizPrelimItems) {
+        String itemType = item['type']?.toString().toLowerCase() ?? 'quiz';
+        String collection = _getCollectionName(itemType);
+        String idField = _getIdFieldName(itemType);
+
+        final query =
+            await _firestore
+                .collection(collection)
+                .where('studentId', isEqualTo: studentId)
+                .where(idField, isEqualTo: item['id'])
+                .where('status', isEqualTo: 'graded')
+                .get();
+
+        if (query.docs.isNotEmpty) {
+          final data = query.docs.first.data();
+          String key =
+              '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
+          scores[key] = data['grade'] ?? 0;
+        }
+      }
+    } catch (e) {
+      print('Error getting student scores: $e');
+    }
+
+    return scores;
+  }
+
+  /// Calculate SRC (Student Raw Score for Class Standing)
+  double _calculateSRC(
+    Map<String, dynamic> scores,
+    List<Map<String, dynamic>> items,
+  ) {
+    double total = 0;
+    for (var item in items) {
+      String key =
+          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
+      total += (scores[key] ?? 0).toDouble();
+    }
+    return total;
+  }
+
+  /// Calculate CPA (Class Performance Average)
+  double _calculateCPA(double src, List<Map<String, dynamic>> items) {
+    double maxTotal = 0;
+    for (var item in items) {
+      maxTotal += (item['points'] ?? 0).toDouble();
+    }
+    if (maxTotal == 0) return 0;
+    return (src / maxTotal) * 100;
+  }
+
+  /// Calculate SRQ (Student Raw Score for Quiz/Prelim)
+  double _calculateSRQ(
+    Map<String, dynamic> scores,
+    List<Map<String, dynamic>> items,
+  ) {
+    double total = 0;
+    for (var item in items) {
+      String key =
+          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
+      total += (scores[key] ?? 0).toDouble();
+    }
+    return total;
+  }
+
+  /// Calculate QA (Quiz Average)
+  double _calculateQA(double srq, List<Map<String, dynamic>> items) {
+    double maxTotal = 0;
+    for (var item in items) {
+      maxTotal += (item['points'] ?? 0).toDouble();
+    }
+    if (maxTotal == 0) return 0;
+    return (srq / maxTotal) * 100;
+  }
+
+  /// Get collection name based on item type
+  String _getCollectionName(String itemType) {
+    switch (itemType.toLowerCase()) {
+      case 'assignment':
+        return 'assignment_submissions';
+      case 'activity':
+        return 'activity_submissions';
+      case 'quiz':
+        return 'quiz_submissions';
+      case 'pit':
+        return 'submissions';
+      default:
+        return 'assignment_submissions';
+    }
+  }
+
+  /// Get ID field name based on item type
+  String _getIdFieldName(String itemType) {
+    switch (itemType.toLowerCase()) {
+      case 'assignment':
+        return 'assignmentId';
+      case 'activity':
+        return 'activityId';
+      case 'quiz':
+        return 'quizId';
+      case 'pit':
+        return 'pitId';
+      default:
+        return 'assignmentId';
+    }
+  }
+
+  /// Auto-fit columns
+  void _autoFitColumns(Worksheet sheet) {
+    for (int i = 1; i <= sheet.getLastColumn(); i++) {
+      sheet.autoFitColumn(i);
+    }
+  }
+
+  /// Get column letter from number (1 = A, 2 = B, etc.)
+  String _getColumnLetter(int columnNumber) {
+    String result = '';
+    while (columnNumber > 0) {
+      columnNumber--;
+      result = String.fromCharCode(65 + (columnNumber % 26)) + result;
+      columnNumber ~/= 26;
+    }
+    return result;
+  }
+
+  /// Save workbook and download file (Web-compatible)
+  Future<void> _saveAndOpenFile(Workbook workbook, String fileName) async {
+    try {
+      print('🔍 Starting web file download...');
+
+      // Create filename with timestamp
+      final now = DateTime.now();
+      final timestamp =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}';
+      final fullFileName = '${fileName}_$timestamp.xlsx';
+
+      print('📄 Filename: $fullFileName');
+
+      // Generate Excel bytes
+      print('💾 Generating Excel bytes...');
+      final List<int> bytes = workbook.saveAsStream();
+      print('💾 Excel bytes generated: ${bytes.length} bytes');
+
+      // Convert to Uint8List for web download
+      final Uint8List uint8List = Uint8List.fromList(bytes);
+
+      // Create blob and download
+      print('🌐 Creating blob and triggering download...');
+      final blob = html.Blob([
+        uint8List,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      // Create download link and trigger download
+      html.AnchorElement(href: url)
+        ..setAttribute('download', fullFileName)
+        ..click();
+
+      // Clean up
+      html.Url.revokeObjectUrl(url);
+      workbook.dispose();
+      print('🗑️ Workbook disposed');
+
+      // Show success message
+      Get.snackbar(
+        'Export Successful',
+        'File downloaded: $fullFileName',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+
+      print('✅ Web download completed!');
+    } catch (e) {
+      print('❌ Web export error: $e');
+      Get.snackbar(
+        'Export Error',
+        'Failed to download file: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+}

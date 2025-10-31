@@ -70,36 +70,20 @@ class CloudinaryService {
         throw Exception('Cloudinary not initialized. Call initialize() first.');
       }
 
-      // Check if we have API secret for signed uploads
-      final useSignedUpload = _apiSecret != null && _apiSecret!.isNotEmpty;
+      // Use upload preset for easier client-side uploads
+      final params = <String, String>{
+        'upload_preset':
+            'GreenQuest', // Use the preset from your Cloudinary dashboard
+      };
 
-      final params = <String, String>{};
-
-      if (useSignedUpload) {
-        // Signed upload with API secret
-        final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        params.addAll({'timestamp': timestamp.toString(), 'api_key': _apiKey!});
-
-        if (folder != null) {
-          params['folder'] = folder;
-        }
-        if (publicId != null) {
-          params['public_id'] = publicId;
-        }
-        if (tags != null) {
-          params['tags'] = tags.values.join(',');
-        }
-
-        // Generate signature
-        final signature = _generateSignature(params);
-        params['signature'] = signature;
-      } else {
-        // Unsigned upload (requires upload preset)
-        log(
-          '⚠️ Using unsigned upload - make sure you have an upload preset configured',
-        );
-        params['upload_preset'] =
-            'greenquest_preset'; // You'll need to create this
+      if (folder != null) {
+        params['folder'] = folder;
+      }
+      if (publicId != null) {
+        params['public_id'] = publicId;
+      }
+      if (tags != null) {
+        params['tags'] = tags.values.join(',');
       }
 
       // Create multipart request
@@ -146,14 +130,14 @@ class CloudinaryService {
     Map<String, String>? tags,
   }) async {
     try {
-      if (_cloudName == null || _apiKey == null || _apiSecret == null) {
+      if (_cloudName == null || _apiKey == null) {
         throw Exception('Cloudinary not initialized. Call initialize() first.');
       }
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      // Use upload preset for easier client-side uploads
       final params = <String, String>{
-        'timestamp': timestamp.toString(),
-        'api_key': _apiKey!,
+        'upload_preset':
+            'GreenQuest', // Use the preset from your Cloudinary dashboard
       };
 
       if (folder != null) {
@@ -165,10 +149,6 @@ class CloudinaryService {
       if (tags != null) {
         params['tags'] = tags.values.join(',');
       }
-
-      // Generate signature
-      final signature = _generateSignature(params);
-      params['signature'] = signature;
 
       // Create multipart request
       final request = http.MultipartRequest(
@@ -195,7 +175,9 @@ class CloudinaryService {
         return uploadResponse;
       } else {
         log('❌ Upload failed: ${response.statusCode} - $responseBody');
-        throw Exception('Upload failed: ${response.statusCode}');
+        throw Exception(
+          'Upload failed: ${response.statusCode} - $responseBody',
+        );
       }
     } catch (e) {
       log('❌ Error uploading image from bytes: $e');
@@ -314,7 +296,79 @@ class CloudinaryService {
     final bytes = utf8.encode(signatureString);
     final digest = sha1.convert(bytes);
 
+    // Debug logging (uncomment if needed for troubleshooting)
+    // log('🔐 Signature generation debug:');
+    // log('🔐 Params: $params');
+    // log('🔐 Sorted keys: $sortedKeys');
+    // log('🔐 Param string: $paramString');
+    // log('🔐 Signature string: $signatureString');
+    // log('🔐 Generated signature: ${digest.toString()}');
+
     return digest.toString();
+  }
+
+  // Upload raw file (non-image) to Cloudinary
+  Future<CloudinaryUploadResponse> uploadRawFile({
+    required List<int> fileBytes,
+    required String fileName,
+    String? folder,
+    String? publicId,
+    Map<String, String>? tags,
+  }) async {
+    try {
+      if (_cloudName == null || _apiKey == null) {
+        throw Exception('Cloudinary not initialized. Call initialize() first.');
+      }
+
+      // Use upload preset for easier client-side uploads
+      final params = <String, String>{
+        'upload_preset':
+            'GreenQuest', // Use the preset from your Cloudinary dashboard
+      };
+
+      if (folder != null) {
+        params['folder'] = folder;
+      }
+      if (publicId != null) {
+        params['public_id'] = publicId;
+      }
+      if (tags != null) {
+        params['tags'] = tags.values.join(',');
+      }
+
+      // Create multipart request for raw upload
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/raw/upload'),
+      );
+
+      // Add parameters
+      request.fields.addAll(params);
+
+      // Add file from bytes
+      request.files.add(
+        http.MultipartFile.fromBytes('file', fileBytes, filename: fileName),
+      );
+
+      // Send request
+      final response = await request.send();
+      final responseBody = await response.stream.bytesToString();
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(responseBody);
+        final uploadResponse = CloudinaryUploadResponse.fromJson(jsonResponse);
+        log('✅ Raw file uploaded successfully: ${uploadResponse.secureUrl}');
+        return uploadResponse;
+      } else {
+        log('❌ Raw upload failed: ${response.statusCode} - $responseBody');
+        throw Exception(
+          'Raw upload failed: ${response.statusCode} - $responseBody',
+        );
+      }
+    } catch (e) {
+      log('❌ Error uploading raw file: $e');
+      rethrow;
+    }
   }
 
   // Check if service is initialized

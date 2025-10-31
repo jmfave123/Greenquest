@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../services/file_upload_service.dart';
+import '../config/cloudinary_config.dart';
 
 class FileSubmissionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -37,12 +38,14 @@ class FileSubmissionController extends GetxController {
       );
 
       if (files != null && files.isNotEmpty) {
-        selectedFiles.assignAll(files);
-        log('✅ Selected ${files.length} files for submission');
+        selectedFiles.addAll(files);
+        log(
+          '✅ Added ${files.length} files to selection (Total: ${selectedFiles.length})',
+        );
 
         Get.snackbar(
-          'Files Selected',
-          'Selected ${files.length} file(s) for submission',
+          'Files Added',
+          'Added ${files.length} file(s). Total: ${selectedFiles.length}',
           snackPosition: SnackPosition.TOP,
           backgroundColor: Colors.green,
           colorText: Colors.white,
@@ -94,7 +97,7 @@ class FileSubmissionController extends GetxController {
       List<Map<String, dynamic>> uploaded = await _fileUploadService
           .uploadMultipleFiles(
             files: selectedFiles.toList(),
-            folder: folder,
+            folder: folder ?? '${CloudinaryConfig.defaultFolder}/submissions',
             tags: tags,
             onProgress: (current, total) {
               uploadProgress.value = current / total;
@@ -118,7 +121,7 @@ class FileSubmissionController extends GetxController {
     }
   }
 
-  // Submit assignment with uploaded files
+  // Submit assignment with uploaded files using student's enrolled section
   Future<bool> submitAssignment({
     required String assignmentId,
     required String instructorId,
@@ -139,11 +142,32 @@ class FileSubmissionController extends GetxController {
         throw Exception('User not authenticated');
       }
 
-      // Get user data for student information
+      // Get user data for student information and enrolled section
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
 
-      // Create submission data
+      // Get student's enrolled section from their profile
+      final studentSectionName =
+          userData['selectedSectionCode']?.toString() ?? 'Unknown Section';
+
+      log('📚 Student enrolled section: $studentSectionName');
+
+      // Get assignment data to find instructor info
+      final assignmentDoc =
+          await _firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('assignments')
+              .doc(assignmentId)
+              .get();
+
+      if (!assignmentDoc.exists) {
+        throw Exception('Assignment not found');
+      }
+
+      final assignmentData = assignmentDoc.data() ?? {};
+
+      // Create submission data with student's actual enrolled section
       final submissionData = {
         'assignmentId': assignmentId,
         'studentId': user.uid,
@@ -153,8 +177,8 @@ class FileSubmissionController extends GetxController {
         'studentIdNumber': userData['idNumber'] ?? '',
         'instructorId': instructorId,
         'instructorName': instructorName,
-        'sectionId': sectionId,
-        'sectionName': sectionName ?? '',
+        'activityTitle': assignmentData['title'] ?? 'Unknown Assignment',
+        'sectionName': studentSectionName, // Use student's enrolled section
         'files': uploadedFiles.toList(),
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'submitted',
@@ -164,10 +188,14 @@ class FileSubmissionController extends GetxController {
         'gradedBy': null,
       };
 
-      // Save submission to Firestore
-      await _firestore.collection('assignment_submissions').add(submissionData);
+      // Save to assignment_submissions collection
+      final docRef = await _firestore
+          .collection('assignment_submissions')
+          .add(submissionData);
 
-      log('✅ Assignment submission completed successfully');
+      log('✅ Assignment submission saved successfully');
+      log('📄 Submission ID: ${docRef.id}');
+      log('📍 Section: $studentSectionName');
 
       Get.snackbar(
         'Success',
@@ -197,7 +225,7 @@ class FileSubmissionController extends GetxController {
     }
   }
 
-  // Submit activity with uploaded files
+  // Submit activity with uploaded files using student's enrolled section
   Future<bool> submitActivity({
     required String activityId,
     required String instructorId,
@@ -218,11 +246,32 @@ class FileSubmissionController extends GetxController {
         throw Exception('User not authenticated');
       }
 
-      // Get user data for student information
+      // Get user data for student information and enrolled section
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
 
-      // Create submission data
+      // Get student's enrolled section from their profile
+      final studentSectionName =
+          userData['selectedSectionCode']?.toString() ?? 'Unknown Section';
+
+      log('📚 Student enrolled section: $studentSectionName');
+
+      // Get activity data to find instructor info
+      final activityDoc =
+          await _firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('activities')
+              .doc(activityId)
+              .get();
+
+      if (!activityDoc.exists) {
+        throw Exception('Activity not found');
+      }
+
+      final activityData = activityDoc.data() ?? {};
+
+      // Create submission data with student's actual enrolled section
       final submissionData = {
         'activityId': activityId,
         'studentId': user.uid,
@@ -232,8 +281,8 @@ class FileSubmissionController extends GetxController {
         'studentIdNumber': userData['idNumber'] ?? '',
         'instructorId': instructorId,
         'instructorName': instructorName,
-        'sectionId': sectionId,
-        'sectionName': sectionName ?? '',
+        'activityTitle': activityData['title'] ?? 'Unknown Activity',
+        'sectionName': studentSectionName, // Use student's enrolled section
         'files': uploadedFiles.toList(),
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'submitted',
@@ -243,10 +292,14 @@ class FileSubmissionController extends GetxController {
         'gradedBy': null,
       };
 
-      // Save submission to Firestore
-      await _firestore.collection('activity_submissions').add(submissionData);
+      // Save to activity_submissions collection
+      final docRef = await _firestore
+          .collection('activity_submissions')
+          .add(submissionData);
 
-      log('✅ Activity submission completed successfully');
+      log('✅ Activity submission saved successfully');
+      log('📄 Submission ID: ${docRef.id}');
+      log('📍 Section: $studentSectionName');
 
       Get.snackbar(
         'Success',
@@ -328,6 +381,135 @@ class FileSubmissionController extends GetxController {
     }
   }
 
+  // Submit quiz with uploaded files using student's enrolled section
+  Future<bool> submitQuiz({
+    required String quizId,
+    required String instructorId,
+    required String instructorName,
+    required String sectionId,
+    String? sectionName,
+  }) async {
+    if (uploadedFiles.isEmpty) {
+      errorMessage.value = 'No files uploaded';
+      return false;
+    }
+
+    try {
+      isSubmitting.value = true;
+      final user = _auth.currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user data for student information and enrolled section
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+
+      // Get student's enrolled section from their profile
+      final studentSectionName =
+          userData['selectedSectionCode']?.toString() ?? 'Unknown Section';
+
+      log('📚 Student enrolled section: $studentSectionName');
+
+      // Get quiz data to find instructor info
+      final quizDoc =
+          await _firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('quizzes')
+              .doc(quizId)
+              .get();
+
+      if (!quizDoc.exists) {
+        throw Exception('Quiz not found');
+      }
+
+      final quizData = quizDoc.data() ?? {};
+
+      // Create submission data with student's actual enrolled section
+      final submissionData = {
+        'quizId': quizId,
+        'studentId': user.uid,
+        'studentName':
+            userData['fullName'] ?? user.displayName ?? 'Unknown Student',
+        'studentEmail': user.email ?? '',
+        'studentIdNumber': userData['idNumber'] ?? '',
+        'instructorId': instructorId,
+        'instructorName': instructorName,
+        'activityTitle': quizData['title'] ?? 'Unknown Quiz',
+        'sectionName': studentSectionName, // Use student's enrolled section
+        'files': uploadedFiles.toList(),
+        'submittedAt': FieldValue.serverTimestamp(),
+        'status': 'submitted',
+        'grade': null,
+        'feedback': null,
+        'gradedAt': null,
+        'gradedBy': null,
+      };
+
+      // Save to quiz_submissions collection
+      final docRef = await _firestore
+          .collection('quiz_submissions')
+          .add(submissionData);
+
+      log('✅ Quiz submission saved successfully');
+      log('📄 Submission ID: ${docRef.id}');
+      log('📍 Section: $studentSectionName');
+
+      Get.snackbar(
+        'Success',
+        'Quiz submitted successfully!',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+
+      // Clear the files after successful submission
+      clearFiles();
+      return true;
+    } catch (e) {
+      log('❌ Error submitting quiz: $e');
+      errorMessage.value = 'Failed to submit quiz: $e';
+      Get.snackbar(
+        'Error',
+        'Failed to submit quiz: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
+  // Check if user has already submitted for a quiz
+  Future<Map<String, dynamic>?> getQuizSubmission(String quizId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final query =
+          await _firestore
+              .collection('quiz_submissions')
+              .where('quizId', isEqualTo: quizId)
+              .where('studentId', isEqualTo: user.uid)
+              .limit(1)
+              .get();
+
+      if (query.docs.isNotEmpty) {
+        return {'id': query.docs.first.id, ...query.docs.first.data()};
+      }
+
+      return null;
+    } catch (e) {
+      log('❌ Error getting quiz submission: $e');
+      return null;
+    }
+  }
+
   // Get current user's section information
   Future<Map<String, dynamic>?> getCurrentUserSection() async {
     try {
@@ -338,15 +520,140 @@ class FileSubmissionController extends GetxController {
       if (!userDoc.exists) return null;
 
       final userData = userDoc.data()!;
+
+      // Get section information with fallback values
+      final sectionId =
+          userData['selectedSectionId'] ?? userData['sectionId'] ?? '';
+      final sectionName =
+          userData['selectedSectionCode'] ?? userData['sectionName'] ?? '';
+      final instructorId =
+          userData['selectedInstructorId'] ?? userData['instructorId'] ?? '';
+      final instructorName =
+          userData['selectedInstructorName'] ??
+          userData['instructorName'] ??
+          '';
+
+      log(
+        '✅ User section info: sectionId=$sectionId, sectionName=$sectionName, instructorId=$instructorId, instructorName=$instructorName',
+      );
+
       return {
-        'sectionId': userData['selectedSectionId'] ?? '',
-        'sectionName': userData['selectedSectionCode'] ?? '',
-        'instructorId': userData['selectedInstructorId'] ?? '',
-        'instructorName': userData['selectedInstructorName'] ?? '',
+        'sectionId': sectionId,
+        'sectionName': sectionName,
+        'instructorId': instructorId,
+        'instructorName': instructorName,
       };
     } catch (e) {
       log('❌ Error getting user section: $e');
       return null;
+    }
+  }
+
+  // Submit PIT using student's enrolled section
+  Future<bool> submitPit({
+    required String pitId,
+    required String instructorId,
+    required String instructorName,
+    required String sectionId,
+    String? sectionName,
+  }) async {
+    if (uploadedFiles.isEmpty) {
+      errorMessage.value = 'No files uploaded';
+      return false;
+    }
+
+    try {
+      isSubmitting.value = true;
+      final user = _auth.currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user data for student information and enrolled section
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+
+      // Get student's enrolled section from their profile
+      final studentSectionName =
+          userData['selectedSectionCode']?.toString() ?? 'Unknown Section';
+
+      log('📚 Student enrolled section: $studentSectionName');
+
+      // Get PIT data to find instructor info
+      final pitDoc =
+          await _firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('pits')
+              .doc(pitId)
+              .get();
+
+      if (!pitDoc.exists) {
+        throw Exception('PIT not found');
+      }
+
+      final pitData = pitDoc.data() ?? {};
+
+      // Create submission data with student's actual enrolled section
+      final submissionData = {
+        'pitId': pitId,
+        'studentId': user.uid,
+        'studentName':
+            userData['fullName'] ?? user.displayName ?? 'Unknown Student',
+        'studentEmail': user.email ?? '',
+        'studentIdNumber': userData['idNumber'] ?? '',
+        'instructorId': instructorId,
+        'instructorName': instructorName,
+        'activityTitle': pitData['title'] ?? 'Unknown PIT',
+        'sectionName': studentSectionName, // Use student's enrolled section
+        'files': uploadedFiles.toList(),
+        'submittedAt': FieldValue.serverTimestamp(),
+        'status': 'submitted',
+        'grade': null,
+        'feedback': null,
+        'gradedAt': null,
+        'gradedBy': null,
+      };
+
+      // Save to pit_submissions collection
+      final docRef = await _firestore
+          .collection('pit_submissions')
+          .add(submissionData);
+
+      log('✅ PIT submission saved successfully');
+      log('📄 Submission ID: ${docRef.id}');
+      log('📍 Section: $studentSectionName');
+
+      Get.snackbar(
+        'Submission Successful',
+        'Your PIT has been submitted successfully!',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+
+      // Clear the files after successful submission
+      clearFiles();
+
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Failed to submit PIT: $e';
+      log('❌ Error submitting PIT: $e');
+
+      Get.snackbar(
+        'Submission Failed',
+        'Failed to submit PIT: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+
+      return false;
+    } finally {
+      isSubmitting.value = false;
     }
   }
 }

@@ -5,7 +5,7 @@ import '../widgets/image_upload_widget.dart';
 import '../config/cloudinary_config.dart';
 
 class ImageUploadExampleScreen extends StatelessWidget {
-  const ImageUploadExampleScreen({Key? key}) : super(key: key);
+  const ImageUploadExampleScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

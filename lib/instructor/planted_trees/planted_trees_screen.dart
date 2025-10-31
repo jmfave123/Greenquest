@@ -28,8 +28,9 @@ class _InstructorPlantedTreesScreenState
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _plantedByController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
-  final TextEditingController _quantityController = TextEditingController(text: '1');
-
+  final TextEditingController _quantityController = TextEditingController(
+    text: '1',
+  );
 
   void _handleNavigationSelect(InstructorNavigationItem item) {
     setState(() => _selectedItem = item);
@@ -72,6 +73,8 @@ class _InstructorPlantedTreesScreenState
                       () => InstructorAppBar(
                         instructorName:
                             instructorController.instructorName.value,
+                        profileImageUrl:
+                            instructorController.profileImageUrl.value,
                       ),
                     ),
                     Expanded(
@@ -143,7 +146,8 @@ class _InstructorPlantedTreesScreenState
                                         'assets/instructor/images/image 378.png',
                                     label: 'Trees Planted this Semester',
                                     value:
-                                        treeController.totalTrees.value.toString(),
+                                        treeController.totalTrees.value
+                                            .toString(),
                                     borderColor: const Color(0xFF2563EB),
                                     iconBg: const Color(0xFFE8F0FE),
                                     sublabel: 'Total trees registered',
@@ -156,7 +160,9 @@ class _InstructorPlantedTreesScreenState
                                     image:
                                         'assets/instructor/images/image 377.png',
                                     label: 'Recent Activity',
-                                    value: treeController.recentActivity.value.toString(),
+                                    value:
+                                        treeController.recentActivity.value
+                                            .toString(),
                                     borderColor: const Color(0xFFF59E42),
                                     iconBg: const Color(0xFFFFF7E6),
                                     sublabel: 'Trees added this week',
@@ -352,92 +358,97 @@ class _InstructorPlantedTreesScreenState
                                                         ),
                                                       ),
                                                     ),
-                                                      Expanded(
-                                                        flex: 1,
-                                                        child: Text(
-                                                          r['quantity'].toString(),
-                                                          style: const TextStyle(
-                                                            fontSize: 15,
-                                                          ),
-                                                          textAlign: TextAlign.start,
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Text(
+                                                        r['quantity']
+                                                            .toString(),
+                                                        style: const TextStyle(
+                                                          fontSize: 15,
                                                         ),
+                                                        textAlign:
+                                                            TextAlign.start,
                                                       ),
-
-                                                    Expanded(flex: 1, child: Row(
-                                                      children: [
-                                                         // Action buttons
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                        Icons.edit,
-                                                        color: Colors.blue,
-                                                      ),
-                                                      onPressed: () {
-                                                        showEditDialog(
-                                                          context,
-                                                          r,
-                                                        );
-                                                      },
                                                     ),
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                        Icons.delete,
-                                                        color: Colors.red,
-                                                      ),
-                                                      onPressed: () async {
-                                                        final shouldDelete = await showDialog<
-                                                          bool
-                                                        >(
-                                                          context: context,
-                                                          builder:
-                                                              (
+
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Row(
+                                                        children: [
+                                                          // Action buttons
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons.edit,
+                                                              color:
+                                                                  Colors.blue,
+                                                            ),
+                                                            onPressed: () {
+                                                              showEditDialog(
                                                                 context,
-                                                              ) => AlertDialog(
-                                                                title: const Text(
-                                                                  'Delete Confirmation',
-                                                                ),
-                                                                content: const Text(
-                                                                  'Are you sure you want to delete this tree?',
-                                                                ),
-                                                                actions: [
-                                                                  TextButton(
-                                                                    onPressed:
-                                                                        () => Navigator.of(
-                                                                          context,
-                                                                        ).pop(
-                                                                          false,
-                                                                        ),
-                                                                    child: const Text(
-                                                                      'Cancel',
-                                                                    ),
-                                                                  ),
-                                                                  ElevatedButton(
-                                                                    onPressed:
-                                                                        () => Navigator.of(
-                                                                          context,
-                                                                        ).pop(
-                                                                          true,
-                                                                        ),
-                                                                    child: const Text(
-                                                                      'Delete',
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                        );
-                                                        if (shouldDelete ==
-                                                            true) {
-                                                          treeController
-                                                              .deleteTree(
-                                                                r['id'],
+                                                                r,
                                                               );
-                                                        }
-                                                      },
+                                                            },
+                                                          ),
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons.delete,
+                                                              color: Colors.red,
+                                                            ),
+                                                            onPressed: () async {
+                                                              final shouldDelete = await showDialog<
+                                                                bool
+                                                              >(
+                                                                context:
+                                                                    context,
+                                                                builder:
+                                                                    (
+                                                                      context,
+                                                                    ) => AlertDialog(
+                                                                      title: const Text(
+                                                                        'Delete Confirmation',
+                                                                      ),
+                                                                      content:
+                                                                          const Text(
+                                                                            'Are you sure you want to delete this tree?',
+                                                                          ),
+                                                                      actions: [
+                                                                        TextButton(
+                                                                          onPressed:
+                                                                              () => Navigator.of(
+                                                                                context,
+                                                                              ).pop(
+                                                                                false,
+                                                                              ),
+                                                                          child: const Text(
+                                                                            'Cancel',
+                                                                          ),
+                                                                        ),
+                                                                        ElevatedButton(
+                                                                          onPressed:
+                                                                              () => Navigator.of(
+                                                                                context,
+                                                                              ).pop(
+                                                                                true,
+                                                                              ),
+                                                                          child: const Text(
+                                                                            'Delete',
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                              );
+                                                              if (shouldDelete ==
+                                                                  true) {
+                                                                treeController
+                                                                    .deleteTree(
+                                                                      r['id'],
+                                                                    );
+                                                              }
+                                                            },
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
-                                                    
-                                                      ],
-                                                    ),
-
-                                                   ),
                                                   ],
                                                 ),
                                               ),
@@ -481,27 +492,30 @@ void showEditDialog(BuildContext context, Map<String, dynamic> r) {
   final nameController = TextEditingController(text: r['name']);
   final locationController = TextEditingController(text: r['location']);
   final byController = TextEditingController(text: r['by']);
-  final quantityController = TextEditingController(text: r['quantity'].toString());
+  final quantityController = TextEditingController(
+    text: r['quantity'].toString(),
+  );
 
   showDialog(
     context: context,
-    builder: (context) => _EditTreeDialog(
-      treeNameController: nameController,
-      locationController: locationController,
-      plantedByController: byController,
-      quantityController: quantityController,
-      onCancel: () => Navigator.pop(context),
-      onSave: () {
-        final quantity = int.tryParse(quantityController.text) ?? 1;
-        editDialogTreeController.editTree(r['id'], {
-          "treeName": nameController.text,
-          "location": locationController.text,
-          "plantedBy": byController.text,
-          "quantity": quantity,
-        });
-        Navigator.pop(context);
-      },
-    ),
+    builder:
+        (context) => _EditTreeDialog(
+          treeNameController: nameController,
+          locationController: locationController,
+          plantedByController: byController,
+          quantityController: quantityController,
+          onCancel: () => Navigator.pop(context),
+          onSave: () {
+            final quantity = int.tryParse(quantityController.text) ?? 1;
+            editDialogTreeController.editTree(r['id'], {
+              "treeName": nameController.text,
+              "location": locationController.text,
+              "plantedBy": byController.text,
+              "quantity": quantity,
+            });
+            Navigator.pop(context);
+          },
+        ),
   );
 }
 
@@ -649,7 +663,7 @@ class _RegisterTreeDialogState extends State<_RegisterTreeDialog> {
     final plantedBy = widget.plantedByController.text.trim();
     final date = widget.dateController.text.trim();
     final quantityText = widget.quantityController.text.trim();
-    
+
     final quantity = int.tryParse(quantityText) ?? 1;
 
     if (treeName.isEmpty ||
@@ -772,9 +786,7 @@ class _RegisterTreeDialogState extends State<_RegisterTreeDialog> {
               TextField(
                 controller: widget.quantityController,
                 keyboardType: TextInputType.number,
-                decoration: _inputDecoration("e.g., 5").copyWith(
-                 
-                ),
+                decoration: _inputDecoration("e.g., 5").copyWith(),
               ),
 
               const SizedBox(height: 18),
@@ -958,9 +970,7 @@ class _EditTreeDialog extends StatelessWidget {
               TextField(
                 controller: quantityController,
                 keyboardType: TextInputType.number,
-                decoration: _inputDecoration("e.g., 5").copyWith(
-                 
-                ),
+                decoration: _inputDecoration("e.g., 5").copyWith(),
               ),
 
               const SizedBox(height: 24),

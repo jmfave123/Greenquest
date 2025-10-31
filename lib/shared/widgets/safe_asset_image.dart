@@ -10,7 +10,7 @@ class SafeAssetImage extends StatelessWidget {
   final Widget? errorWidget;
 
   const SafeAssetImage({
-    Key? key,
+    super.key,
     required this.assetPath,
     this.width,
     this.height,
@@ -18,7 +18,7 @@ class SafeAssetImage extends StatelessWidget {
     this.fit,
     this.placeholder,
     this.errorWidget,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -29,20 +29,20 @@ class SafeAssetImage extends StatelessWidget {
       color: color,
       fit: fit,
       errorBuilder: (context, error, stackTrace) {
-        return errorWidget ?? 
-          Container(
-            width: width ?? 24,
-            height: height ?? 24,
-            decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Icon(
-              Icons.image_not_supported,
-              size: (width ?? 24) * 0.6,
-              color: Colors.grey,
-            ),
-          );
+        return errorWidget ??
+            Container(
+              width: width ?? 24,
+              height: height ?? 24,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Icon(
+                Icons.image_not_supported,
+                size: (width ?? 24) * 0.6,
+                color: Colors.grey,
+              ),
+            );
       },
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (wasSynchronouslyLoaded) return child;

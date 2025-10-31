@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../shared/services/file_download_service.dart';
 
 class MaterialsDetailScreen extends StatelessWidget {
   final Map<String, dynamic>? material;
 
-  const MaterialsDetailScreen({Key? key, required this.material})
-    : super(key: key);
+  const MaterialsDetailScreen({super.key, required this.material});
 
   @override
   Widget build(BuildContext context) {
@@ -61,16 +61,6 @@ class MaterialsDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: _getMaterialImage(material!['topic']?.toString() ?? ''),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Topic: ${material!['topic']?.toString() ?? 'No Topic'}',
-              style: const TextStyle(color: Colors.black54, fontSize: 13),
-            ),
-            const SizedBox(height: 18),
             Text(
               material!['title']?.toString() ?? 'No Title',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
@@ -130,31 +120,96 @@ class MaterialsDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              ...((material!['attachments'] as List).map(
-                (attachment) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.attach_file,
-                        size: 16,
-                        color: Colors.black54,
+              ...((material!['attachments'] as List).map((attachment) {
+                // Extract attachment data properly
+                Map<String, dynamic> attachmentData;
+                if (attachment is Map<String, dynamic>) {
+                  attachmentData = attachment;
+                } else {
+                  // If it's a string (URL), convert to map
+                  attachmentData = {
+                    'url': attachment.toString(),
+                    'name': attachment.toString().split('/').last,
+                    'type': _getFileType(attachment.toString()),
+                  };
+                }
+
+                final fileUrl = attachmentData['url']?.toString() ?? '';
+                final fileName =
+                    attachmentData['name']?.toString() ?? 'Unknown File';
+                final fileType =
+                    attachmentData['type']?.toString() ?? _getFileType(fileUrl);
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap:
+                        () => _handleAttachmentTap(
+                          fileUrl,
+                          fileName,
+                          fileType,
+                          context,
+                        ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          attachment.toString(),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF2886D7),
-                            decoration: TextDecoration.underline,
-                          ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34A853).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFF34A853).withOpacity(0.2),
+                          width: 1,
                         ),
                       ),
-                    ],
+                      child: Row(
+                        children: [
+                          Icon(
+                            _getFileIcon(fileUrl),
+                            size: 20,
+                            color: const Color(0xFF34A853),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  fileName,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF34A853),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Tap to download',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: const Color(
+                                      0xFF34A853,
+                                    ).withOpacity(0.7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.download,
+                            size: 18,
+                            color: Color(0xFF34A853),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              )),
+                );
+              })),
             ],
           ],
         ),
@@ -162,42 +217,94 @@ class MaterialsDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Get appropriate image based on material topic
-  Widget _getMaterialImage(String topic) {
-    // Default images based on topic
-    String imagePath;
-    double imageHeight = 200.0;
+  /// Handle attachment tap and download
+  static void _handleAttachmentTap(
+    String attachmentUrl,
+    String fileName,
+    String fileType,
+    BuildContext context,
+  ) async {
+    try {
+      print('📥 Downloading file: $fileName');
+      print('📥 File URL: $attachmentUrl');
+      print('📥 File Type: $fileType');
 
-    if (topic.toLowerCase().contains('climate') ||
-        topic.toLowerCase().contains('environment')) {
-      imagePath = 'assets/images/image 328.png';
-    } else if (topic.toLowerCase().contains('deforestation') ||
-        topic.toLowerCase().contains('forest')) {
-      imagePath = 'assets/images/engineering-supplies-blueprint 2.png';
-    } else if (topic.toLowerCase().contains('renewable') ||
-        topic.toLowerCase().contains('energy')) {
-      imagePath = 'assets/images/image 328.png';
-    } else {
-      imagePath = 'assets/images/engineering-supplies-blueprint 2.png';
+      await FileDownloadService.handleFileAction(
+        fileUrl: attachmentUrl,
+        fileName: fileName,
+        fileType: fileType,
+        context: context,
+      );
+    } catch (e) {
+      print('❌ Error downloading file: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to download file: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
+  }
 
-    return Image.asset(
-      imagePath,
-      height: imageHeight,
-      width: double.infinity,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          height: imageHeight,
-          width: double.infinity,
-          color: const Color(0xFF34A853).withOpacity(0.1),
-          child: const Icon(
-            Icons.library_books,
-            size: 60,
-            color: Color(0xFF34A853),
-          ),
-        );
-      },
-    );
+  /// Get file icon based on file type
+  static IconData _getFileIcon(String fileUrl) {
+    final fileType = _getFileType(fileUrl).toLowerCase();
+
+    if (fileType.contains('pdf')) {
+      return Icons.picture_as_pdf;
+    } else if (fileType.contains('doc') || fileType.contains('docx')) {
+      return Icons.description;
+    } else if (fileType.contains('ppt') || fileType.contains('pptx')) {
+      return Icons.slideshow;
+    } else if (fileType.contains('xls') || fileType.contains('xlsx')) {
+      return Icons.table_chart;
+    } else if (fileType.contains('image') ||
+        fileType.contains('jpg') ||
+        fileType.contains('jpeg') ||
+        fileType.contains('png') ||
+        fileType.contains('gif')) {
+      return Icons.image;
+    } else if (fileType.contains('video') ||
+        fileType.contains('mp4') ||
+        fileType.contains('avi') ||
+        fileType.contains('mov')) {
+      return Icons.video_file;
+    } else if (fileType.contains('audio') ||
+        fileType.contains('mp3') ||
+        fileType.contains('wav')) {
+      return Icons.audio_file;
+    } else if (fileType.contains('zip') || fileType.contains('rar')) {
+      return Icons.archive;
+    } else {
+      return Icons.attach_file;
+    }
+  }
+
+  /// Extract file name from URL
+  static String _getFileName(String fileUrl) {
+    try {
+      final uri = Uri.parse(fileUrl);
+      final pathSegments = uri.pathSegments;
+      if (pathSegments.isNotEmpty) {
+        return pathSegments.last;
+      }
+      return 'Download';
+    } catch (e) {
+      return 'Download';
+    }
+  }
+
+  /// Extract file type from URL
+  static String _getFileType(String fileUrl) {
+    try {
+      final uri = Uri.parse(fileUrl);
+      final path = uri.path.toLowerCase();
+      if (path.contains('.')) {
+        return path.split('.').last;
+      }
+      return 'unknown';
+    } catch (e) {
+      return 'unknown';
+    }
   }
 }

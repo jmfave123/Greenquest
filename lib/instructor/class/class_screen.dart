@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import '../instructor_dashboard_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'models/class_schedule.dart';
 
 class ClassScreen extends StatefulWidget {
   const ClassScreen({super.key});
@@ -26,15 +27,23 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   InstructorNavigationItem _selectedItem =
       InstructorNavigationItem.classManagement;
   bool _showCreateClassDialog = false;
+  bool _showArchivedClasses = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   final TextEditingController _classNameController = TextEditingController();
   final TextEditingController _roomController = TextEditingController();
-  final TextEditingController _startTimeController = TextEditingController();
-  final TextEditingController _endTimeController = TextEditingController();
+
+  // Multiple schedules support
+  final List<Map<String, dynamic>> _schedules = [];
+  final TextEditingController _tempStartTimeController =
+      TextEditingController();
+  final TextEditingController _tempEndTimeController = TextEditingController();
+  final TextEditingController _tempRoomController = TextEditingController();
+  String? _tempSelectedDay;
 
   // Section and Day selection
   String? _selectedSectionId;
-  String? _selectedDay;
   List<Map<String, dynamic>> _availableSections = [];
   bool _isLoadingSections = false;
 
@@ -69,18 +78,54 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
       _classNameController.clear();
       _roomController.clear();
       _selectedSectionId = null;
-      _selectedDay = null;
-      _startTimeController.clear();
-      _endTimeController.clear();
+      _schedules.clear();
+      _tempSelectedDay = null;
+      _tempStartTimeController.clear();
+      _tempEndTimeController.clear();
+      _tempRoomController.clear();
+    });
+  }
+
+  void _addSchedule() {
+    // Limit to 2 schedules maximum
+    if (_schedules.length >= 2) {
+      Get.snackbar("Limit Reached", "You can only add up to 2 schedules!");
+      return;
+    }
+
+    if (_tempSelectedDay == null ||
+        _tempStartTimeController.text.isEmpty ||
+        _tempEndTimeController.text.isEmpty ||
+        _tempRoomController.text.trim().isEmpty) {
+      Get.snackbar(
+        "Error",
+        "Please fill in all schedule fields including room!",
+      );
+      return;
+    }
+
+    setState(() {
+      _schedules.add({
+        'day': _tempSelectedDay!,
+        'startTime': _tempStartTimeController.text,
+        'endTime': _tempEndTimeController.text,
+        'room': _tempRoomController.text.trim(),
+      });
+      // Clear temporary fields
+      _tempSelectedDay = null;
+      _tempStartTimeController.clear();
+      _tempEndTimeController.clear();
+      _tempRoomController.clear();
+    });
+  }
+
+  void _removeSchedule(int index) {
+    setState(() {
+      _schedules.removeAt(index);
     });
   }
 
   void _createClass() {
-    final room = _roomController.text.trim();
-    final day = _selectedDay ?? "";
-    final startTime = _startTimeController.text.trim();
-    final endTime = _endTimeController.text.trim();
-
     if (_availableSections.isEmpty) {
       Get.snackbar(
         "Error",
@@ -95,6 +140,12 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
       return;
     }
 
+    // Check if at least one schedule is added
+    if (_schedules.isEmpty) {
+      Get.snackbar("Error", "Please add at least one schedule!");
+      return;
+    }
+
     // Get course information from selected section
     final selectedSection = _availableSections.firstWhere(
       (section) => section['id'] == _selectedSectionId,
@@ -104,18 +155,27 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
     final sectionCode = selectedSection['sectionCode'] ?? "";
     final courseCode = selectedSection['courseCode'] ?? "";
 
-    if (room.isEmpty || day.isEmpty || startTime.isEmpty || endTime.isEmpty) {
-      Get.snackbar("Error", "All fields are required!");
-      return;
-    }
+    // Convert schedules to ClassSchedule objects (each with their own room)
+    final classSchedules =
+        _schedules
+            .map(
+              (schedule) => ClassSchedule(
+                day: schedule['day'],
+                startTime: schedule['startTime'],
+                endTime: schedule['endTime'],
+                room: schedule['room'],
+              ),
+            )
+            .toList();
 
     _classController.addClass(
       section: sectionCode,
       course: courseCode,
-      room: room,
-      day: day,
-      startTime: startTime,
-      endTime: endTime,
+      room:
+          _schedules.isNotEmpty
+              ? _schedules[0]['room']
+              : '', // Use first schedule's room for backward compatibility
+      schedules: classSchedules,
       sectionId: _selectedSectionId,
     );
 
@@ -135,12 +195,74 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
     );
   }
 
+  void _showArchiveConfirmation(Map<String, dynamic> classData) {
+    final className = '${classData['course']} ${classData['section']}';
+    showDialog(
+      context: context,
+      builder:
+          (context) => _ArchiveConfirmationDialog(
+            className: className,
+            onConfirm: () => _archiveClass(classData),
+            onCancel: () => Navigator.of(context).pop(),
+          ),
+    );
+  }
+
   void _deleteClass(Map<String, dynamic> classData) {
     final classId = classData['id'];
     if (classId != null) {
       _classController.deleteClass(classId);
     }
     Navigator.of(context).pop(); // Close dialog
+  }
+
+  void _archiveClass(Map<String, dynamic> classData) {
+    final classId = classData['id'];
+    if (classId != null) {
+      _classController.archiveClass(classId);
+    }
+    Navigator.of(context).pop(); // Close dialog
+  }
+
+  void _unarchiveClass(Map<String, dynamic> classData) {
+    final classId = classData['id'];
+    if (classId != null) {
+      _classController.unarchiveClass(classId);
+    }
+  }
+
+  List<Map<String, dynamic>> _getFilteredClasses() {
+    final classesToShow =
+        _showArchivedClasses
+            ? _classController.archivedClasses
+            : _classController.classes;
+
+    if (_searchQuery.isEmpty) {
+      return classesToShow;
+    }
+
+    return classesToShow.where((classData) {
+      final section = (classData['section'] ?? '').toString().toLowerCase();
+      final course = (classData['course'] ?? '').toString().toLowerCase();
+      final room = (classData['room'] ?? '').toString().toLowerCase();
+
+      // Search in schedules as well
+      String scheduleText = '';
+      if (classData.containsKey('schedules') &&
+          classData['schedules'] is List) {
+        final schedules = List<Map<String, dynamic>>.from(
+          classData['schedules'],
+        );
+        scheduleText =
+            schedules.map((s) => s['day'] ?? '').join(' ').toLowerCase();
+      }
+
+      final searchLower = _searchQuery.toLowerCase();
+      return section.contains(searchLower) ||
+          course.contains(searchLower) ||
+          room.contains(searchLower) ||
+          scheduleText.contains(searchLower);
+    }).toList();
   }
 
   Future<void> _selectStartTime() async {
@@ -162,7 +284,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
     );
     if (picked != null) {
       setState(() {
-        _startTimeController.text = picked.format(context);
+        _tempStartTimeController.text = picked.format(context);
       });
     }
   }
@@ -186,7 +308,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
     );
     if (picked != null) {
       setState(() {
-        _endTimeController.text = picked.format(context);
+        _tempEndTimeController.text = picked.format(context);
       });
     }
   }
@@ -195,8 +317,12 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadSections();
-    _loadStudents();
+
+    // Use addPostFrameCallback to ensure operations run after build is complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSections();
+      _loadStudents();
+    });
   }
 
   Future<void> _loadStudents() async {
@@ -204,8 +330,13 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadSections() async {
-    setState(() {
-      _isLoadingSections = true;
+    // Use addPostFrameCallback to prevent setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _isLoadingSections = true;
+        });
+      }
     });
 
     try {
@@ -278,8 +409,13 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
       print('Error loading sections: $e');
       _availableSections = [];
     } finally {
-      setState(() {
-        _isLoadingSections = false;
+      // Use addPostFrameCallback to prevent setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _isLoadingSections = false;
+          });
+        }
       });
     }
   }
@@ -287,14 +423,20 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Refresh classes when app comes back to foreground
-      _classController.loadClasses();
+      // Use addPostFrameCallback to prevent setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          // Refresh classes when app comes back to foreground
+          _classController.loadClasses();
+        }
+      });
     }
   }
 
@@ -319,6 +461,8 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                         instructorName:
                             instructorController.instructorName.value,
                         instructorRole: 'Instructor',
+                        profileImageUrl:
+                            instructorController.profileImageUrl.value,
                       ),
                     ),
                     // Main Content
@@ -345,9 +489,70 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                               ),
                             ),
                             const SizedBox(height: 48),
-                            // Action Buttons Row
+                            // Search Bar (medium width)
+                            Container(
+                              width: 400,
+                              height: 44,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.search,
+                                    color: Color(0xFFBDBDBD),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'Search by section, course, room, or day...',
+                                        border: InputBorder.none,
+                                        hintStyle: TextStyle(
+                                          color: Color(0xFFBDBDBD),
+                                        ),
+                                      ),
+                                      style: TextStyle(fontSize: 15),
+                                      cursorColor: Colors.black54,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _searchQuery = value.toLowerCase();
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  if (_searchQuery.isNotEmpty)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        size: 20,
+                                        color: Color(0xFFBDBDBD),
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _searchQuery = '';
+                                          _searchController.clear();
+                                        });
+                                      },
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Action Buttons below search bar
                             Row(
                               children: [
+                                // Create Class Button
                                 ElevatedButton.icon(
                                   onPressed: _openCreateClassDialog,
                                   style: ElevatedButton.styleFrom(
@@ -371,58 +576,85 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                                 const SizedBox(width: 16),
-                                // ElevatedButton.icon(
-                                //   onPressed: _loadStudents,
-                                //   style: ElevatedButton.styleFrom(
-                                //     backgroundColor: Colors.blue,
-                                //     foregroundColor: Colors.white,
-                                //     padding: const EdgeInsets.symmetric(
-                                //       horizontal: 30,
-                                //       vertical: 20,
-                                //     ),
-                                //     shape: RoundedRectangleBorder(
-                                //       borderRadius: BorderRadius.circular(8),
-                                //     ),
-                                //   ),
-                                //   icon: const Icon(Icons.refresh),
-                                //   label: const Text(
-                                //     'Refresh Students',
-                                //     style: TextStyle(
-                                //       fontSize: 16,
-                                //       fontWeight: FontWeight.w600,
-                                //     ),
-                                //   ),
-                                // ),
+                                // Toggle Archived Classes Button
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      _showArchivedClasses =
+                                          !_showArchivedClasses;
+                                      // Clear search when switching views
+                                      _searchQuery = '';
+                                      _searchController.clear();
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        _showArchivedClasses
+                                            ? Colors.orange
+                                            : Colors.grey[600],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 30,
+                                      vertical: 20,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  icon: Icon(
+                                    _showArchivedClasses
+                                        ? Icons.unarchive
+                                        : Icons.archive,
+                                  ),
+                                  label: Text(
+                                    _showArchivedClasses
+                                        ? 'Show Active'
+                                        : 'Show Archived',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 32),
                             // Class Cards Grid
                             Expanded(
                               child: Obx(() {
-                                if (_classController.isLoading.value) {
-                                  return const Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF34A853),
-                                      ),
-                                    ),
-                                  );
-                                }
+                                // COMMENTED OUT: Loading feature disabled
+                                // if (_classController.isLoading.value) {
+                                //   return const Center(
+                                //     child: CircularProgressIndicator(
+                                //       valueColor: AlwaysStoppedAnimation<Color>(
+                                //         Color(0xFF34A853),
+                                //       ),
+                                //     ),
+                                //   );
+                                // }
 
-                                if (_classController.classes.isEmpty) {
-                                  return const Center(
+                                final classesToShow = _getFilteredClasses();
+
+                                if (classesToShow.isEmpty) {
+                                  return Center(
                                     child: Column(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
                                         Icon(
-                                          Icons.school_outlined,
+                                          _showArchivedClasses
+                                              ? Icons.archive_outlined
+                                              : Icons.school_outlined,
                                           size: 64,
                                           color: Colors.grey,
                                         ),
                                         SizedBox(height: 16),
                                         Text(
-                                          'No classes found',
+                                          _searchQuery.isNotEmpty
+                                              ? 'No classes found'
+                                              : _showArchivedClasses
+                                              ? 'No archived classes found'
+                                              : 'No classes found',
                                           style: TextStyle(
                                             fontSize: 18,
                                             color: Colors.grey,
@@ -431,7 +663,11 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                                         ),
                                         SizedBox(height: 8),
                                         Text(
-                                          'Create your first class to get started',
+                                          _searchQuery.isNotEmpty
+                                              ? 'Try adjusting your search query to find what you\'re looking for.'
+                                              : _showArchivedClasses
+                                              ? 'Archived classes will appear here'
+                                              : 'Create your first class to get started',
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: Colors.grey,
@@ -478,11 +714,9 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                                                 screenWidth < 768 ? 16 : 20,
                                             childAspectRatio: childAspectRatio,
                                           ),
-                                      itemCount:
-                                          _classController.classes.length,
+                                      itemCount: classesToShow.length,
                                       itemBuilder: (context, index) {
-                                        final classData =
-                                            _classController.classes[index];
+                                        final classData = classesToShow[index];
                                         return _buildClassCard(
                                           classData,
                                           screenWidth,
@@ -512,6 +746,9 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                       MediaQuery.of(context).size.width < 768
                           ? MediaQuery.of(context).size.width * 0.9
                           : 500,
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.85,
+                  ),
                   padding: EdgeInsets.symmetric(
                     horizontal:
                         MediaQuery.of(context).size.width < 768 ? 20 : 30,
@@ -541,213 +778,486 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      // Section Dropdown
-                      Container(
-                        height: 50,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF34A853).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: DropdownButton<String>(
-                          borderRadius: BorderRadius.circular(15),
-                          value: _selectedSectionId,
-                          hint:
-                              _isLoadingSections
-                                  ? const Text(
-                                    'Loading sections...',
-                                    style: TextStyle(color: Colors.black45),
-                                  )
-                                  : _availableSections.isEmpty
-                                  ? const Text(
-                                    'No sections assigned',
-                                    style: TextStyle(color: Colors.black45),
-                                  )
-                                  : const Text(
-                                    'Select Section',
-                                    style: TextStyle(color: Colors.black45),
-                                  ),
-                          isExpanded: true,
-                          underline: Container(),
-                          items:
-                              _availableSections.map<DropdownMenuItem<String>>((
-                                section,
-                              ) {
-                                return DropdownMenuItem<String>(
-                                  value: section['id'],
-                                  child: Text(
-                                    '${section['courseCode']} ${section['sectionCode']} - ${section['courseName']}',
-                                    style: const TextStyle(
+                      // Scrollable content
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Section Dropdown
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF34A853,
+                                  ).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: DropdownButton<String>(
+                                  borderRadius: BorderRadius.circular(15),
+                                  value: _selectedSectionId,
+                                  hint:
+                                      _isLoadingSections
+                                          ? const Text(
+                                            'Loading sections...',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          )
+                                          : _availableSections.isEmpty
+                                          ? const Text(
+                                            'No sections assigned',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          )
+                                          : const Text(
+                                            'Select Section',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          ),
+                                  isExpanded: true,
+                                  underline: Container(),
+                                  items:
+                                      _availableSections.map<
+                                        DropdownMenuItem<String>
+                                      >((section) {
+                                        return DropdownMenuItem<String>(
+                                          value: section['id'],
+                                          child: Text(
+                                            '${section['courseCode']} ${section['sectionCode']} - ${section['courseName']}',
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontSize: 14,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        );
+                                      }).toList(),
+                                  onChanged: (String? newValue) {
+                                    setState(() {
+                                      _selectedSectionId = newValue;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Schedules Section Header
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Schedules',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
                                       color: Colors.black87,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_schedules.length}/2 added',
+                                    style: TextStyle(
                                       fontSize: 14,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                );
-                              }).toList(),
-                          onChanged: (String? newValue) {
-                            setState(() {
-                              _selectedSectionId = newValue;
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Room
-                      TextField(
-                        controller: _roomController,
-                        cursorColor: Colors.black45,
-                        decoration: InputDecoration(
-                          hintText: 'Room',
-                          hintStyle: const TextStyle(color: Colors.black45),
-                          filled: true,
-                          fillColor: const Color(0xFF34A853).withOpacity(0.15),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Day of Week Dropdown
-                      Container(
-                        height: 50,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF34A853).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: DropdownButton<String>(
-                          borderRadius: BorderRadius.circular(15),
-                          value: _selectedDay,
-                          hint: const Text(
-                            'Select Day',
-                            style: TextStyle(color: Colors.black45),
-                          ),
-                          isExpanded: true,
-                          underline: Container(),
-                          items:
-                              _daysOfWeek.map((String day) {
-                                return DropdownMenuItem<String>(
-                                  value: day,
-                                  child: Text(
-                                    day,
-                                    style: const TextStyle(
-                                      color: Colors.black87,
+                                      color:
+                                          _schedules.length >= 2
+                                              ? const Color(0xFF34A853)
+                                              : Colors.black54,
+                                      fontWeight:
+                                          _schedules.length >= 2
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
                                     ),
                                   ),
-                                );
-                              }).toList(),
-                          onChanged: (String? newValue) {
-                            setState(() {
-                              _selectedDay = newValue;
-                            });
-                          },
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Display added schedules
+                              if (_schedules.isNotEmpty)
+                                Container(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 150,
+                                  ),
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: _schedules.length,
+                                    itemBuilder: (context, index) {
+                                      final schedule = _schedules[index];
+                                      return Container(
+                                        margin: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(
+                                              0xFF34A853,
+                                            ).withOpacity(0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '${schedule['day']} • ${schedule['startTime']} - ${schedule['endTime']}',
+                                                    style: const TextStyle(
+                                                      color: Colors.black87,
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.meeting_room,
+                                                        size: 14,
+                                                        color: Colors.black54,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        schedule['room'] ??
+                                                            'No room',
+                                                        style: const TextStyle(
+                                                          color: Colors.black54,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete,
+                                                color: Colors.red,
+                                                size: 20,
+                                              ),
+                                              onPressed:
+                                                  () => _removeSchedule(index),
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+
+                              if (_schedules.isNotEmpty)
+                                const SizedBox(height: 12),
+
+                              // Add Schedule Form (hidden when 2 schedules added)
+                              if (_schedules.length < 2)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: Colors.grey.withOpacity(0.2),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Add Schedule',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Day Dropdown
+                                      Container(
+                                        height: 50,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: DropdownButton<String>(
+                                          borderRadius: BorderRadius.circular(
+                                            15,
+                                          ),
+                                          value: _tempSelectedDay,
+                                          hint: const Text(
+                                            'Select Day',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          ),
+                                          isExpanded: true,
+                                          underline: Container(),
+                                          items:
+                                              _daysOfWeek.map((String day) {
+                                                return DropdownMenuItem<String>(
+                                                  value: day,
+                                                  child: Text(
+                                                    day,
+                                                    style: const TextStyle(
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                          onChanged: (String? newValue) {
+                                            setState(() {
+                                              _tempSelectedDay = newValue;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Room field
+                                      TextField(
+                                        controller: _tempRoomController,
+                                        cursorColor: Colors.black45,
+                                        decoration: InputDecoration(
+                                          hintText: 'Room',
+                                          hintStyle: const TextStyle(
+                                            color: Colors.black45,
+                                          ),
+                                          filled: true,
+                                          fillColor: const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.15),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                                vertical: 12,
+                                              ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Time Range Row
+                                      Row(
+                                        children: [
+                                          // Start Time
+                                          Expanded(
+                                            child: GestureDetector(
+                                              onTap: _selectStartTime,
+                                              child: AbsorbPointer(
+                                                child: TextField(
+                                                  controller:
+                                                      _tempStartTimeController,
+                                                  cursorColor: Colors.black45,
+                                                  decoration: InputDecoration(
+                                                    hintText: 'Start Time',
+                                                    hintStyle: const TextStyle(
+                                                      color: Colors.black45,
+                                                    ),
+                                                    filled: true,
+                                                    fillColor: const Color(
+                                                      0xFF34A853,
+                                                    ).withOpacity(0.15),
+                                                    border: OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                      borderSide:
+                                                          BorderSide.none,
+                                                    ),
+                                                    enabledBorder:
+                                                        OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                          borderSide:
+                                                              BorderSide.none,
+                                                        ),
+                                                    focusedBorder:
+                                                        OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                          borderSide:
+                                                              BorderSide.none,
+                                                        ),
+                                                    contentPadding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          // End Time
+                                          Expanded(
+                                            child: GestureDetector(
+                                              onTap: _selectEndTime,
+                                              child: AbsorbPointer(
+                                                child: TextField(
+                                                  controller:
+                                                      _tempEndTimeController,
+                                                  cursorColor: Colors.black45,
+                                                  decoration: InputDecoration(
+                                                    hintText: 'End Time',
+                                                    hintStyle: const TextStyle(
+                                                      color: Colors.black45,
+                                                    ),
+                                                    filled: true,
+                                                    fillColor: const Color(
+                                                      0xFF34A853,
+                                                    ).withOpacity(0.15),
+                                                    border: OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                      borderSide:
+                                                          BorderSide.none,
+                                                    ),
+                                                    enabledBorder:
+                                                        OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                          borderSide:
+                                                              BorderSide.none,
+                                                        ),
+                                                    focusedBorder:
+                                                        OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                          borderSide:
+                                                              BorderSide.none,
+                                                        ),
+                                                    contentPadding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Add Schedule Button
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: _addSchedule,
+                                          icon: const Icon(Icons.add, size: 18),
+                                          label: const Text('Add Schedule'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF34A853,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Time Range Row
-                      Row(
-                        children: [
-                          // Start Time
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: _selectStartTime,
-                              child: AbsorbPointer(
-                                child: TextField(
-                                  controller: _startTimeController,
-                                  cursorColor: Colors.black45,
-                                  decoration: InputDecoration(
-                                    hintText: 'Start Time',
-                                    hintStyle: const TextStyle(
-                                      color: Colors.black45,
-                                    ),
-                                    filled: true,
-                                    fillColor: const Color(
-                                      0xFF34A853,
-                                    ).withOpacity(0.15),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
+                      // Schedule requirement message
+                      if (_schedules.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.orange.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.orange[700],
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Please add at least one schedule to create the class.',
+                                  style: TextStyle(
+                                    color: Colors.orange[700],
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 16),
-                          // End Time
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: _selectEndTime,
-                              child: AbsorbPointer(
-                                child: TextField(
-                                  controller: _endTimeController,
-                                  cursorColor: Colors.black45,
-                                  decoration: InputDecoration(
-                                    hintText: 'End Time',
-                                    hintStyle: const TextStyle(
-                                      color: Colors.black45,
-                                    ),
-                                    filled: true,
-                                    fillColor: const Color(
-                                      0xFF34A853,
-                                    ).withOpacity(0.15),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      // Action Buttons
+                        ),
+                      if (_schedules.isEmpty) const SizedBox(height: 16),
+                      // Action Buttons (Fixed at bottom)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -765,7 +1275,8 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                           TextButton(
                             onPressed:
                                 _availableSections.isEmpty ||
-                                        _selectedSectionId == null
+                                        _selectedSectionId == null ||
+                                        _schedules.isEmpty
                                     ? null
                                     : _createClass,
                             child: Text(
@@ -774,7 +1285,8 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                                 fontSize: 16,
                                 color:
                                     _availableSections.isEmpty ||
-                                            _selectedSectionId == null
+                                            _selectedSectionId == null ||
+                                            _schedules.isEmpty
                                         ? Colors.grey
                                         : const Color(0xFF34A853),
                               ),
@@ -796,10 +1308,42 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
     // Format the class name as "COURSE SECTION" (e.g., "BSIT 1A")
     final className = '${classData['course']} ${classData['section']}';
 
-    // Format the time as "DAY START_TIME - END_TIME" (e.g., "Wed 1:00 PM - 2:30 PM")
-    final dayAbbr = _getDayAbbreviation(classData['day']);
-    final timeString =
-        '$dayAbbr ${classData['startTime']} - ${classData['endTime']}';
+    // Format schedules - handle both single and multiple schedules
+    String timeString = '';
+    if (classData.containsKey('schedules') && classData['schedules'] is List) {
+      final schedules = List<Map<String, dynamic>>.from(classData['schedules']);
+      if (schedules.isNotEmpty) {
+        // Check if all schedules have the same time
+        final allSameTime = schedules.every(
+          (s) =>
+              s['startTime'] == schedules[0]['startTime'] &&
+              s['endTime'] == schedules[0]['endTime'],
+        );
+
+        if (allSameTime && schedules.length > 1) {
+          // Show as "Mon/Wed 9:00 AM - 10:30 AM"
+          final days = schedules
+              .map((s) => _getDayAbbreviation(s['day']))
+              .join('/');
+          timeString =
+              '$days ${schedules[0]['startTime']} - ${schedules[0]['endTime']}';
+        } else {
+          // Show first schedule with indicator of more
+          final firstSchedule = schedules[0];
+          final dayAbbr = _getDayAbbreviation(firstSchedule['day']);
+          timeString =
+              '$dayAbbr ${firstSchedule['startTime']} - ${firstSchedule['endTime']}';
+          if (schedules.length > 1) {
+            timeString += ' (+${schedules.length - 1} more)';
+          }
+        }
+      }
+    } else {
+      // Fallback to old format for backward compatibility
+      final dayAbbr = _getDayAbbreviation(classData['day']);
+      timeString =
+          '$dayAbbr ${classData['startTime']} - ${classData['endTime']}';
+    }
 
     return GestureDetector(
       onTap: () {
@@ -886,7 +1430,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Room info
+                        // Room info - show from schedules if available
                         Row(
                           children: [
                             Icon(
@@ -896,7 +1440,28 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                             ),
                             SizedBox(width: 10),
                             Text(
-                              classData['room'] ?? 'N/A',
+                              () {
+                                if (classData.containsKey('schedules') &&
+                                    classData['schedules'] is List) {
+                                  final schedules =
+                                      List<Map<String, dynamic>>.from(
+                                        classData['schedules'],
+                                      );
+                                  if (schedules.isNotEmpty) {
+                                    // Check if all rooms are the same
+                                    final allSameRoom = schedules.every(
+                                      (s) => s['room'] == schedules[0]['room'],
+                                    );
+                                    if (allSameRoom) {
+                                      return schedules[0]['room'] ?? 'N/A';
+                                    } else {
+                                      // Different rooms - show first with indicator
+                                      return '${schedules[0]['room'] ?? 'N/A'} (+more)';
+                                    }
+                                  }
+                                }
+                                return classData['room'] ?? 'N/A';
+                              }(),
                               style: TextStyle(
                                 color: Colors.black54,
                                 fontSize: 14,
@@ -905,21 +1470,57 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                             ),
                           ],
                         ),
-                        // Delete button
-                        GestureDetector(
-                          onTap: () => _showDeleteConfirmation(classData),
-                          child: Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
+                        // Action buttons
+                        Row(
+                          children: [
+                            // Archive/Unarchive button
+                            GestureDetector(
+                              onTap:
+                                  () =>
+                                      _showArchivedClasses
+                                          ? _unarchiveClass(classData)
+                                          : _showArchiveConfirmation(classData),
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color:
+                                      _showArchivedClasses
+                                          ? Colors.green.withValues(alpha: 0.1)
+                                          : Colors.orange.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  _showArchivedClasses
+                                      ? Icons.unarchive_outlined
+                                      : Icons.archive_outlined,
+                                  color:
+                                      _showArchivedClasses
+                                          ? Colors.green
+                                          : Colors.orange,
+                                  size: 20,
+                                ),
+                              ),
                             ),
-                            child: Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                              size: 20,
+                            SizedBox(width: 8),
+                            // Delete button
+                            GestureDetector(
+                              onTap: () => _showDeleteConfirmation(classData),
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                  size: 20,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -1100,6 +1701,167 @@ class _DeleteConfirmationDialog extends StatelessWidget {
                     ),
                     child: const Text(
                       'Delete Class',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArchiveConfirmationDialog extends StatelessWidget {
+  final String className;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  const _ArchiveConfirmationDialog({
+    required this.className,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 480,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- HEADER ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.archive_outlined,
+                          color: Colors.orange,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Text(
+                        'Archive Class',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: onCancel,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // --- MESSAGE ---
+              const Text(
+                'Are you sure you want to archive this class?',
+                style: TextStyle(fontSize: 16, color: Colors.black87),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF34A853).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF34A853).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: const Color(0xFF34A853),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        className,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Color(0xFF34A853),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'This class will be moved to the archive. You can restore it later if needed. The class will no longer appear in your active classes list.',
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+
+              const SizedBox(height: 32),
+
+              // --- ACTION BUTTONS ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: onCancel,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.grey),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text(
+                      'Archive Class',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,

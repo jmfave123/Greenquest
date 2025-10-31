@@ -4,7 +4,14 @@ import '../widgets/safe_asset_image.dart';
 class InstructorAppBar extends StatelessWidget {
   final String instructorName;
   final String instructorRole;
-  const InstructorAppBar({Key? key, required this.instructorName, this.instructorRole = 'Instructor'}) : super(key: key);
+  final String? profileImageUrl;
+
+  const InstructorAppBar({
+    super.key,
+    required this.instructorName,
+    this.instructorRole = 'Instructor',
+    this.profileImageUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,56 +23,26 @@ class InstructorAppBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Search bar
-          Container(
-            width: 400,
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Row(
-              children: [
-                SafeAssetImage(
-                  assetPath: 'assets/instructor/icons/akar-icons_search.png',
-                  width: 20,
-                  color: Color(0xFFBDBDBD),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search..',
-                      border: InputBorder.none,
-                      hintStyle: TextStyle(color: Color(0xFFBDBDBD)),
-                    ),
-                    style: TextStyle(fontSize: 15),
-                    cursorColor: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
           const Spacer(),
           // Instructor avatar and name
           Row(
             children: [
-              ClipOval(
-                child: SafeAssetImage(
-                  assetPath: 'assets/instructor/images/Avatar.png',
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                ),
-              ),
+              _buildProfileAvatar(),
               const SizedBox(width: 14),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(instructorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(instructorRole, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                  Text(
+                    instructorName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    instructorRole,
+                    style: const TextStyle(color: Colors.black54, fontSize: 13),
+                  ),
                 ],
               ),
             ],
@@ -74,4 +51,38 @@ class InstructorAppBar extends StatelessWidget {
       ),
     );
   }
-} 
+
+  /// Build profile avatar with image or initials
+  Widget _buildProfileAvatar() {
+    // Get initials from name
+    String getInitials(String name) {
+      if (name.isEmpty) return '';
+      final parts = name.trim().split(' ');
+      if (parts.length == 1) {
+        return parts[0].substring(0, 1).toUpperCase();
+      }
+      return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+          .toUpperCase();
+    }
+
+    final initials = getInitials(instructorName);
+    final hasImage = profileImageUrl != null && profileImageUrl!.isNotEmpty;
+
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: hasImage ? Colors.transparent : Colors.blue.shade700,
+      backgroundImage: hasImage ? NetworkImage(profileImageUrl!) : null,
+      child:
+          !hasImage
+              ? Text(
+                initials,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              )
+              : null,
+    );
+  }
+}

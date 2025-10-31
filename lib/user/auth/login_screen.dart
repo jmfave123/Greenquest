@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
+import '../../shared/widgets/forgot_password_dialog.dart';
 
 class LoginScreenApp extends StatefulWidget {
-  const LoginScreenApp({Key? key}) : super(key: key);
+  const LoginScreenApp({super.key});
 
   @override
   State<LoginScreenApp> createState() => _LoginScreenAppState();
 }
 
 class _LoginScreenAppState extends State<LoginScreenApp> {
+  bool _isPasswordVisible = false;
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   bool isLoading = false;
@@ -26,7 +28,7 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 80),
-              Image.asset('assets/images/image 297.png', height: 150),
+              Image.asset('assets/images/GreenQuest Logo.jpg', height: 150),
               const Text(
                 "Let's sign you in",
                 style: TextStyle(
@@ -56,7 +58,7 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
               const SizedBox(height: 20),
               TextField(
                 controller: passwordController,
-                obscureText: true,
+                obscureText: !_isPasswordVisible,
                 decoration: InputDecoration(
                   prefixIcon: Padding(
                     padding: EdgeInsets.only(left: 15),
@@ -64,6 +66,18 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
                       'assets/icons/charm_shield-keyhole.png',
                       height: 24,
                     ),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _isPasswordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isPasswordVisible = !_isPasswordVisible;
+                      });
+                    },
                   ),
                   hintText: '********',
                   hintStyle: TextStyle(color: Colors.black38),
@@ -75,33 +89,45 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
-              Row(
-                children: const [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Text('OR'),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 30),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: Image.asset('assets/images/google.png', height: 24),
-                label: const Text('Sign in with Google'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black87,
-                  minimumSize: const Size.fromHeight(60),
-                  side: const BorderSide(color: Color(0xFFE0E0E0)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: () {
+                    // Show forgot password dialog
+                    Get.dialog(
+                      ForgotPasswordDialog(
+                        onResetPassword: (email) async {
+                          final result = await authController.resetPassword(
+                            email,
+                          );
+                          if (result['success']) {
+                            // Show success message after dialog closes
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              showInfoSnackBar(
+                                context,
+                                message:
+                                    'Password reset link has been sent to your email!',
+                              );
+                            });
+                          } else {
+                            throw Exception(result['message']);
+                          }
+                        },
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Forgot Password?',
+                    style: TextStyle(
+                      color: Color(0xFF43A047),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 30),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

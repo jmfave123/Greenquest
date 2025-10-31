@@ -7,11 +7,11 @@ class MultipleAssignmentDialog extends StatefulWidget {
   final List<Map<String, dynamic>>? existingAssignments;
 
   const MultipleAssignmentDialog({
-    Key? key,
+    super.key,
     required this.instructorId,
     required this.instructorName,
     this.existingAssignments,
-  }) : super(key: key);
+  });
 
   @override
   State<MultipleAssignmentDialog> createState() =>
@@ -37,10 +37,8 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
     print('Existing assignments: ${widget.existingAssignments}');
     print('Selected assignments: $selectedAssignments');
 
-    // Load assignments from Firestore if not provided
-    if (selectedAssignments.isEmpty) {
-      _loadAssignmentsFromFirestore();
-    }
+    // Always load assignments from Firestore to ensure we have the latest data
+    _loadAssignmentsFromFirestore();
   }
 
   Future<void> _loadAssignmentsFromFirestore() async {
@@ -63,6 +61,8 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                     .toList();
           });
           print('Loaded assignments from Firestore: $selectedAssignments');
+        } else {
+          print('No assignments found in Firestore');
         }
       }
     } catch (e) {
@@ -71,16 +71,21 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
   }
 
   Future<void> _loadSections(String departmentId) async {
+    print('Loading sections for department: $departmentId');
     final snapshot =
         await _firestore
             .collection('sections')
             .where('departmentId', isEqualTo: departmentId)
             .get();
 
+    print(
+      'Found ${snapshot.docs.length} sections for department $departmentId',
+    );
     setState(() {
       sections =
           snapshot.docs.map((doc) {
             final data = doc.data();
+            print('Section: ${doc.id} - ${data['sectionCode']}');
             return {
               'id': doc.id,
               'sectionCode': data['sectionCode'],
@@ -93,28 +98,46 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
   }
 
   void _addAssignment() {
+    print('============ ADD ASSIGNMENT ============');
+    print('Selected Department ID: $selectedDepartmentId');
+    print('Selected Section ID: $selectedSectionId');
+
     if (selectedDepartmentId != null && selectedSectionId != null) {
       final department = departments.firstWhere(
         (d) => d['id'] == selectedDepartmentId,
       );
       final section = sections.firstWhere((s) => s['id'] == selectedSectionId);
 
+      print('Department: ${department['name']} (${department['code']})');
+      print('Section: ${section['sectionCode']}');
+
       final assignment = {
         'departmentId': selectedDepartmentId,
         'sectionId': selectedSectionId,
         'departmentName': department['name'],
         'sectionName':
-            department['name'], // Section name matches department name
+            section['sectionCode'], // Fixed: use section code instead of department name
         'departmentCode': department['code'],
         'sectionCode': section['sectionCode'],
       };
 
       // Check if assignment already exists
+      print('Checking for duplicates...');
+      print('Current assignments:');
+      for (var i = 0; i < selectedAssignments.length; i++) {
+        var a = selectedAssignments[i];
+        print('  [$i] Dept: ${a['departmentId']}, Section: ${a['sectionId']}');
+      }
+
       final exists = selectedAssignments.any(
         (a) =>
             a['departmentId'] == selectedDepartmentId &&
             a['sectionId'] == selectedSectionId,
       );
+
+      print('Attempting to add assignment: $assignment');
+      print('Assignment exists: $exists');
+      print('Current selectedAssignments count: ${selectedAssignments.length}');
 
       if (!exists) {
         setState(() {
@@ -123,7 +146,21 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
           selectedSectionId = null;
           sections = [];
         });
+        print('✓ Assignment added! New count: ${selectedAssignments.length}');
+        print('New selectedAssignments: $selectedAssignments');
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Assignment added successfully! Click Save to confirm.',
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       } else {
+        print('✗ Assignment already exists - blocked');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('This assignment already exists'),
@@ -131,7 +168,12 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
           ),
         );
       }
+    } else {
+      print('✗ Cannot add: Department or Section not selected');
+      print('  Department ID: $selectedDepartmentId');
+      print('  Section ID: $selectedSectionId');
     }
+    print('========================================');
   }
 
   void _removeAssignment(int index) {
@@ -141,15 +183,23 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
   }
 
   Future<void> _saveAssignments() async {
+    print('==================== SAVE ASSIGNMENTS ====================');
+    print('Saving assignments: $selectedAssignments');
+    print('Number of assignments: ${selectedAssignments.length}');
+    print('Instructor ID: ${widget.instructorId}');
+
     try {
       // Validate assignments before saving
-      for (var assignment in selectedAssignments) {
+      for (var i = 0; i < selectedAssignments.length; i++) {
+        var assignment = selectedAssignments[i];
+        print('Validating assignment $i: $assignment');
         if (assignment['departmentId'] == null ||
             assignment['sectionId'] == null ||
             assignment['departmentName'] == null ||
             assignment['sectionName'] == null ||
             assignment['departmentCode'] == null ||
             assignment['sectionCode'] == null) {
+          print('VALIDATION FAILED for assignment $i');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid assignment data. Please try again.'),
@@ -160,6 +210,8 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         }
       }
 
+      print('Validation passed. Updating Firestore...');
+
       await _firestore
           .collection('instructors')
           .doc(widget.instructorId)
@@ -167,6 +219,9 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
             'assignments': selectedAssignments,
             'updatedAt': FieldValue.serverTimestamp(),
           });
+
+      print('✓ Assignments saved successfully to Firestore');
+      print('=========================================================');
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -182,6 +237,8 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         );
       }
     } catch (e) {
+      print('✗ ERROR saving assignments: $e');
+      print('=========================================================');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -397,6 +454,12 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                                 'code': data['code'],
                               };
                             }).toList();
+                        print('Loaded ${departments.length} departments');
+                        for (var dept in departments) {
+                          print(
+                            'Department: ${dept['code']} - ${dept['name']}',
+                          );
+                        }
                       }
 
                       return Container(

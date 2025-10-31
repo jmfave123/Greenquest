@@ -2,9 +2,10 @@
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'quiz_controller.dart';
-import '../../../shared/instructor/instructor_appbar.dart';
-import '../../../shared/instructor/instructor_sidebar.dart';
-import '../../../shared/instructor/instructor_navigation_constants.dart';
+import '../instructor_dashboard_controller.dart';
+import '../../shared/instructor/instructor_appbar.dart';
+import '../../shared/instructor/instructor_sidebar.dart';
+import '../../shared/instructor/instructor_navigation_constants.dart';
 
 class QuizScreen extends StatefulWidget {
   final String period;
@@ -26,6 +27,9 @@ class QuizScreen extends StatefulWidget {
 
 class _QuizScreenState extends State<QuizScreen> {
   final QuizController _quizController = Get.put(QuizController());
+  final InstructorController instructorController = Get.put(
+    InstructorController(),
+  );
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.create;
 
   final TextEditingController _titleController = TextEditingController();
@@ -242,9 +246,12 @@ class _QuizScreenState extends State<QuizScreen> {
             child: Column(
               children: [
                 // App Bar
-                const InstructorAppBar(
-                  instructorName: 'Instructor',
-                  instructorRole: 'Instructor',
+                Obx(
+                  () => InstructorAppBar(
+                    instructorName: instructorController.instructorName.value,
+                    instructorRole: 'Instructor',
+                    profileImageUrl: instructorController.profileImageUrl.value,
+                  ),
                 ),
                 // Main Content
                 Expanded(

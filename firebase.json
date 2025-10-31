@@ -1,1 +1,56 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"greenquest-2b976","appId":"1:523977270593:android:1e735e10b024c738bc2dc0","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"greenquest-2b976","configurations":{"android":"1:523977270593:android:1e735e10b024c738bc2dc0","web":"1:523977270593:web:9f87dfe5a259bb71bc2dc0"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "greenquest-2b976",
+          "appId": "1:523977270593:android:1e735e10b024c738bc2dc0",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "greenquest-2b976",
+          "configurations": {
+            "android": "1:523977270593:android:1e735e10b024c738bc2dc0",
+            "web": "1:523977270593:web:9f87dfe5a259bb71bc2dc0"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "flutter_service_worker.js",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "**/*.{js,css,wasm,png,jpg,jpeg,gif,svg,webp}",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

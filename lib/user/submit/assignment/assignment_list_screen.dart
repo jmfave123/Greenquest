@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:greenquest/user/submit/assignment/assignment_controller.dart';
 import 'package:greenquest/user/submit/assignment/assignment_detail_screen.dart';
 
 class AssignmentListScreen extends StatefulWidget {
-  const AssignmentListScreen({Key? key}) : super(key: key);
+  const AssignmentListScreen({super.key});
 
   @override
   State<AssignmentListScreen> createState() => _AssignmentListScreenState();
@@ -17,21 +18,152 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
   void initState() {
     super.initState();
     try {
-      controller = Get.put(AssignmentController(), permanent: false);
+      // Try to find existing controller first, if not found create new one
+      try {
+        controller = Get.find<AssignmentController>();
+      } catch (e) {
+        // Controller not found, create new one
+        controller = Get.put(AssignmentController(), permanent: true);
+      }
     } catch (e) {
       print('Error initializing AssignmentController: $e');
     }
   }
 
+  Widget _buildStatusBadge(String status) {
+    Color badgeColor;
+    String badgeText;
+    IconData badgeIcon;
+
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        badgeColor = const Color(0xFF2196F3); // Blue
+        badgeText = 'Submitted';
+        badgeIcon = Icons.check_circle;
+        break;
+      case 'draft':
+        badgeColor = const Color(0xFFFF9800); // Orange
+        badgeText = 'Draft';
+        badgeIcon = Icons.edit;
+        break;
+      case 'graded':
+        badgeColor = const Color(0xFF34A853); // Green
+        badgeText = 'Graded';
+        badgeIcon = Icons.star;
+        break;
+      case 'needs_revision':
+        badgeColor = const Color(0xFFF44336); // Red
+        badgeText = 'Revise';
+        badgeIcon = Icons.refresh;
+        break;
+      default: // 'not_submitted'
+        badgeColor = const Color(0xFF9E9E9E); // Gray
+        badgeText = 'Not Started';
+        badgeIcon = Icons.radio_button_unchecked;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(badgeIcon, color: Colors.white, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            badgeText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDisplayDate(dynamic dateData) {
+    if (dateData == null) return 'Unknown Date';
+
+    // If it's already a formatted string from the controller, return as is
+    if (dateData is String) {
+      // Check if it's already in a readable format (like "July 28")
+      if (dateData.contains(' ') &&
+          !dateData.contains('T') &&
+          !dateData.contains('-')) {
+        return dateData;
+      }
+    }
+
+    try {
+      DateTime date;
+
+      if (dateData is DateTime) {
+        date = dateData;
+      } else if (dateData is String) {
+        // Handle different string formats
+        if (dateData.contains('T')) {
+          // ISO format with T
+          date = DateTime.parse(dateData);
+        } else if (dateData.contains('-')) {
+          // Date format YYYY-MM-DD
+          date = DateTime.parse(dateData);
+        } else {
+          // Try parsing as is
+          date = DateTime.parse(dateData);
+        }
+      } else if (dateData is Timestamp) {
+        date = dateData.toDate();
+      } else {
+        return 'Unknown Date';
+      }
+
+      // Format as "MMM dd, yyyy hh:mm AM/PM"
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      final month = months[date.month - 1];
+      final day = date.day.toString().padLeft(2, '0');
+      final year = date.year;
+
+      // Format time in 12-hour format
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
+    } catch (e) {
+      print('Error formatting date: $e');
+      return 'Unknown Date';
+    }
+  }
+
   @override
   void dispose() {
-    try {
-      if (controller != null) {
-        Get.delete<AssignmentController>();
-      }
-    } catch (e) {
-      print('Error disposing AssignmentController: $e');
-    }
+    // Don't delete the controller since it's permanent and might be used elsewhere
     super.dispose();
   }
 
@@ -130,7 +262,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                 ),
               )
               : Obx(() {
-                if (controller!.isLoading.value) {
+                if (controller == null || controller!.isLoading.value) {
                   return const Center(
                     child: CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(
@@ -152,7 +284,8 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          controller!.currentInstructorUid.value.isNotEmpty
+                          (controller?.currentInstructorUid.value.isNotEmpty ??
+                                  false)
                               ? 'No assignments posted yet'
                               : 'Please select an instructor first',
                           style: const TextStyle(
@@ -163,7 +296,8 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          controller!.currentInstructorUid.value.isNotEmpty
+                          (controller?.currentInstructorUid.value.isNotEmpty ??
+                                  false)
                               ? 'This instructor has not posted any assignments yet'
                               : 'Go to Course Selection to choose your instructor',
                           style: const TextStyle(
@@ -181,9 +315,9 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                     horizontal: 16,
                     vertical: 16,
                   ),
-                  itemCount: controller!.assignments.length,
+                  itemCount: controller?.assignments.length ?? 0,
                   itemBuilder: (context, i) {
-                    final assignment = controller!.assignments[i];
+                    final assignment = controller?.assignments[i] ?? {};
 
                     // Validate assignment data before navigation
                     if (assignment.isEmpty) {
@@ -206,7 +340,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                     return GestureDetector(
                       onTap: () {
                         // Double-check assignment is valid before navigation
-                        if (assignment.isNotEmpty) {
+                        if (assignment.isNotEmpty && controller != null) {
                           controller!.setSelectedAssignment(assignment);
                           Navigator.push(
                             context,
@@ -265,7 +399,7 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    assignment['createdAt'] ?? 'Unknown Date',
+                                    _formatDisplayDate(assignment['createdAt']),
                                     style: const TextStyle(
                                       color: Colors.grey,
                                       fontSize: 13,
@@ -274,6 +408,15 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                                 ],
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            // Status Badge
+                            Obx(() {
+                              final assignmentId = assignment['id']?.toString();
+                              final status =
+                                  controller?.submissionStatus[assignmentId] ??
+                                  'not_submitted';
+                              return _buildStatusBadge(status);
+                            }),
                           ],
                         ),
                       ),

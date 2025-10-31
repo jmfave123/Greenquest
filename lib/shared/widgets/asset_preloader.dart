@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 class AssetPreloader extends StatefulWidget {
   final Widget child;
@@ -7,11 +6,11 @@ class AssetPreloader extends StatefulWidget {
   final Widget? loadingWidget;
 
   const AssetPreloader({
-    Key? key,
+    super.key,
     required this.child,
     required this.assetPaths,
     this.loadingWidget,
-  }) : super(key: key);
+  });
 
   @override
   State<AssetPreloader> createState() => _AssetPreloaderState();
@@ -31,14 +30,15 @@ class _AssetPreloaderState extends State<AssetPreloader> {
     try {
       // Wait for Flutter to be fully initialized
       await Future.delayed(const Duration(milliseconds: 200));
-      
+
       // Preload all assets
-      final futures = widget.assetPaths.map((path) => 
-        precacheImage(AssetImage(path), context)
-      ).toList();
-      
+      final futures =
+          widget.assetPaths
+              .map((path) => precacheImage(AssetImage(path), context))
+              .toList();
+
       await Future.wait(futures);
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -57,25 +57,25 @@ class _AssetPreloaderState extends State<AssetPreloader> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return widget.loadingWidget ?? 
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Material(
-            child: Container(
-              color: Colors.white,
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Loading assets...'),
-                  ],
+      return widget.loadingWidget ??
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Material(
+              child: Container(
+                color: Colors.white,
+                child: const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Loading assets...'),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
+          );
     }
 
     if (_errorMessage != null) {
@@ -88,18 +88,11 @@ class _AssetPreloaderState extends State<AssetPreloader> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.red,
-                  ),
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
                   const SizedBox(height: 16),
                   const Text(
                     'Error loading assets',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(

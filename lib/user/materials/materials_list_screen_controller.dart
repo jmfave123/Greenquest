@@ -13,11 +13,32 @@ class MaterialsListScreenController extends GetxController {
   var errorMessage = ''.obs;
   var currentInstructorUid = ''.obs;
   var currentInstructorName = ''.obs;
+  var userSectionCode = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
     loadCurrentInstructorMaterials();
+  }
+
+  /// Get user's section code from their profile
+  Future<String?> _getUserSectionCode() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final sectionCode = userData['selectedSectionCode']?.toString();
+        print('📚 User section code: $sectionCode');
+        return sectionCode;
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting user section code: $e');
+      return null;
+    }
   }
 
   /// Load materials for the current logged-in instructor
@@ -55,13 +76,22 @@ class MaterialsListScreenController extends GetxController {
             currentInstructorUid.value = instructorId;
             currentInstructorName.value = instructorName;
 
-            await loadMaterialsByInstructorUid(instructorId);
+            // Get user's section code for filtering
+            final sectionCode = await _getUserSectionCode();
+            userSectionCode.value = sectionCode ?? '';
+            await loadMaterialsByInstructorUidWithSectionFilter(
+              instructorId,
+              sectionCode,
+            );
           } else {
             // No instructor selected, load all materials
             print('⚠️ No instructor selected, loading all materials');
             currentInstructorUid.value = '';
             currentInstructorName.value = '';
-            await loadMaterials();
+            // Get user's section code for filtering
+            final sectionCode = await _getUserSectionCode();
+            userSectionCode.value = sectionCode ?? '';
+            await loadMaterialsWithSectionFilter(sectionCode);
           }
         } else {
           // Token expired, load all materials as fallback
@@ -180,15 +210,13 @@ class MaterialsListScreenController extends GetxController {
           print('📄 Material status: ${materialMap['status']}');
           print('📄 Created date: ${materialMap['createdAt']}');
 
-          // Only add if material has valid data for UI display
+          // Only add if material has valid data for UI display (require title, topic is optional)
           if (materialMap['title'] != null &&
-              materialMap['title'] != 'No Title' &&
-              materialMap['topic'] != null &&
-              materialMap['topic'] != 'No Topic') {
+              materialMap['title'] != 'No Title') {
             instructorMaterials.add(materialMap);
             print('✅ Added material: ${materialMap['title']}');
           } else {
-            print('❌ Skipped material due to missing or invalid title/topic');
+            print('❌ Skipped material due to missing or invalid title');
           }
         }
       } else {
@@ -203,16 +231,14 @@ class MaterialsListScreenController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid materials before setting
+      // Filter out any invalid materials before setting (require title, topic is optional)
       final validMaterials =
           instructorMaterials
               .where(
                 (material) =>
                     material.isNotEmpty &&
                     material['title'] != null &&
-                    material['title'] != 'No Title' &&
-                    material['topic'] != null &&
-                    material['topic'] != 'No Topic',
+                    material['title'] != 'No Title',
               )
               .toList();
 
@@ -301,8 +327,7 @@ class MaterialsListScreenController extends GetxController {
             // Only add if material has valid data for UI display
             if (materialMap['title'] != null &&
                 materialMap['title'] != 'No Title' &&
-                materialMap['topic'] != null &&
-                materialMap['topic'] != 'No Topic') {
+                materialMap['title'] != 'No Title') {
               allMaterials.add(materialMap);
             }
           }
@@ -318,16 +343,14 @@ class MaterialsListScreenController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid materials before setting
+      // Filter out any invalid materials before setting (require title, topic is optional)
       final validMaterials =
           allMaterials
               .where(
                 (material) =>
                     material.isNotEmpty &&
                     material['title'] != null &&
-                    material['title'] != 'No Title' &&
-                    material['topic'] != null &&
-                    material['topic'] != 'No Topic',
+                    material['title'] != 'No Title',
               )
               .toList();
 
@@ -405,11 +428,9 @@ class MaterialsListScreenController extends GetxController {
           'type': materialData['type']?.toString() ?? 'Material',
         };
 
-        // Only add if material has valid data for UI display
+        // Only add if material has valid data for UI display (require title, topic is optional)
         if (materialMap['title'] != null &&
-            materialMap['title'] != 'No Title' &&
-            materialMap['topic'] != null &&
-            materialMap['topic'] != 'No Topic') {
+            materialMap['title'] != 'No Title') {
           instructorMaterials.add(materialMap);
         }
       }
@@ -421,16 +442,14 @@ class MaterialsListScreenController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid materials before setting
+      // Filter out any invalid materials before setting (require title, topic is optional)
       final validMaterials =
           instructorMaterials
               .where(
                 (material) =>
                     material.isNotEmpty &&
                     material['title'] != null &&
-                    material['title'] != 'No Title' &&
-                    material['topic'] != null &&
-                    material['topic'] != 'No Topic',
+                    material['title'] != 'No Title',
               )
               .toList();
 
@@ -678,6 +697,155 @@ class MaterialsListScreenController extends GetxController {
       }
     } catch (e) {
       print('❌ Error listing instructors: $e');
+    }
+  }
+
+  /// Load materials from specific instructor with section filtering
+  Future<void> loadMaterialsByInstructorUidWithSectionFilter(
+    String instructorUid,
+    String? userSectionCode,
+  ) async {
+    try {
+      print(
+        '🔍 Loading materials from instructor $instructorUid with section filter: $userSectionCode',
+      );
+
+      final materialsQuery =
+          await _firestore
+              .collection('instructors')
+              .doc(instructorUid)
+              .collection('materials')
+              .orderBy('createdAt', descending: true)
+              .get();
+
+      final filteredMaterials = <Map<String, dynamic>>[];
+
+      for (var materialDoc in materialsQuery.docs) {
+        final materialData = materialDoc.data();
+        final selectedClasses = List<String>.from(
+          materialData['selectedClasses'] ?? [],
+        );
+
+        // Apply section filtering if user has a section code
+        bool shouldInclude = true;
+        if (userSectionCode != null && userSectionCode.isNotEmpty) {
+          shouldInclude = selectedClasses.contains(userSectionCode);
+          print(
+            '📚 Material "${materialData['title']}" - Classes: $selectedClasses, User Section: $userSectionCode, Include: $shouldInclude',
+          );
+        }
+
+        if (shouldInclude) {
+          final materialMap = <String, dynamic>{
+            'id': materialDoc.id,
+            'title': materialData['title']?.toString() ?? 'No Title',
+            'description':
+                materialData['description']?.toString() ??
+                'No description available',
+            'selectedClasses': selectedClasses,
+            'attachments': materialData['attachments'] ?? [],
+            'instructorId': instructorUid,
+            'instructorName': currentInstructorName.value,
+            'createdAt': _formatDate(materialData['createdAt']),
+            'updatedAt': _formatDate(materialData['updatedAt']),
+            'status': materialData['status']?.toString() ?? 'active',
+            'type': materialData['type']?.toString() ?? 'Material',
+          };
+
+          if (materialMap['title'] != null &&
+              materialMap['title'] != 'No Title') {
+            filteredMaterials.add(materialMap);
+          }
+        }
+      }
+
+      materials.value = filteredMaterials;
+      print(
+        '📊 Loaded ${filteredMaterials.length} materials from instructor $instructorUid (filtered by section: $userSectionCode)',
+      );
+    } catch (e) {
+      errorMessage.value = 'Error loading materials: $e';
+      print('❌ Error loading materials from instructor: $e');
+    }
+  }
+
+  /// Load all materials with section filtering
+  Future<void> loadMaterialsWithSectionFilter(String? userSectionCode) async {
+    try {
+      print('🔍 Loading all materials with section filter: $userSectionCode');
+
+      final instructorsQuery = await _firestore.collection('instructors').get();
+      final allMaterials = <Map<String, dynamic>>[];
+
+      for (var instructorDoc in instructorsQuery.docs) {
+        final instructorId = instructorDoc.id;
+        final instructorData = instructorDoc.data();
+        final instructorName =
+            instructorData['name']?.toString() ?? 'Unknown Instructor';
+
+        try {
+          final materialsQuery =
+              await _firestore
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .collection('materials')
+                  .orderBy('createdAt', descending: true)
+                  .get();
+
+          for (var materialDoc in materialsQuery.docs) {
+            final materialData = materialDoc.data();
+            final selectedClasses = List<String>.from(
+              materialData['selectedClasses'] ?? [],
+            );
+
+            // Apply section filtering if user has a section code
+            bool shouldInclude = true;
+            if (userSectionCode != null && userSectionCode.isNotEmpty) {
+              shouldInclude = selectedClasses.contains(userSectionCode);
+            }
+
+            if (shouldInclude) {
+              final materialMap = <String, dynamic>{
+                'id': materialDoc.id,
+                'title': materialData['title']?.toString() ?? 'No Title',
+                'description':
+                    materialData['description']?.toString() ??
+                    'No description available',
+                'selectedClasses': selectedClasses,
+                'attachments': materialData['attachments'] ?? [],
+                'instructorId': instructorId,
+                'instructorName': instructorName,
+                'createdAt': _formatDate(materialData['createdAt']),
+                'updatedAt': _formatDate(materialData['updatedAt']),
+                'status': materialData['status']?.toString() ?? 'active',
+                'type': materialData['type']?.toString() ?? 'Material',
+              };
+
+              if (materialMap['title'] != null &&
+                  materialMap['title'] != 'No Title') {
+                allMaterials.add(materialMap);
+              }
+            }
+          }
+        } catch (e) {
+          print('Error loading materials from instructor $instructorId: $e');
+        }
+      }
+
+      // Sort by creation date (newest first)
+      allMaterials.sort((a, b) {
+        final dateA = a['createdAt'] ?? '';
+        final dateB = b['createdAt'] ?? '';
+        return dateB.compareTo(dateA);
+      });
+
+      materials.value = allMaterials;
+      print(
+        '📊 Loaded ${allMaterials.length} materials from all instructors (filtered by section: $userSectionCode)',
+      );
+    } catch (e) {
+      errorMessage.value = 'Error loading materials: $e';
+      print('❌ Error loading all materials: $e');
     }
   }
 }

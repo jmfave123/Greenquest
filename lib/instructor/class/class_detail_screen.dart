@@ -1,13 +1,19 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../create/create_controller.dart';
 import '../submissions/student_submissions_screen.dart';
+import '../submissions/submission_detail_screen.dart';
+import '../submissions/submissions_controller.dart';
 import 'class_screen_controller.dart';
+import '../instructor_dashboard_controller.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   final Map<String, dynamic> classData;
@@ -21,16 +27,47 @@ class ClassDetailScreen extends StatefulWidget {
 class _ClassDetailScreenState extends State<ClassDetailScreen> {
   InstructorNavigationItem _selectedItem =
       InstructorNavigationItem.classManagement;
-  int _selectedTabIndex = 0; // Stream tab by default
+  int _selectedTabIndex = 0; // Class tab by default
   final CreateController _createController = Get.put(CreateController());
   final ClassController _classController = Get.find<ClassController>();
+  final SubmissionsController _submissionsController = Get.put(
+    SubmissionsController(),
+  );
+  final InstructorController _instructorController = Get.put(
+    InstructorController(),
+  );
 
   // Sorting states
   List<Map<String, dynamic>> _sortedGrades = [];
 
-  // Filter states for Created Items
-  String _selectedFilter = 'All';
-  final List<String> _filterOptions = ['All', 'Assignment', 'Activity', 'Quiz'];
+  // Filter states for Students
+  String _selectedStudentFilter = 'All';
+  final List<String> _studentFilterOptions = [
+    'All',
+    'Pending',
+    'Approved',
+    'Rejected',
+  ];
+
+  // Search and filter states for Student Submissions
+  final TextEditingController _submissionSearchController =
+      TextEditingController();
+  String _submissionSearchQuery = '';
+  String _selectedSubmissionTypeFilter = 'All Types';
+  String _selectedSubmissionStatusFilter = 'All Status';
+  final List<String> _submissionTypeFilterOptions = [
+    'All Types',
+    'Assignment',
+    'Activity',
+    'Quiz',
+    'PIT',
+  ];
+  final List<String> _submissionStatusFilterOptions = [
+    'All Status',
+    'Submitted',
+    'Graded',
+    'Late',
+  ];
 
   final List<Map<String, dynamic>> _grades = [
     {
@@ -82,10 +119,22 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     super.initState();
     _sortedGrades = List.from(_grades);
     _sortGrades('Sort by Last name (A-Z)'); // Initialize with default sort
-    // Load created items when the screen initializes
-    _createController.loadCreatedItems();
-    // Load students for this specific class
-    _loadStudentsForThisClass();
+
+    // Use addPostFrameCallback to ensure operations run after build is complete
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Load instructor data
+      _instructorController.loadInstructor();
+      // Load created items when the screen initializes
+      _createController.loadCreatedItems();
+      // Load students for this specific class
+      _loadStudentsForThisClass();
+      // Load recent submissions for this class
+      _loadRecentSubmissions();
+      // Set up real-time status monitoring for students
+      _setupStudentStatusMonitoring();
+      // Set up real-time submission monitoring
+      _setupSubmissionMonitoring();
+    });
   }
 
   Future<void> _loadStudentsForThisClass() async {
@@ -95,8 +144,149 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     await _classController.loadStudentsFromUsersCollection(
       sectionCode: sectionCode,
     );
-    // Refresh the UI to show updated student list
-    setState(() {});
+
+    // Refresh student online status
+    await _classController.refreshStudentStatus(sectionCode);
+
+    // Use addPostFrameCallback to prevent setState during build
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {}); // Refresh the UI to show updated student list
+        }
+      });
+    }
+  }
+
+  Future<void> _loadRecentSubmissions() async {
+    // Load recent submissions for this specific class section
+    String sectionCode = widget.classData['section'] ?? '';
+
+    try {
+      print('🔄 Loading submissions for section: $sectionCode');
+      print('📋 Class data: ${widget.classData}');
+
+      await _submissionsController.loadInstructorSubmissions(
+        sectionId: sectionCode,
+      );
+
+      // Real-time listener removed - no more automatic updates
+
+      print(
+        '✅ Submissions loaded successfully: ${_submissionsController.submissions.length}',
+      );
+
+      // Use addPostFrameCallback to prevent setState during build
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {}); // Trigger UI rebuild
+          }
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading submissions: $e');
+      // Show error message to user
+      Get.snackbar(
+        'Error',
+        'Failed to load submissions: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  void _setupStudentStatusMonitoring() {
+    // Real-time student status monitoring removed - no more automatic updates
+    // Users can manually refresh using the refresh button
+  }
+
+  void _setupSubmissionMonitoring() {
+    // Real-time monitoring removed - no more automatic updates
+    // Users can manually refresh using the refresh button
+  }
+
+  // void _showNewSubmissionNotification(int submissionCount) {
+  //   if (submissionCount > 0) {
+  //     Get.snackbar(
+  //       'New Submissions',
+  //       'You have $submissionCount submission${submissionCount > 1 ? 's' : ''} to review',
+  //       snackPosition: SnackPosition.TOP,
+  //       backgroundColor: const Color(0xFF34A853),
+  //       colorText: Colors.white,
+  //       duration: const Duration(seconds: 3),
+  //       icon: const Icon(Icons.assignment_turned_in, color: Colors.white),
+  //     );
+  //   }
+  // }
+
+  @override
+  void dispose() {
+    _submissionSearchController.dispose();
+    super.dispose();
+  }
+
+  /// Build online status widget with error handling
+  Widget _buildOnlineStatusWidget(Map<String, dynamic> student) {
+    try {
+      final isOnline = _classController.isStudentOnline(student);
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color:
+              isOnline
+                  ? Colors.green.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color:
+                isOnline
+                    ? Colors.green.withOpacity(0.3)
+                    : Colors.grey.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isOnline ? Colors.green : Colors.grey,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 3),
+            Text(
+              isOnline ? 'Online' : 'Offline',
+              style: TextStyle(
+                fontSize: 9,
+                color: isOnline ? Colors.green : Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      print('Error building online status widget: $e');
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'Offline',
+          style: TextStyle(
+            fontSize: 9,
+            color: Colors.grey,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
   }
 
   void _handleNavigationSelect(InstructorNavigationItem item) {
@@ -111,6 +301,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     setState(() {
       _selectedTabIndex = index;
     });
+
+    // Automatic refresh removed - users can manually refresh if needed
   }
 
   void _sortGrades(String sortType) {
@@ -180,6 +372,26 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     }
   }
 
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown';
+
+    try {
+      if (timestamp is Timestamp) {
+        final dateTime = timestamp.toDate();
+        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+      } else if (timestamp is DateTime) {
+        return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+      } else if (timestamp is String) {
+        final dateTime = DateTime.parse(timestamp);
+        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+      }
+      return 'Unknown';
+    } catch (e) {
+      print('Error formatting timestamp: $e, type: ${timestamp.runtimeType}');
+      return 'Unknown';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,9 +407,13 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             child: Column(
               children: [
                 // App Bar
-                const InstructorAppBar(
-                  instructorName: 'Mia Castro',
-                  instructorRole: 'Instructor',
+                Obx(
+                  () => InstructorAppBar(
+                    instructorName: _instructorController.instructorName.value,
+                    instructorRole: 'Instructor',
+                    profileImageUrl:
+                        _instructorController.profileImageUrl.value,
+                  ),
                 ),
                 // Main Content
                 Expanded(
@@ -213,10 +429,44 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                             const SizedBox(width: 32),
                             _buildTab('Students', 1),
                             const SizedBox(width: 32),
-                            _buildTab('Created Items', 2),
+                            _buildTab('Classwork', 2),
+                            const SizedBox(width: 32),
+                            _buildTab('Trees', 3),
                           ],
                         ),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 20),
+
+                        // Plant Tree Button - Only show on Trees tab
+                        if (_selectedTabIndex == 3) ...[
+                          Row(
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _showPlantTreeDialog,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF34A853),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.eco, size: 20),
+                                label: const Text(
+                                  'Plant Tree',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                        ],
 
                         // Tab Content
                         Expanded(child: _buildTabContent()),
@@ -267,7 +517,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       case 1:
         return _buildPeopleTab();
       case 2:
-        return _buildCreatedItemsTab();
+        return _buildClassworkTab();
+      case 3:
+        return _buildTreesTab();
       default:
         return _buildStreamTab();
     }
@@ -312,12 +564,85 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Text(
-                        '${_getDayAbbreviation(widget.classData['day'])} ${widget.classData['startTime']} - ${widget.classData['endTime']}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
+                      // Display schedules - handle both single and multiple
+                      Builder(
+                        builder: (context) {
+                          if (widget.classData.containsKey('schedules') &&
+                              widget.classData['schedules'] is List) {
+                            final schedules = List<Map<String, dynamic>>.from(
+                              widget.classData['schedules'],
+                            );
+                            if (schedules.isEmpty) {
+                              return const Text(
+                                'No schedule',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              );
+                            }
+
+                            // Check if all schedules have same time
+                            final allSameTime = schedules.every(
+                              (s) =>
+                                  s['startTime'] == schedules[0]['startTime'] &&
+                                  s['endTime'] == schedules[0]['endTime'],
+                            );
+
+                            if (allSameTime && schedules.length > 1) {
+                              // Show as "Mon/Wed 9:00 AM - 10:30 AM" with rooms
+                              final days = schedules
+                                  .map((s) => _getDayAbbreviation(s['day']))
+                                  .join('/');
+
+                              // Check if all rooms are the same
+                              final allSameRoom = schedules.every(
+                                (s) => s['room'] == schedules[0]['room'],
+                              );
+                              final roomText =
+                                  allSameRoom
+                                      ? ' • ${schedules[0]['room'] ?? 'No room'}'
+                                      : ' • Multiple rooms';
+
+                              return Text(
+                                '$days ${schedules[0]['startTime']} - ${schedules[0]['endTime']}$roomText',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              );
+                            } else {
+                              // Show all schedules separately with rooms
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children:
+                                    schedules.map((schedule) {
+                                      final dayAbbr = _getDayAbbreviation(
+                                        schedule['day'],
+                                      );
+                                      final room =
+                                          schedule['room'] ?? 'No room';
+                                      return Text(
+                                        '$dayAbbr ${schedule['startTime']} - ${schedule['endTime']} • $room',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                        ),
+                                      );
+                                    }).toList(),
+                              );
+                            }
+                          } else {
+                            // Fallback to old format
+                            return Text(
+                              '${_getDayAbbreviation(widget.classData['day'])} ${widget.classData['startTime']} - ${widget.classData['endTime']}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                            );
+                          }
+                        },
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -345,54 +670,209 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             ),
           ),
           const SizedBox(height: 30),
-          // Activities List
+          // Posted Assignments and Activities
           Expanded(
-            child: Obx(() {
-              if (_createController.isLoading.value) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF34A853)),
-                );
-              }
-
-              if (_createController.createdItems.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/icons/solar_document-outline.png',
-                        width: 80,
-                        height: 80,
-                        color: Colors.grey.withOpacity(0.5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Section Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Posted Assignments & Activities',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No activities posted yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
+                    ),
+                    IconButton(
+                      onPressed: () async {
+                        await _createController.loadCreatedItems();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Refresh',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Posted Items List
+                Expanded(
+                  child: Obx(() {
+                    if (_createController.isLoading.value) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF34A853),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Create assignments, activities, and quizzes for your class.',
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                );
-              }
+                      );
+                    }
 
-              return ListView.builder(
-                itemCount: _createController.createdItems.length,
-                itemBuilder: (context, index) {
-                  final item = _createController.createdItems[index];
-                  return _buildActivityCard(item);
-                },
-              );
-            }),
+                    // Get only posted items (assignments, activities, quizzes) for this specific class
+                    List<Map<String, dynamic>> postedItems = [];
+                    String currentClassSection =
+                        widget.classData['section'] ?? '';
+                    String currentClassCourse =
+                        widget.classData['course'] ?? '';
+                    String currentClassFullName =
+                        '$currentClassCourse $currentClassSection';
+
+                    print(
+                      '🔍 Filtering items for class: $currentClassFullName',
+                    );
+                    print(
+                      '📋 Total items available: ${_createController.createdItems.length}',
+                    );
+
+                    for (var item in _createController.createdItems) {
+                      // Check if this item is assigned to the current class
+                      List<dynamic> selectedClasses =
+                          item['selectedClasses'] ?? [];
+                      bool isAssignedToCurrentClass = false;
+
+                      // Check if the current class is in the selectedClasses list
+                      for (var selectedClass in selectedClasses) {
+                        String selectedClassStr =
+                            selectedClass.toString().toLowerCase();
+                        String currentClassStr =
+                            currentClassFullName.toLowerCase();
+
+                        // Direct match
+                        if (selectedClassStr == currentClassStr) {
+                          isAssignedToCurrentClass = true;
+                          break;
+                        }
+
+                        // Check for partial matches (e.g., "BSIT-1A" matches "BSIT 1A")
+                        String normalizedSelected = selectedClassStr
+                            .replaceAll('-', ' ')
+                            .replaceAll('_', ' ');
+                        String normalizedCurrent = currentClassStr
+                            .replaceAll('-', ' ')
+                            .replaceAll('_', ' ');
+
+                        if (normalizedSelected == normalizedCurrent) {
+                          isAssignedToCurrentClass = true;
+                          break;
+                        }
+
+                        // Check if current class section matches (e.g., "1A" matches "BSIT-1A")
+                        if (selectedClassStr.contains(
+                              currentClassSection.toLowerCase(),
+                            ) ||
+                            currentClassStr.contains(selectedClassStr)) {
+                          isAssignedToCurrentClass = true;
+                          break;
+                        }
+                      }
+
+                      // Only add items that are assigned to the current class
+                      if (isAssignedToCurrentClass) {
+                        print(
+                          '✅ Item "${item['title']}" assigned to current class',
+                        );
+                        postedItems.add({
+                          ...item,
+                          'itemType': 'posted',
+                          'timestamp': item['createdAt'],
+                        });
+                      } else {
+                        print(
+                          '❌ Item "${item['title']}" NOT assigned to current class',
+                        );
+                        print('   Selected classes: $selectedClasses');
+                      }
+                    }
+
+                    print('📊 Filtered items count: ${postedItems.length}');
+
+                    // Sort by timestamp (most recent first)
+                    postedItems.sort((a, b) {
+                      dynamic timestampA = a['timestamp'];
+                      dynamic timestampB = b['timestamp'];
+
+                      // Handle different timestamp types
+                      DateTime? dateTimeA;
+                      DateTime? dateTimeB;
+
+                      if (timestampA is Timestamp) {
+                        dateTimeA = timestampA.toDate();
+                      } else if (timestampA is DateTime) {
+                        dateTimeA = timestampA;
+                      } else if (timestampA is String) {
+                        try {
+                          dateTimeA = DateTime.parse(timestampA);
+                        } catch (e) {
+                          dateTimeA = null;
+                        }
+                      }
+
+                      if (timestampB is Timestamp) {
+                        dateTimeB = timestampB.toDate();
+                      } else if (timestampB is DateTime) {
+                        dateTimeB = timestampB;
+                      } else if (timestampB is String) {
+                        try {
+                          dateTimeB = DateTime.parse(timestampB);
+                        } catch (e) {
+                          dateTimeB = null;
+                        }
+                      }
+
+                      // Compare timestamps
+                      if (dateTimeA == null && dateTimeB == null) return 0;
+                      if (dateTimeA == null) return 1;
+                      if (dateTimeB == null) return -1;
+
+                      return dateTimeB.compareTo(dateTimeA);
+                    });
+
+                    if (postedItems.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/icons/solar_document-outline.png',
+                              width: 80,
+                              height: 80,
+                              color: Colors.grey.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No assignments or activities posted yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Create assignments, activities, and quizzes for your class.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: postedItems.length,
+                      itemBuilder: (context, index) {
+                        final item = postedItems[index];
+                        return _buildActivityCard(item);
+                      },
+                    );
+                  }),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -458,6 +938,35 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     ],
                   ),
                 ),
+                // Enrollment Statistics
+                Obx(() {
+                  final stats = _classController.getEnrollmentStats(
+                    currentSectionCode,
+                  );
+                  return Row(
+                    children: [
+                      _buildStatChip('Total', stats['total'] ?? 0, Colors.blue),
+                      const SizedBox(width: 8),
+                      _buildStatChip(
+                        'Pending',
+                        stats['pending'] ?? 0,
+                        Colors.orange,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildStatChip(
+                        'Approved',
+                        stats['approved'] ?? 0,
+                        Colors.green,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildStatChip(
+                        'Rejected',
+                        stats['rejected'] ?? 0,
+                        Colors.red,
+                      ),
+                    ],
+                  );
+                }),
               ],
             ),
           ),
@@ -477,15 +986,31 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundImage: AssetImage('assets/images/Avatar.png'),
-              ),
+              Obx(() => _buildInstructorProfileAvatar()),
               const SizedBox(width: 16),
-              Obx(
-                () => Text(
-                  _classController.instructorName.value,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Obx(
+                      () => Text(
+                        _instructorController.instructorName.value,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Instructor',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -503,10 +1028,61 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                   color: Colors.black,
                 ),
               ),
-              IconButton(
-                onPressed: _loadStudentsForThisClass,
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh students',
+              Row(
+                children: [
+                  // Enrollment Status Filter
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButton<String>(
+                      value: _selectedStudentFilter,
+                      underline: const SizedBox(),
+                      isDense: true,
+                      hint: const Text('Status'),
+                      items:
+                          _studentFilterOptions.map((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(
+                                value,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedStudentFilter = newValue!;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () async {
+                      await _loadStudentsForThisClass();
+                      // Also refresh status specifically
+                      String sectionCode = widget.classData['section'] ?? '';
+                      await _classController.refreshStudentStatus(sectionCode);
+
+                      // Use addPostFrameCallback to prevent setState during build
+                      if (mounted) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            setState(() {}); // Trigger UI rebuild
+                          }
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh students and status',
+                  ),
+                ],
               ),
             ],
           ),
@@ -520,7 +1096,36 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               List<Map<String, dynamic>> sectionStudents = _classController
                   .getStudentsForSection(currentSection);
 
-              if (sectionStudents.isEmpty) {
+              // Apply enrollment status filter
+              List<Map<String, dynamic>> filteredStudents = sectionStudents;
+              if (_selectedStudentFilter != 'All') {
+                filteredStudents =
+                    sectionStudents.where((student) {
+                      final status = student['enrollmentStatus'] ?? 'pending';
+                      switch (_selectedStudentFilter) {
+                        case 'Pending':
+                          return status == 'pending';
+                        case 'Approved':
+                          return status == 'approved';
+                        case 'Rejected':
+                          return status == 'rejected';
+                        default:
+                          return true;
+                      }
+                    }).toList();
+              }
+
+              if (filteredStudents.isEmpty) {
+                String message = 'No students found';
+                String subtitle =
+                    'Students from section $currentSection will appear here when they complete their registration';
+
+                if (_selectedStudentFilter != 'All') {
+                  message =
+                      'No ${_selectedStudentFilter.toLowerCase()} students found';
+                  subtitle = 'Try changing the filter or refresh the list';
+                }
+
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -532,7 +1137,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'No students enrolled in $currentSection yet',
+                        message,
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
@@ -541,7 +1146,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Students from section $currentSection will appear here when they complete their registration',
+                        subtitle,
                         style: TextStyle(fontSize: 14, color: Colors.grey),
                         textAlign: TextAlign.center,
                       ),
@@ -551,9 +1156,11 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               }
 
               return ListView.builder(
-                itemCount: sectionStudents.length,
+                itemCount: filteredStudents.length,
                 itemBuilder: (context, index) {
-                  final student = sectionStudents[index];
+                  final student = filteredStudents[index];
+                  final enrollmentStatus =
+                      student['enrollmentStatus'] ?? 'pending';
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -564,7 +1171,12 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      border: Border.all(
+                        color: _getEnrollmentStatusColor(
+                          enrollmentStatus,
+                        ).withOpacity(0.3),
+                        width: 1.5,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
@@ -577,17 +1189,21 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       children: [
                         CircleAvatar(
                           radius: 24,
-                          backgroundColor: const Color(
-                            0xFF34A853,
+                          backgroundColor: _getEnrollmentStatusColor(
+                            enrollmentStatus,
                           ).withOpacity(0.1),
                           child: Text(
-                            (student['studentName'] ?? 'U')
-                                .substring(0, 1)
-                                .toUpperCase(),
-                            style: const TextStyle(
+                            (student['studentName'] ?? 'U').isNotEmpty
+                                ? (student['studentName'] ?? 'U')
+                                    .substring(0, 1)
+                                    .toUpperCase()
+                                : 'U',
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF34A853),
+                              color: _getEnrollmentStatusColor(
+                                enrollmentStatus,
+                              ),
                             ),
                           ),
                         ),
@@ -611,26 +1227,133 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                   color: Colors.grey,
                                 ),
                               ),
+                              if (enrollmentStatus == 'rejected' &&
+                                  student['rejectionReason'] != null) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Reason: ${student['rejectionReason']}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF34A853).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            'Active',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: const Color(0xFF34A853),
-                              fontWeight: FontWeight.bold,
+                        // Status and Action Buttons - Use Column for better layout
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // First row: Status badges
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Enrollment Status Badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getEnrollmentStatusColor(
+                                      enrollmentStatus,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    _getEnrollmentStatusLabel(enrollmentStatus),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: _getEnrollmentStatusColor(
+                                        enrollmentStatus,
+                                      ),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // Online/Offline Status for approved students
+                                if (enrollmentStatus == 'approved') ...[
+                                  _buildOnlineStatusWidget(student),
+                                  const SizedBox(width: 3),
+                                  // Last seen tooltip
+                                  Tooltip(
+                                    message:
+                                        'Last seen: ${_classController.getLastSeenTime(student)}',
+                                    child: Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Icon(
+                                        Icons.access_time,
+                                        size: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                          ),
+                            const SizedBox(height: 4),
+                            // Second row: Action buttons for pending enrollments
+                            if (enrollmentStatus == 'pending') ...[
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () => _approveStudent(student),
+                                    icon: const Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                      size: 18,
+                                    ),
+                                    tooltip: 'Approve enrollment',
+                                    constraints: const BoxConstraints(
+                                      minWidth: 32,
+                                      minHeight: 32,
+                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.green.withOpacity(
+                                        0.1,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    onPressed: () => _rejectStudent(student),
+                                    icon: const Icon(
+                                      Icons.cancel,
+                                      color: Colors.red,
+                                      size: 18,
+                                    ),
+                                    tooltip: 'Reject enrollment',
+                                    constraints: const BoxConstraints(
+                                      minWidth: 32,
+                                      minHeight: 32,
+                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.red.withOpacity(
+                                        0.1,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -658,352 +1381,149 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     }
   }
 
-  Widget _buildCreatedItemsTab() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 50),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Created Items',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              // Filter dropdown
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButton<String>(
-                  value: _selectedFilter,
-                  underline: const SizedBox(),
-                  isDense: true,
-                  items:
-                      _filterOptions.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            value,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        );
-                      }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedFilter = newValue!;
-                    });
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+  // Helper method for filtering submissions
+  List<Map<String, dynamic>> _filterSubmissions(
+    List<Map<String, dynamic>> submissions,
+  ) {
+    List<Map<String, dynamic>> filtered = submissions;
 
-          // Items List
-          Expanded(
-            child: Obx(() {
-              if (_createController.isLoading.value) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF34A853)),
-                );
-              }
+    // Apply search filter
+    if (_submissionSearchQuery.isNotEmpty) {
+      filtered =
+          filtered.where((submission) {
+            final studentName =
+                submission['studentName']?.toString().toLowerCase() ?? '';
+            final activityTitle =
+                submission['activityTitle']?.toString().toLowerCase() ?? '';
+            final title = submission['title']?.toString().toLowerCase() ?? '';
+            final type = submission['type']?.toString().toLowerCase() ?? '';
 
-              if (_createController.createdItems.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/icons/solar_document-outline.png',
-                        width: 80,
-                        height: 80,
-                        color: Colors.grey.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No created items yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Create assignments, activities, and quizzes for your class.',
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                );
-              }
+            return studentName.contains(_submissionSearchQuery) ||
+                activityTitle.contains(_submissionSearchQuery) ||
+                title.contains(_submissionSearchQuery) ||
+                type.contains(_submissionSearchQuery);
+          }).toList();
+    }
 
-              // Filter items based on selected filter
-              final filteredItems =
-                  _selectedFilter == 'All'
-                      ? _createController.createdItems
-                      : _createController.createdItems
-                          .where((item) => item['type'] == _selectedFilter)
-                          .toList();
+    // Apply type filter
+    if (_selectedSubmissionTypeFilter != 'All Types') {
+      filtered =
+          filtered.where((submission) {
+            final type = submission['type']?.toString().toLowerCase() ?? '';
+            switch (_selectedSubmissionTypeFilter) {
+              case 'Assignment':
+                return type == 'assignment';
+              case 'Activity':
+                return type == 'activity';
+              case 'Quiz':
+                return type == 'quiz';
+              case 'PIT':
+                return type == 'pit';
+              default:
+                return true;
+            }
+          }).toList();
+    }
 
-              return ListView.builder(
-                itemCount: filteredItems.length,
-                itemBuilder: (context, index) {
-                  final item = filteredItems[index];
-                  return _buildCreatedItemCard(item);
-                },
-              );
-            }),
-          ),
-        ],
-      ),
-    );
+    // Apply status filter
+    if (_selectedSubmissionStatusFilter != 'All Status') {
+      filtered =
+          filtered.where((submission) {
+            final status = submission['status']?.toString().toLowerCase() ?? '';
+            switch (_selectedSubmissionStatusFilter) {
+              case 'Submitted':
+                return status == 'submitted';
+              case 'Graded':
+                return status == 'graded';
+              case 'Late':
+                return status == 'late';
+              default:
+                return true;
+            }
+          }).toList();
+    }
+
+    return filtered;
   }
 
-  Widget _buildCreatedItemCard(Map<String, dynamic> item) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Icon
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFF34A853),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              _getItemIcon(item['type']),
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Type badges
-                Row(
-                  children: [
-                    _buildTypeBadge(item['type']),
-                    if (item['period'] != null) ...[
-                      const SizedBox(width: 8),
-                      _buildTypeBadge(item['period']),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Title
-                Text(
-                  item['title'] ?? 'No Title',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 4),
-
-                // Details
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Topic: ${item['topic'] ?? 'No Topic'}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                    if (item['points'] != null) ...[
-                      const SizedBox(width: 16),
-                      Text(
-                        'Points: ${item['points']}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 4),
-
-                // Dates
-                Row(
-                  children: [
-                    if (item['dueDate'] != null) ...[
-                      Expanded(
-                        child: Text(
-                          'Due: ${item['dueDate']}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Created: ${item['createdAt']}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Options menu
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              if (value == 'edit') {
-                _editItem(item);
-              } else if (value == 'delete') {
-                _deleteItem(item);
-              } else if (value == 'submissions') {
-                _navigateToSubmissions(item);
-              }
-            },
-            itemBuilder:
-                (context) => [
-                  const PopupMenuItem(
-                    value: 'submissions',
-                    child: Row(
-                      children: [
-                        Icon(Icons.people, size: 16),
-                        SizedBox(width: 8),
-                        Text('View Submissions'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit, size: 16),
-                        SizedBox(width: 8),
-                        Text('Edit'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete, size: 16, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Delete', style: TextStyle(color: Colors.red)),
-                      ],
-                    ),
-                  ),
-                ],
-          ),
-        ],
-      ),
-    );
+  // Helper method to get filtered submissions count
+  int _getFilteredSubmissionsCount() {
+    List<Map<String, dynamic>> submissions = [];
+    for (var submission in _submissionsController.submissions) {
+      submissions.add({
+        ...submission,
+        'itemType': 'submission',
+        'timestamp': submission['submittedAt'],
+        'title': '${submission['studentName']} submitted ${submission['type']}',
+        'description': 'Submitted work for review',
+      });
+    }
+    return _filterSubmissions(submissions).length;
   }
 
-  Widget _buildTypeBadge(String text) {
+  // Helper methods for enrollment status
+  Color _getEnrollmentStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'pending':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getEnrollmentStatusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'pending':
+        return 'Pending';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  // Helper method for building stat chips
+  Widget _buildStatChip(String label, int count, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-          color: Colors.grey,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 10, color: color)),
+        ],
       ),
     );
   }
 
-  IconData _getItemIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'assignment':
-        return Icons.assignment;
-      case 'activity':
-        return Icons.quiz;
-      case 'quiz':
-        return Icons.quiz_outlined;
-      default:
-        return Icons.description;
-    }
-  }
-
-  void _editItem(Map<String, dynamic> item) {
-    // Navigate to edit screen based on item type
-    String route = '';
-    switch (item['type']) {
-      case 'Assignment':
-        route = '/assignment';
-        break;
-      case 'Activity':
-        route = '/activity';
-        break;
-      case 'Quiz':
-        route = '/quiz';
-        break;
-    }
-
-    if (route.isNotEmpty) {
-      Navigator.of(context).pushNamed(
-        route,
-        arguments: {'isEdit': true, 'itemId': item['id'], 'initialData': item},
-      );
-    }
-  }
-
-  void _deleteItem(Map<String, dynamic> item) {
+  // Action handlers for student enrollment
+  void _approveStudent(Map<String, dynamic> student) {
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Delete Item'),
+            title: const Text('Approve Student Enrollment'),
             content: Text(
-              'Are you sure you want to delete "${item['title']}"?',
+              'Are you sure you want to approve ${student['studentName']}\'s enrollment?',
             ),
             actions: [
               TextButton(
@@ -1011,17 +1531,468 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.of(context).pop();
-                  _createController.deleteItem(item['id'], item['type']);
+                  await _classController.approveStudentEnrollment(
+                    studentId: student['studentId'],
+                    sectionCode: widget.classData['section'] ?? '',
+                  );
+                  // Refresh the student list and status
+                  await _loadStudentsForThisClass();
+                  // Set up status monitoring for the newly approved student
+                  String sectionCode = widget.classData['section'] ?? '';
+                  _classController.setupStudentStatusListener(sectionCode);
+
+                  // Use addPostFrameCallback to prevent setState during build
+                  if (mounted) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() {}); // Trigger UI rebuild
+                      }
+                    });
+                  }
                 },
                 child: const Text(
-                  'Delete',
+                  'Approve',
+                  style: TextStyle(color: Colors.green),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _rejectStudent(Map<String, dynamic> student) {
+    final TextEditingController reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Reject Student Enrollment'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to reject ${student['studentName']}\'s enrollment?',
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Reason for rejection (optional):',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: reasonController,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter reason for rejection...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.all(12),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  await _classController.rejectStudentEnrollment(
+                    studentId: student['studentId'],
+                    sectionCode: widget.classData['section'] ?? '',
+                    reason:
+                        reasonController.text.trim().isNotEmpty
+                            ? reasonController.text.trim()
+                            : null,
+                  );
+                  // Refresh the student list and status
+                  await _loadStudentsForThisClass();
+
+                  // Use addPostFrameCallback to prevent setState during build
+                  if (mounted) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() {}); // Trigger UI rebuild
+                      }
+                    });
+                  }
+                },
+                child: const Text(
+                  'Reject',
                   style: TextStyle(color: Colors.red),
                 ),
               ),
             ],
           ),
+    );
+  }
+
+  Widget _buildClassworkTab() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 50),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Recent Activity and Submissions
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Section Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Student Submissions',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () async {
+                        await _loadRecentSubmissions();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      tooltip: 'Refresh submissions',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Search and Filter Controls
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    children: [
+                      // Search Bar
+                      TextField(
+                        controller: _submissionSearchController,
+                        decoration: InputDecoration(
+                          hintText:
+                              'Search by student name or activity name...',
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Colors.grey,
+                          ),
+                          suffixIcon:
+                              _submissionSearchQuery.isNotEmpty
+                                  ? IconButton(
+                                    onPressed: () {
+                                      _submissionSearchController.clear();
+                                      setState(() {
+                                        _submissionSearchQuery = '';
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: Colors.grey,
+                                    ),
+                                  )
+                                  : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF34A853),
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _submissionSearchQuery = value.toLowerCase();
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      // Filter Controls
+                      Row(
+                        children: [
+                          // Type Filter
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey.withOpacity(0.3),
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              child: DropdownButton<String>(
+                                value: _selectedSubmissionTypeFilter,
+                                underline: const SizedBox(),
+                                isDense: true,
+                                hint: const Text('Filter by type'),
+                                items:
+                                    _submissionTypeFilterOptions.map((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(
+                                          value,
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _selectedSubmissionTypeFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Status Filter
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey.withOpacity(0.3),
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.white,
+                              ),
+                              child: DropdownButton<String>(
+                                value: _selectedSubmissionStatusFilter,
+                                underline: const SizedBox(),
+                                isDense: true,
+                                hint: const Text('Filter by status'),
+                                items:
+                                    _submissionStatusFilterOptions.map((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(
+                                          value,
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _selectedSubmissionStatusFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Clear Filters Button
+                          IconButton(
+                            onPressed: () {
+                              _submissionSearchController.clear();
+                              setState(() {
+                                _submissionSearchQuery = '';
+                                _selectedSubmissionTypeFilter = 'All Types';
+                                _selectedSubmissionStatusFilter = 'All Status';
+                              });
+                            },
+                            icon: const Icon(Icons.clear_all),
+                            tooltip: 'Clear all filters',
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.grey.withOpacity(0.1),
+                              foregroundColor: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Results Counter
+                if (_submissionSearchQuery.isNotEmpty ||
+                    _selectedSubmissionTypeFilter != 'All Types' ||
+                    _selectedSubmissionStatusFilter != 'All Status')
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF34A853).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF34A853).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.filter_list,
+                          size: 16,
+                          color: const Color(0xFF34A853),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Showing ${_getFilteredSubmissionsCount()} submission${_getFilteredSubmissionsCount() != 1 ? 's' : ''}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF34A853),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_submissionSearchQuery.isNotEmpty ||
+                    _selectedSubmissionTypeFilter != 'All Types' ||
+                    _selectedSubmissionStatusFilter != 'All Status')
+                  const SizedBox(height: 12),
+
+                // Student Submissions List
+                Expanded(
+                  child: Obx(() {
+                    if (_submissionsController.isLoading.value) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF34A853),
+                        ),
+                      );
+                    }
+
+                    // Get only student submissions
+                    List<Map<String, dynamic>> submissions = [];
+                    for (var submission in _submissionsController.submissions) {
+                      submissions.add({
+                        ...submission,
+                        'itemType': 'submission',
+                        'timestamp': submission['submittedAt'],
+                        'title':
+                            '${submission['studentName']} submitted ${submission['type']}',
+                        'description': 'Submitted work for review',
+                      });
+                    }
+
+                    // Apply search and filters
+                    submissions = _filterSubmissions(submissions);
+
+                    // Sort by timestamp (most recent first)
+                    submissions.sort((a, b) {
+                      dynamic timestampA = a['timestamp'];
+                      dynamic timestampB = b['timestamp'];
+
+                      // Handle different timestamp types
+                      DateTime? dateTimeA;
+                      DateTime? dateTimeB;
+
+                      if (timestampA is Timestamp) {
+                        dateTimeA = timestampA.toDate();
+                      } else if (timestampA is DateTime) {
+                        dateTimeA = timestampA;
+                      } else if (timestampA is String) {
+                        try {
+                          dateTimeA = DateTime.parse(timestampA);
+                        } catch (e) {
+                          dateTimeA = null;
+                        }
+                      }
+
+                      if (timestampB is Timestamp) {
+                        dateTimeB = timestampB.toDate();
+                      } else if (timestampB is DateTime) {
+                        dateTimeB = timestampB;
+                      } else if (timestampB is String) {
+                        try {
+                          dateTimeB = DateTime.parse(timestampB);
+                        } catch (e) {
+                          dateTimeB = null;
+                        }
+                      }
+
+                      // Compare timestamps
+                      if (dateTimeA == null && dateTimeB == null) return 0;
+                      if (dateTimeA == null) return 1;
+                      if (dateTimeB == null) return -1;
+
+                      return dateTimeB.compareTo(dateTimeA);
+                    });
+
+                    if (submissions.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/icons/solar_document-outline.png',
+                              width: 80,
+                              height: 80,
+                              color: Colors.grey.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No student submissions yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Student submissions will appear here when they submit their work.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: submissions.length,
+                      itemBuilder: (context, index) {
+                        final submission = submissions[index];
+                        return _buildSubmissionCard(submission);
+                      },
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1053,11 +2024,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 color: const Color(0xFF34A853),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                _getItemIcon(item['type']),
-                color: Colors.white,
-                size: 24,
-              ),
+              child: Icon(Icons.description, color: Colors.white, size: 24),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -1067,7 +2034,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                   Row(
                     children: [
                       Text(
-                        '${_classController.instructorName.value} posted new ${item['type'].toLowerCase()}:',
+                        '${_instructorController.instructorName.value} posted new ${item['type'].toLowerCase()}:',
                         style: const TextStyle(
                           fontSize: 14,
                           color: Colors.black,
@@ -1090,7 +2057,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     children: [
                       if (item['dueDate'] != null) ...[
                         Text(
-                          'Due: ${item['dueDate']}',
+                          'Due: ${_formatTimestamp(item['dueDate'])}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
@@ -1099,7 +2066,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         const SizedBox(width: 16),
                       ],
                       Text(
-                        'Created: ${item['createdAt'] ?? 'Unknown'}',
+                        'Created: ${_formatTimestamp(item['createdAt'])}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
@@ -1118,29 +2085,186 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     );
   }
 
+  Widget _buildSubmissionCard(Map<String, dynamic> submission) {
+    final status = submission['status'] ?? 'submitted';
+    final studentName = submission['studentName'] ?? 'Unknown Student';
+    final submissionType = submission['type'] ?? 'assignment';
+    final submittedAt = submission['submittedAt'];
+    final grade = submission['grade'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _getSubmissionStatusColor(status).withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () => _navigateToSubmissionDetail(submission),
+        borderRadius: BorderRadius.circular(12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _getSubmissionStatusColor(status).withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _getSubmissionStatusColor(status),
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                _getSubmissionStatusIcon(status),
+                color: _getSubmissionStatusColor(status),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '$studentName submitted ',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        submissionType,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _getTypeColor(submissionType),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        'Submitted: ${_formatSubmissionDate(submittedAt)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getSubmissionStatusColor(
+                            status,
+                          ).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          status.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: _getSubmissionStatusColor(status),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      // Delete button
+                      GestureDetector(
+                        onTap: () => _showRemoveSubmissionDialog(submission),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.red,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                      if (grade != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          'Grade: $grade',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _navigateToItem(Map<String, dynamic> item) {
     // Navigate to appropriate screen based on item type
     String itemType = item['type'] ?? '';
+    final sectionId = widget.classData['sectionId'];
 
     switch (itemType.toLowerCase()) {
       case 'assignment':
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => StudentSubmissionsScreen(activityData: item),
+            builder:
+                (context) => StudentSubmissionsScreen(
+                  activityData: item,
+                  sectionId: sectionId,
+                ),
           ),
         );
         break;
       case 'activity':
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => StudentSubmissionsScreen(activityData: item),
+            builder:
+                (context) => StudentSubmissionsScreen(
+                  activityData: item,
+                  sectionId: sectionId,
+                ),
           ),
         );
         break;
       case 'quiz':
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => StudentSubmissionsScreen(activityData: item),
+            builder:
+                (context) => StudentSubmissionsScreen(
+                  activityData: item,
+                  sectionId: sectionId,
+                ),
           ),
         );
         break;
@@ -1148,17 +2272,693 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         // Default navigation to submissions screen
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => StudentSubmissionsScreen(activityData: item),
+            builder:
+                (context) => StudentSubmissionsScreen(
+                  activityData: item,
+                  sectionId: sectionId,
+                ),
           ),
         );
     }
   }
 
-  void _navigateToSubmissions(Map<String, dynamic> activity) {
+  void _navigateToSubmissionDetail(Map<String, dynamic> submission) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Get the actual points from the assignment/quiz/activity document
+    int actualPoints = 100; // Default fallback
+
+    try {
+      final assignmentId =
+          submission['assignmentId'] ??
+          submission['activityId'] ??
+          submission['quizId'];
+
+      if (assignmentId != null) {
+        final submissionType = submission['type'] ?? 'activity';
+        String collection;
+
+        switch (submissionType.toLowerCase()) {
+          case 'assignment':
+            collection = 'assignments';
+            break;
+          case 'activity':
+            collection = 'activities';
+            break;
+          case 'quiz':
+            collection = 'quizzes';
+            break;
+          default:
+            collection = 'activities';
+        }
+
+        // Get the instructor ID from the current user
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final doc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(user.uid)
+                  .collection(collection)
+                  .doc(assignmentId)
+                  .get();
+
+          if (doc.exists) {
+            final data = doc.data()!;
+            actualPoints = data['points'] ?? data['maxPoints'] ?? 100;
+            print(
+              '✅ Fetched actual points: $actualPoints for $submissionType $assignmentId',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching actual points: $e');
+      // Keep default value of 100
+    }
+
+    // Hide loading indicator
+    Navigator.of(context).pop();
+
+    // Create activity data for the submission detail screen
+    final activityData = {
+      'id':
+          submission['assignmentId'] ??
+          submission['activityId'] ??
+          submission['quizId'] ??
+          submission['id'],
+      'type': submission['type'] ?? 'activity',
+      'title':
+          submission['activityTitle'] ??
+          submission['title'] ??
+          'Untitled ${submission['type'] ?? 'Activity'}',
+      'points': actualPoints, // Use actual points instead of fallback
+      'description': submission['description'] ?? '',
+    };
+
+    // Navigate to submission detail screen
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => StudentSubmissionsScreen(activityData: activity),
+        builder:
+            (context) => SubmissionDetailScreen(
+              activityData: activityData,
+              submissionData: submission,
+            ),
       ),
+    );
+  }
+
+  Color _getSubmissionStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        return Colors.blue;
+      case 'graded':
+        return Colors.green;
+      case 'late':
+        return Colors.orange;
+      case 'missing':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getSubmissionStatusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'submitted':
+        return Icons.upload_file;
+      case 'graded':
+        return Icons.check_circle;
+      case 'late':
+        return Icons.schedule;
+      case 'missing':
+        return Icons.error;
+      default:
+        return Icons.help;
+    }
+  }
+
+  Color _getTypeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'assignment':
+        return Colors.purple;
+      case 'activity':
+        return Colors.blue;
+      case 'quiz':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatSubmissionDate(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown';
+
+    try {
+      DateTime? dateTime;
+
+      if (timestamp is String) {
+        // Try to parse the string timestamp
+        dateTime = DateTime.parse(timestamp);
+      } else if (timestamp is DateTime) {
+        dateTime = timestamp;
+      } else if (timestamp is Timestamp) {
+        dateTime = timestamp.toDate();
+      } else {
+        return 'Recently submitted';
+      }
+
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    } catch (e) {
+      print('❌ Error formatting submission date: $e');
+      return 'Recently submitted';
+    }
+  }
+
+  // Show confirmation dialog for removing submission
+  void _showRemoveSubmissionDialog(Map<String, dynamic> submission) {
+    final studentName = submission['studentName'] ?? 'Unknown Student';
+    final submissionType = submission['type'] ?? 'assignment';
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Remove Submission'),
+            content: Text(
+              'Are you sure you want to remove the $submissionType submission from $studentName? This action cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  await _removeSubmission(submission);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Remove'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Remove submission from Firestore and local list
+  Future<void> _removeSubmission(Map<String, dynamic> submission) async {
+    try {
+      final submissionId = submission['id'];
+      final submissionType = submission['type'] ?? 'assignment';
+
+      if (submissionId == null) {
+        Get.snackbar(
+          'Error',
+          'Submission ID not found',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // Show loading
+      Get.snackbar(
+        'Removing',
+        'Removing submission...',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+
+      // Remove from submissions controller
+      final success = await _submissionsController.removeSubmission(
+        submissionId,
+        submissionType,
+      );
+
+      if (success) {
+        Get.snackbar(
+          'Success',
+          'Submission removed successfully',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        Get.snackbar(
+          'Error',
+          'Failed to remove submission',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      print('Error removing submission: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to remove submission: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  // Show plant tree dialog
+  void _showPlantTreeDialog() {
+    final TextEditingController quantityController = TextEditingController(
+      text: '1',
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.eco, color: Color(0xFF34A853)),
+                SizedBox(width: 8),
+                Text('Add a Tree'),
+              ],
+            ),
+            content: SizedBox(
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Quantity field
+                  TextField(
+                    controller: quantityController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Quantity',
+                      hintText: 'Enter number of trees',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.numbers),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final quantityText = quantityController.text.trim();
+
+                  if (quantityText.isEmpty) {
+                    Get.snackbar(
+                      'Error',
+                      'Please enter a quantity',
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                    return;
+                  }
+
+                  final quantity = int.tryParse(quantityText);
+                  if (quantity == null || quantity <= 0) {
+                    Get.snackbar(
+                      'Error',
+                      'Please enter a valid quantity (number greater than 0)',
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                    return;
+                  }
+
+                  Navigator.of(context).pop();
+
+                  // Show loading
+                  Get.snackbar(
+                    'Adding Tree',
+                    'Please wait...',
+                    backgroundColor: const Color(0xFF34A853),
+                    colorText: Colors.white,
+                    duration: const Duration(seconds: 1),
+                  );
+
+                  // Add tree to Firestore
+                  await _addTreeToClass(quantity);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF34A853),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Add Tree'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Add tree to the class
+  Future<void> _addTreeToClass(int quantity) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        Get.snackbar(
+          'Error',
+          'No user logged in',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // Get class information
+      final classData = widget.classData;
+      final className = '${classData['course']} ${classData['section']}';
+      final sectionName = classData['section'] ?? '';
+
+      // Tree data for this class
+      final treeData = {
+        "plantedBy": sectionName, // Use section name as plantedBy
+        "plantDate": DateTime.now().toString().split(' ')[0], // Today's date
+        "quantity": quantity,
+        "instructorId": user.uid, // Use instructorId instead of ownerId
+        "classId": classData['id'],
+        "className": className,
+        "createdAt": FieldValue.serverTimestamp(),
+      };
+
+      // Save to instructors/{userId}/trees collection
+      await FirebaseFirestore.instance
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('trees')
+          .add(treeData);
+
+      Get.snackbar(
+        'Success',
+        'Tree added successfully to $className!',
+        backgroundColor: const Color(0xFF34A853),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      print('Error adding tree: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to add tree: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Widget _buildTreesTab() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 50),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Trees Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Planted Trees',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  // Refresh trees data
+                  setState(() {});
+                },
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh trees',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Trees List
+          Expanded(
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: _loadTreesForClass(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF34A853)),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading trees: ${snapshot.error}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final trees = snapshot.data ?? [];
+
+                if (trees.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.eco_outlined,
+                          size: 64,
+                          color: Colors.grey.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No trees planted yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Click the "Plant Tree" button to add trees for this class.',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: trees.length,
+                  itemBuilder: (context, index) {
+                    final tree = trees[index];
+                    return _buildTreeCard(tree);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Load trees for this specific class
+  Future<List<Map<String, dynamic>>> _loadTreesForClass() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('❌ No user logged in');
+        return [];
+      }
+
+      final classData = widget.classData;
+      final classId = classData['id'];
+
+      print('🌳 Loading trees for classId: $classId');
+      print('🌳 User ID: ${user.uid}');
+
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('instructors')
+              .doc(user.uid)
+              .collection('trees')
+              .where('classId', isEqualTo: classId)
+              .where('instructorId', isEqualTo: user.uid)
+              .get();
+
+      print('🌳 Found ${snapshot.docs.length} trees');
+
+      if (snapshot.docs.isNotEmpty) {
+        for (var doc in snapshot.docs) {
+          print('🌳 Tree data: ${doc.data()}');
+        }
+      }
+
+      final trees =
+          snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'plantedBy': data['plantedBy'] ?? '',
+              'plantDate': data['plantDate'] ?? '',
+              'quantity': data['quantity'] ?? 1,
+              'className': data['className'] ?? '',
+              'createdAt': data['createdAt'],
+            };
+          }).toList();
+
+      // Sort by createdAt descending (most recent first)
+      trees.sort((a, b) {
+        final aTime = a['createdAt'] as Timestamp?;
+        final bTime = b['createdAt'] as Timestamp?;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime);
+      });
+
+      return trees;
+    } catch (e) {
+      print('Error loading trees for class: $e');
+      return [];
+    }
+  }
+
+  // Build tree card widget
+  Widget _buildTreeCard(Map<String, dynamic> tree) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF34A853).withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Tree icon
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: const Color(0xFF34A853).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: const Icon(Icons.eco, color: Color(0xFF34A853), size: 24),
+          ),
+          const SizedBox(width: 16),
+          // Tree details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${tree['quantity']} tree${tree['quantity'] > 1 ? 's' : ''} planted',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Planted by: ${tree['plantedBy']}',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Date: ${tree['plantDate']}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          // Quantity badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF34A853).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${tree['quantity']}',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF34A853),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build instructor profile avatar with image or initials
+  Widget _buildInstructorProfileAvatar() {
+    // Get initials from name
+    String getInitials(String name) {
+      if (name.isEmpty) return '';
+      final parts = name.trim().split(' ');
+      if (parts.length == 1) {
+        return parts[0].substring(0, 1).toUpperCase();
+      }
+      return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+          .toUpperCase();
+    }
+
+    final instructorName = _instructorController.instructorName.value;
+    final profileImageUrl = _instructorController.profileImageUrl.value;
+    final initials = getInitials(instructorName);
+    final hasImage = profileImageUrl.isNotEmpty;
+
+    return CircleAvatar(
+      radius: 30,
+      backgroundColor: hasImage ? Colors.transparent : const Color(0xFF34A853),
+      backgroundImage: hasImage ? NetworkImage(profileImageUrl) : null,
+      child:
+          !hasImage
+              ? Text(
+                initials,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              )
+              : null,
     );
   }
 }

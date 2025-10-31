@@ -1,8 +1,8 @@
 class CloudinaryConfig {
   // Cloudinary credentials
   static const String cloudName = 'dddnu6i5q';
-  static const String apiKey = 'b4b8fd4bdf5e0c8dcd995779ef241b';
-  static const String apiSecret = 'e6j1Ke-3pxu2FuFcIr7AEAQDZnM';
+  static const String apiKey = '333337596671818';
+  static const String apiSecret = 'UJKccyN0O_VjmG9QrEvsU_f9lxA';
 
   // Default upload folder for your app
   static const String defaultFolder = 'greenquest';

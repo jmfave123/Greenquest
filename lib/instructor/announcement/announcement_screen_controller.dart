@@ -16,6 +16,10 @@ class AnnouncementScreenController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxString instructorName = ''.obs;
 
+  // Edit mode
+  final RxBool isEditMode = false.obs;
+  final RxString editingAnnouncementId = ''.obs;
+
   // Form controllers
   final titleController = TextEditingController();
   final contentController = TextEditingController();
@@ -87,13 +91,26 @@ class AnnouncementScreenController extends GetxController {
   // Cancel create announcement
   void cancelCreate() {
     showCreate.value = false;
+    isEditMode.value = false;
+    editingAnnouncementId.value = '';
     titleController.clear();
     contentController.clear();
     pinToTop.value = false;
     urgent.value = false;
   }
 
-  // Post new announcement to Firestore
+  // Show edit announcement form
+  void showEditAnnouncement(Map<String, dynamic> announcement) {
+    isEditMode.value = true;
+    editingAnnouncementId.value = announcement['id'];
+    titleController.text = announcement['title'];
+    contentController.text = announcement['content'];
+    pinToTop.value = announcement['pinned'];
+    urgent.value = announcement['urgent'];
+    showCreate.value = true;
+  }
+
+  // Post new announcement or update existing one
   Future<void> postAnnouncement() async {
     if (titleController.text.trim().isEmpty ||
         contentController.text.trim().isEmpty) {
@@ -121,50 +138,75 @@ class AnnouncementScreenController extends GetxController {
         return;
       }
 
-      final announcementData = {
-        'title': titleController.text.trim(),
-        'content': contentController.text.trim(),
-        'pinned': pinToTop.value,
-        'urgent': urgent.value,
-        'views': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'instructorId': user.uid,
-        'instructorName': user.displayName ?? 'Unknown Instructor',
-      };
+      if (isEditMode.value) {
+        // Update existing announcement
+        await _firestore
+            .collection('instructors')
+            .doc(user.uid)
+            .collection('announcements')
+            .doc(editingAnnouncementId.value)
+            .update({
+              'title': titleController.text.trim(),
+              'content': contentController.text.trim(),
+              'pinned': pinToTop.value,
+              'urgent': urgent.value,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
 
-      // Add to Firestore
-      final docRef = await _firestore
-          .collection('instructors')
-          .doc(user.uid)
-          .collection('announcements')
-          .add(announcementData);
+        Get.snackbar(
+          'Success',
+          'Announcement updated successfully!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        // Create new announcement
+        final announcementData = {
+          'title': titleController.text.trim(),
+          'content': contentController.text.trim(),
+          'pinned': pinToTop.value,
+          'urgent': urgent.value,
+          'views': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'instructorId': user.uid,
+          'instructorName': user.displayName ?? 'Unknown Instructor',
+        };
 
-      // Send notification to all students of this instructor
-      await _notificationService.sendAnnouncementNotification(
-        instructorId: user.uid,
-        instructorName: instructorName.value,
-        announcementTitle: titleController.text.trim(),
-        announcementContent: contentController.text.trim(),
-        announcementId: docRef.id,
-      );
+        // Add to Firestore
+        final docRef = await _firestore
+            .collection('instructors')
+            .doc(user.uid)
+            .collection('announcements')
+            .add(announcementData);
+
+        // Send notification to all students of this instructor
+        await _notificationService.sendAnnouncementNotification(
+          instructorId: user.uid,
+          instructorName: instructorName.value,
+          announcementTitle: titleController.text.trim(),
+          announcementContent: contentController.text.trim(),
+          announcementId: docRef.id,
+        );
+
+        Get.snackbar(
+          'Success',
+          'Announcement posted and notifications sent!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      }
 
       // Clear form and hide create form
       cancelCreate();
 
       // Reload announcements
       await loadAnnouncements();
-
-      Get.snackbar(
-        'Success',
-        'Announcement posted and notifications sent!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to post announcement: $e',
+        'Failed to ${isEditMode.value ? 'update' : 'post'} announcement: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,

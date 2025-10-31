@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'announcement_controller.dart';
 
 class AnnouncementDetailScreen extends StatelessWidget {
-  const AnnouncementDetailScreen({Key? key}) : super(key: key);
+  const AnnouncementDetailScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../../shared/controllers/file_submission_controller.dart';
+import '../../shared/services/instructor_class_service.dart';
 import 'create_controller.dart';
 
 class ActivityScreen extends StatefulWidget {
@@ -25,30 +26,78 @@ class ActivityScreen extends StatefulWidget {
 
 class _ActivityScreenState extends State<ActivityScreen> {
   final CreateController _createController = Get.find<CreateController>();
+  final FileSubmissionController _fileController = Get.put(
+    FileSubmissionController(),
+  );
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.create;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _instructionController = TextEditingController();
-  String _selectedClass = 'BSIT-A';
   final TextEditingController _pointsController = TextEditingController(
     text: '100',
   );
   DateTime? _selectedDueDate;
-  String _selectedTopic = 'No Topic';
+  String _selectedCategory = 'class_standing';
   bool _showForDropdown = false;
+  bool _showCategoryDropdown = false;
   bool _showTitleError = false;
 
-  final List<String> _classes = ['BSIT-A', 'BSIT-B', 'BSIT-C'];
-  final Map<String, bool> _selectedClasses = {
-    'BSIT-A': false,
-    'BSIT-B': false,
-    'BSIT-C': false,
+  List<String> _classes = [];
+  Map<String, bool> _selectedClasses = {};
+  bool _isLoadingClasses = true;
+
+  // Excel category options
+  final Map<String, String> _categories = {
+    'class_standing': 'Class Standing Performance Items (10%)',
+    'quiz_prelim': 'Quiz/Prelim Performance Item (40%)',
+    'midterm_exam': 'Midterm Exam (30%)',
+    'pit': 'Per Inno Task (20%)',
   };
 
   @override
   void initState() {
     super.initState();
-    if (widget.isEdit && widget.initialData != null) {
-      _loadInitialData();
+    _loadInstructorClasses().then((_) {
+      if (widget.isEdit && widget.initialData != null) {
+        _loadInitialData();
+      }
+    });
+  }
+
+  Future<void> _loadInstructorClasses() async {
+    setState(() {
+      _isLoadingClasses = true;
+    });
+
+    try {
+      // Load section codes from instructor's assignments
+      final sectionCodes =
+          await InstructorClassService.getInstructorSectionCodes();
+
+      if (sectionCodes.isNotEmpty) {
+        _classes = sectionCodes;
+        _selectedClasses = Map.fromEntries(
+          _classes.map((e) => MapEntry(e, false)),
+        );
+        print('✅ Loaded ${_classes.length} instructor classes: $_classes');
+      } else {
+        // Fallback to static classes if no assignments found
+        _classes = InstructorClassService.getFallbackClasses();
+        _selectedClasses = Map.fromEntries(
+          _classes.map((e) => MapEntry(e, false)),
+        );
+        print('⚠️ No assignments found, using fallback classes: $_classes');
+      }
+    } catch (e) {
+      // Fallback to static classes on error
+      _classes = InstructorClassService.getFallbackClasses();
+      _selectedClasses = Map.fromEntries(
+        _classes.map((e) => MapEntry(e, false)),
+      );
+      print('❌ Error loading classes, using fallback: $e');
+    } finally {
+      setState(() {
+        _isLoadingClasses = false;
+      });
     }
   }
 
@@ -57,7 +106,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
     _titleController.text = data['title'] ?? '';
     _instructionController.text = data['instruction'] ?? '';
     _pointsController.text = data['points'] ?? '100';
-    _selectedTopic = data['topic'] ?? 'No Topic';
 
     // Set selected classes
     if (data['selectedClasses'] != null) {
@@ -88,15 +136,41 @@ class _ActivityScreenState extends State<ActivityScreen> {
     });
   }
 
+  String _getSelectedClassesText() {
+    if (_classes.isEmpty) {
+      return 'No classes available';
+    }
+
+    final selectedClasses =
+        _selectedClasses.entries
+            .where((entry) => entry.value)
+            .map((entry) => entry.key)
+            .toList();
+
+    if (selectedClasses.isEmpty) {
+      return 'Select classes';
+    } else if (selectedClasses.length == 1) {
+      return selectedClasses.first;
+    } else {
+      return '${selectedClasses.length} classes selected';
+    }
+  }
+
   void _toggleForDropdown() {
     setState(() {
       _showForDropdown = !_showForDropdown;
     });
   }
 
+  void _toggleCategoryDropdown() {
+    setState(() {
+      _showCategoryDropdown = !_showCategoryDropdown;
+    });
+  }
 
   Future<void> _selectDueDate() async {
-    final DateTime? picked = await showDatePicker(
+    // First, select the date
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDueDate ?? DateTime.now(),
       firstDate: DateTime.now(),
@@ -114,10 +188,43 @@ class _ActivityScreenState extends State<ActivityScreen> {
         );
       },
     );
-    if (picked != null && picked != _selectedDueDate) {
-      setState(() {
-        _selectedDueDate = picked;
-      });
+
+    if (pickedDate != null) {
+      // Then, select the time
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime:
+            _selectedDueDate != null
+                ? TimeOfDay.fromDateTime(_selectedDueDate!)
+                : TimeOfDay.now(),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: Color(0xFF34A853), // Green color for the time picker
+                onPrimary: Colors.white,
+                onSurface: Colors.black,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (pickedTime != null) {
+        // Combine date and time
+        final DateTime combinedDateTime = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+
+        setState(() {
+          _selectedDueDate = combinedDateTime;
+        });
+      }
     }
   }
 
@@ -160,6 +267,53 @@ class _ActivityScreenState extends State<ActivityScreen> {
       return;
     }
 
+    // Upload files if any are selected
+    List<String> attachmentUrls = [];
+    if (_fileController.selectedFiles.isNotEmpty) {
+      try {
+        // Show loading indicator
+        Get.dialog(
+          const Center(child: CircularProgressIndicator()),
+          barrierDismissible: false,
+        );
+
+        // Upload files
+        final uploadSuccess = await _fileController.uploadFiles(
+          folder: 'greenquest/activities',
+          tags: {'type': 'activity', 'period': widget.period ?? 'current'},
+        );
+
+        // Close loading dialog
+        Get.back();
+
+        if (uploadSuccess) {
+          // Get uploaded file URLs
+          attachmentUrls =
+              _fileController.uploadedFiles
+                  .map((file) => file['url'] as String)
+                  .toList();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload files. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      } catch (e) {
+        // Close loading dialog
+        Get.back();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading files: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
     if (widget.isEdit && widget.itemId != null) {
       // Update existing activity
       final success = await _createController.updateActivity(
@@ -169,8 +323,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
         selectedClasses: selectedClasses,
         points: _pointsController.text.trim(),
         dueDate: _selectedDueDate!,
-        topic: _selectedTopic,
         period: widget.period,
+        attachments: attachmentUrls,
       );
 
       if (success) {
@@ -184,8 +338,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
         selectedClasses: selectedClasses,
         points: _pointsController.text.trim(),
         dueDate: _selectedDueDate!,
-        topic: _selectedTopic,
         period: widget.period,
+        category: _selectedCategory,
+        attachments: attachmentUrls,
       );
 
       if (success) {
@@ -193,7 +348,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -207,501 +361,593 @@ class _ActivityScreenState extends State<ActivityScreen> {
           ),
           // Main Content
           Expanded(
-            child: Column(
-              children: [
-                // App Bar
-                const InstructorAppBar(instructorName: ''),
-                // Main Content
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Main Form Area
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Main Form Area
+                  Expanded(
+                    flex: 2,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              // Header
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      GestureDetector(
-                                        onTap:
-                                            () => Navigator.of(context).pop(),
-                                        child: const Icon(
-                                          Icons.arrow_back,
-                                          size: 24,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      const Text(
-                                        'Activity',
-                                        style: TextStyle(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: _validateAndPost,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF34A853),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 15,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: Obx(
-                                      () =>
-                                          _createController.isLoading.value
-                                              ? const SizedBox(
-                                                width: 20,
-                                                height: 20,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Colors.white),
-                                                ),
-                                              )
-                                              : Text(
-                                                widget.isEdit
-                                                    ? 'Update'
-                                                    : 'Post',
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
+                                  GestureDetector(
+                                    onTap: () => Navigator.of(context).pop(),
+                                    child: const Icon(
+                                      Icons.arrow_back,
+                                      size: 24,
+                                      color: Colors.black,
                                     ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 32),
-                              // Title Field
-                              const Text(
-                                'Title',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _titleController,
-                                cursorColor: const Color(0xFF34A853),
-                                onChanged: (value) {
-                                  if (_showTitleError &&
-                                      value.trim().isNotEmpty) {
-                                    setState(() {
-                                      _showTitleError = false;
-                                    });
-                                  }
-                                },
-                                decoration: InputDecoration(
-                                  hintText: 'Title',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color:
-                                          _showTitleError
-                                              ? Colors.red
-                                              : const Color(0xFF9E9E9E),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color:
-                                          _showTitleError
-                                              ? Colors.red
-                                              : const Color(0xFF9E9E9E),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFF34A853),
-                                    ),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              if (_showTitleError)
-                                const Text(
-                                  'Title is required',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              const SizedBox(height: 24),
-                              // Instruction Field
-                              const Text(
-                                'Instruction',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _instructionController,
-                                maxLines: 6,
-                                cursorColor: const Color(0xFF34A853),
-                                onChanged: (value) {
-                                  // No validation needed for instruction
-                                },
-                                decoration: InputDecoration(
-                                  hintText: 'Instruction (optional)',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFF9E9E9E),
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFF9E9E9E),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFF34A853),
-                                    ),
-                                  ),
-                                  contentPadding: const EdgeInsets.all(16),
-                                ),
-                              ),
-                              const SizedBox(height: 32),
-                              // Attach Section
-                              const Text(
-                                'Attach',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                children: [
-                                  _buildAttachOption(
-                                    'Upload',
-                                    'assets/instructor/images/material-symbols-light_upload.png',
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 32),
-                        // Right Panel
-                        SizedBox(
-                          width: MediaQuery.of(context).size.width * 0.15,
-                          height: double.infinity,
-                          child: Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: const BoxDecoration(
-                              border: Border(
-                                left: BorderSide(
-                                  color: Colors.black12,
-                                  width: 1,
-                                ),
-                              ),
-                            ),
-                            child: SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                                  const SizedBox(width: 12),
                                   const Text(
-                                    'Activity Details',
+                                    'Activity',
                                     style: TextStyle(
-                                      fontSize: 18,
+                                      fontSize: 24,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black,
                                     ),
                                   ),
-                                  const SizedBox(height: 24),
-                                  // For Dropdown
-                                  const Text(
-                                    'For',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black,
-                                    ),
+                                ],
+                              ),
+                              ElevatedButton(
+                                onPressed: _validateAndPost,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF34A853),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 15,
                                   ),
-                                  const SizedBox(height: 8),
-                                  GestureDetector(
-                                    onTap: _toggleForDropdown,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color:
-                                              _showForDropdown
-                                                  ? const Color(0xFF34A853)
-                                                  : const Color(0xFF9E9E9E),
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            _selectedClass,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Obx(
+                                  () =>
+                                      _createController.isLoading.value
+                                          ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Colors.white,
+                                                  ),
+                                            ),
+                                          )
+                                          : Text(
+                                            widget.isEdit ? 'Update' : 'Post',
                                             style: const TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.black,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
-                                          Icon(
-                                            _showForDropdown
-                                                ? Icons.keyboard_arrow_up
-                                                : Icons.keyboard_arrow_down,
-                                            color: Colors.black54,
-                                            size: 20,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          // Title Field
+                          const Text(
+                            'Title',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _titleController,
+                            cursorColor: const Color(0xFF34A853),
+                            onChanged: (value) {
+                              if (_showTitleError && value.trim().isNotEmpty) {
+                                setState(() {
+                                  _showTitleError = false;
+                                });
+                              }
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Title',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color:
+                                      _showTitleError
+                                          ? Colors.red
+                                          : const Color(0xFF9E9E9E),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color:
+                                      _showTitleError
+                                          ? Colors.red
+                                          : const Color(0xFF9E9E9E),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF34A853),
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          if (_showTitleError)
+                            const Text(
+                              'Title is required',
+                              style: TextStyle(fontSize: 12, color: Colors.red),
+                            ),
+                          const SizedBox(height: 24),
+                          // Instruction Field
+                          const Text(
+                            'Instruction',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _instructionController,
+                            maxLines: 6,
+                            cursorColor: const Color(0xFF34A853),
+                            onChanged: (value) {
+                              // No validation needed for instruction
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Instruction (optional)',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF9E9E9E),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF9E9E9E),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF34A853),
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.all(16),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          // Attach Section
+                          const Text(
+                            'Attach',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildAttachmentSection(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 32),
+                  // Right Panel
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        maxWidth: 300,
+                        minWidth: 250,
+                      ),
+                      padding: const EdgeInsets.all(24),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          left: BorderSide(color: Colors.black12, width: 1),
+                        ),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Activity Details',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            // For Dropdown
+                            const Text(
+                              'For',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _toggleForDropdown,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color:
+                                        _showForDropdown
+                                            ? const Color(0xFF34A853)
+                                            : const Color(0xFF9E9E9E),
                                   ),
-                                  // Dropdown options
-                                  if (_showForDropdown)
-                                    Container(
-                                      margin: const EdgeInsets.only(top: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        border: Border.all(
-                                          color: const Color(0xFF9E9E9E),
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.1),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child:
+                                          _isLoadingClasses
+                                              ? const Text(
+                                                'Loading classes...',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey,
+                                                ),
+                                              )
+                                              : Text(
+                                                _getSelectedClassesText(),
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.black,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                                maxLines: 2,
+                                              ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      _showForDropdown
+                                          ? Icons.keyboard_arrow_up
+                                          : Icons.keyboard_arrow_down,
+                                      color: Colors.black54,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            // Dropdown options
+                            if (_showForDropdown)
+                              Container(
+                                margin: const EdgeInsets.only(top: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: const Color(0xFF9E9E9E),
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.1,
                                       ),
-                                      child: Column(
-                                        children:
-                                            _classes
-                                                .map(
-                                                  (className) => Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 16,
-                                                          vertical: 8,
-                                                        ),
-                                                    child: Row(
-                                                      children: [
-                                                        Checkbox(
-                                                          value:
-                                                              _selectedClasses[className],
-                                                          onChanged: (
-                                                            bool? value,
-                                                          ) {
-                                                            _toggleClassSelection(
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child:
+                                    _isLoadingClasses
+                                        ? const Padding(
+                                          padding: EdgeInsets.all(16),
+                                          child: Center(
+                                            child: CircularProgressIndicator(
+                                              color: Color(0xFF34A853),
+                                            ),
+                                          ),
+                                        )
+                                        : _classes.isEmpty
+                                        ? const Padding(
+                                          padding: EdgeInsets.all(16),
+                                          child: Text(
+                                            'No classes available',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        )
+                                        : Column(
+                                          children:
+                                              _classes
+                                                  .map(
+                                                    (className) => Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 8,
+                                                          ),
+                                                      child: Row(
+                                                        children: [
+                                                          Checkbox(
+                                                            value:
+                                                                _selectedClasses[className] ??
+                                                                false,
+                                                            onChanged: (
+                                                              bool? value,
+                                                            ) {
+                                                              _toggleClassSelection(
+                                                                className,
+                                                              );
+                                                            },
+                                                            activeColor:
+                                                                const Color(
+                                                                  0xFF34A853,
+                                                                ),
+                                                          ),
+                                                          Expanded(
+                                                            child: Text(
                                                               className,
-                                                            );
-                                                          },
-                                                          activeColor:
-                                                              const Color(
-                                                                0xFF34A853,
-                                                              ),
-                                                        ),
-                                                        Text(
-                                                          className,
-                                                          style:
-                                                              const TextStyle(
+                                                              style: const TextStyle(
                                                                 fontSize: 14,
                                                                 color:
                                                                     Colors
                                                                         .black,
                                                               ),
-                                                        ),
-                                                      ],
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              maxLines: 2,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
-                                                  ),
-                                                )
-                                                .toList(),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 15),
-                                  // Points Input
-                                  const Text(
-                                    'Points',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: _pointsController,
-                                    keyboardType: TextInputType.number,
-                                    cursorColor: Colors.black54,
-                                    decoration: InputDecoration(
-                                      hintText: 'Enter points',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFF9E9E9E),
+                                                  )
+                                                  .toList(),
                                         ),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFF9E9E9E),
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFF34A853),
-                                        ),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 15),
-                                  // Due Date & Time
-                                  const Text(
-                                    'Due date & time',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  GestureDetector(
-                                    onTap: _selectDueDate,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: const Color(0xFF9E9E9E),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            _selectedDueDate != null
-                                                ? '${_selectedDueDate!.month}/${_selectedDueDate!.day}/${_selectedDueDate!.year}'
-                                                : 'MM/DD/YYYY',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color:
-                                                  _selectedDueDate != null
-                                                      ? Colors.black
-                                                      : Colors.grey,
-                                            ),
-                                          ),
-                                          const Icon(
-                                            Icons.calendar_today,
-                                            color: Colors.black54,
-                                            size: 20,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 15),
-                                  // Type Field
-                                  const Text(
-                                    'Type',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: TextEditingController(text: _selectedTopic),
-                                    cursorColor: const Color(0xFF34A853),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _selectedTopic = value;
-                                      });
-                                    },
-                                    decoration: InputDecoration(
-                                      hintText: 'Enter type',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFF9E9E9E),
-                                        ),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFF9E9E9E),
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFF34A853),
-                                        ),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              ),
+                            const SizedBox(height: 15),
+                            // Points Input
+                            const Text(
+                              'Points',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _pointsController,
+                              keyboardType: TextInputType.number,
+                              cursorColor: Colors.black54,
+                              decoration: InputDecoration(
+                                hintText: 'Enter points',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF9E9E9E),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF9E9E9E),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF34A853),
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 15),
+                            // Excel Category Selection
+                            const Text(
+                              'Excel Category',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _toggleCategoryDropdown,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color:
+                                        _showCategoryDropdown
+                                            ? const Color(0xFF34A853)
+                                            : const Color(0xFF9E9E9E),
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _categories[_selectedCategory]!,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      _showCategoryDropdown
+                                          ? Icons.keyboard_arrow_up
+                                          : Icons.keyboard_arrow_down,
+                                      color: Colors.black54,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            // Category dropdown options
+                            if (_showCategoryDropdown)
+                              Container(
+                                margin: const EdgeInsets.only(top: 4),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: const Color(0xFF9E9E9E),
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.white,
+                                ),
+                                child: Column(
+                                  children:
+                                      _categories.entries.map((entry) {
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedCategory = entry.key;
+                                              _showCategoryDropdown = false;
+                                            });
+                                          },
+                                          child: Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  _selectedCategory == entry.key
+                                                      ? const Color(
+                                                        0xFF34A853,
+                                                      ).withOpacity(0.1)
+                                                      : Colors.transparent,
+                                            ),
+                                            child: Text(
+                                              entry.value,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color:
+                                                    _selectedCategory ==
+                                                            entry.key
+                                                        ? const Color(
+                                                          0xFF34A853,
+                                                        )
+                                                        : Colors.black,
+                                                fontWeight:
+                                                    _selectedCategory ==
+                                                            entry.key
+                                                        ? FontWeight.w600
+                                                        : FontWeight.normal,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 2,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                ),
+                              ),
+                            const SizedBox(height: 15),
+                            // Due Date & Time
+                            const Text(
+                              'Due date & time',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _selectDueDate,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFF9E9E9E),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _selectedDueDate != null
+                                            ? '${_selectedDueDate!.month}/${_selectedDueDate!.day}/${_selectedDueDate!.year} ${_selectedDueDate!.hour.toString().padLeft(2, '0')}:${_selectedDueDate!.minute.toString().padLeft(2, '0')}'
+                                            : 'MM/DD/YYYY HH:MM',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color:
+                                              _selectedDueDate != null
+                                                  ? Colors.black
+                                                  : Colors.grey,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Icon(
+                                      Icons.calendar_today,
+                                      color: Colors.black54,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -709,25 +955,165 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  Widget _buildAttachOption(String label, String iconPath) {
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFF9E9E9E)),
-          ),
-          child: Center(child: Image.asset(iconPath, width: 24, height: 24)),
+  Widget _buildAttachmentSection() {
+    return Obx(
+      () => SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // File picker button
+            GestureDetector(
+              onTap: _pickFiles,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                ),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.arrow_upward, color: Colors.grey, size: 20),
+                    SizedBox(height: 4),
+                    Text(
+                      'Upload',
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Selected files display - now fully scrollable
+            if (_fileController.selectedFiles.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Selected Files:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // No height constraints - let it scroll naturally
+              Column(
+                children:
+                    _fileController.selectedFiles.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final file = entry.value;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _getFileIcon(file.extension),
+                              color: Colors.grey[600],
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    file.name,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    '${(file.size / 1024).toStringAsFixed(1)} KB',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => _fileController.removeFile(index),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.red,
+                                size: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+              ),
+            ],
+
+            // Upload status
+            if (_fileController.uploadStatus.value.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                _fileController.uploadStatus.value,
+                style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      _fileController.uploadStatus.value.contains('Error')
+                          ? Colors.red
+                          : Colors.green,
+                ),
+              ),
+            ],
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
-        ),
-      ],
+      ),
     );
+  }
+
+  Future<void> _pickFiles() async {
+    try {
+      await _fileController.pickFiles();
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to pick files: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  IconData _getFileIcon(String? extension) {
+    switch (extension?.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+        return Icons.image;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+        return Icons.video_file;
+      case 'zip':
+      case 'rar':
+        return Icons.archive;
+      default:
+        return Icons.attach_file;
+    }
   }
 }

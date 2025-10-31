@@ -22,10 +22,10 @@ class InstructorSidebar extends StatefulWidget {
   final Function(InstructorNavigationItem) onItemSelected;
 
   const InstructorSidebar({
-    Key? key,
+    super.key,
     required this.selectedItem,
     required this.onItemSelected,
-  }) : super(key: key);
+  });
 
   @override
   State<InstructorSidebar> createState() => _InstructorSidebarState();
@@ -68,12 +68,12 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
       item: InstructorNavigationItem.announcements,
       route: '/instructor-announcement',
     ),
-    NavigationItemData(
-      label: 'Planted Trees',
-      iconPath: 'assets/instructor/icons/lucide_trees.png',
-      item: InstructorNavigationItem.plantedTrees,
-      route: '/instructor-planted-trees',
-    ),
+    // NavigationItemData(
+    //   label: 'Planted Trees',
+    //   iconPath: 'assets/instructor/icons/lucide_trees.png',
+    //   item: InstructorNavigationItem.plantedTrees,
+    //   route: '/instructor-planted-trees',
+    // ),
     NavigationItemData(
       label: 'Reports',
       iconPath: 'assets/instructor/icons/fluent_document-20-regular.png',
@@ -152,11 +152,7 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
               color: Colors.red.withOpacity(0.1),
               borderRadius: BorderRadius.circular(30),
             ),
-            child: const Icon(
-              Icons.logout,
-              color: Colors.red,
-              size: 30,
-            ),
+            child: const Icon(Icons.logout, color: Colors.red, size: 30),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -171,10 +167,7 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
           const Text(
             'Are you sure you want to logout?',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.black54,
-              fontSize: 15,
-            ),
+            style: TextStyle(color: Colors.black54, fontSize: 15),
           ),
           const SizedBox(height: 28),
           Row(

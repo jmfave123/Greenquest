@@ -2,16 +2,23 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../instructor_dashboard_controller.dart';
 import 'submission_detail_screen.dart';
 import 'submissions_controller.dart';
 
 class StudentSubmissionsScreen extends StatefulWidget {
   final Map<String, dynamic> activityData;
+  final String? sectionId; // Add section ID parameter
 
-  const StudentSubmissionsScreen({super.key, required this.activityData});
+  const StudentSubmissionsScreen({
+    super.key,
+    required this.activityData,
+    this.sectionId,
+  });
 
   @override
   State<StudentSubmissionsScreen> createState() =>
@@ -23,118 +30,121 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
       InstructorNavigationItem.classManagement;
 
   late SubmissionsController submissionsController;
+  final InstructorController instructorController = Get.put(
+    InstructorController(),
+  );
 
   @override
   void initState() {
     super.initState();
     submissionsController = Get.put(SubmissionsController());
     _loadSubmissions();
+
+    // Set up a delayed fallback to try direct loading if no submissions found
+    Future.delayed(const Duration(seconds: 2), () {
+      if (submissionsController.submissions.isEmpty) {
+        print(
+          '🔄 No submissions found with standard method, trying direct loading...',
+        );
+        _loadSubmissionsDirectly();
+      }
+    });
   }
 
   void _loadSubmissions() {
     final activityData = widget.activityData;
     final itemType =
         activityData['type']?.toString().toLowerCase() ?? 'activity';
+    final sectionId = widget.sectionId;
 
+    print('🔍 Loading submissions for:');
+    print('  - Activity ID: ${activityData['id']}');
+    print('  - Activity Type: $itemType');
+    print('  - Section ID: $sectionId');
+
+    // First try the standard loading method
     if (itemType == 'assignment') {
-      submissionsController.loadAssignmentSubmissions(activityData['id'] ?? '');
+      submissionsController.loadAssignmentSubmissions(
+        activityData['id'] ?? '',
+        sectionId: sectionId,
+      );
+    } else if (itemType == 'quiz') {
+      submissionsController.loadQuizSubmissions(
+        activityData['id'] ?? '',
+        sectionId: sectionId,
+      );
+    } else if (itemType == 'activity') {
+      submissionsController.loadActivitySubmissions(
+        activityData['id'] ?? '',
+        sectionId: sectionId,
+      );
+    } else if (itemType == 'pit') {
+      // For PITs, use direct loading since there's no specific PIT loading method
+      _loadSubmissionsDirectly();
     } else {
-      submissionsController.loadActivitySubmissions(activityData['id'] ?? '');
+      // Fallback to direct loading for any other types
+      _loadSubmissionsDirectly();
     }
   }
 
-  // Sample student submissions data (keeping as fallback)
-  final List<Map<String, dynamic>> _sampleSubmissions = [
-    {
-      'id': '1',
-      'studentName': 'Andrei Vern',
-      'studentId': '2023-001',
-      'avatar': 'assets/images/Avatar.png',
-      'submittedAt': '2024-01-15 10:30 AM',
-      'status': 'submitted', // submitted, graded, late
-      'score': null,
-      'maxScore': 100,
-      'files': [
-        {'name': 'activity_10_solution.pdf', 'type': 'pdf', 'size': '2.3 MB'},
-        {'name': 'activity_10_code.py', 'type': 'python', 'size': '1.2 KB'},
-      ],
-      'comments': '',
-    },
-    {
-      'id': '2',
-      'studentName': 'Sofia Grey',
-      'studentId': '2023-002',
-      'avatar': 'assets/images/Avatar.png',
-      'submittedAt': '2024-01-15 11:45 AM',
-      'status': 'graded',
-      'score': 85,
-      'maxScore': 100,
-      'files': [
-        {'name': 'assignment_solution.docx', 'type': 'docx', 'size': '1.8 MB'},
-      ],
-      'comments': 'Good work! Consider improving the conclusion.',
-    },
-    {
-      'id': '3',
-      'studentName': 'Princess',
-      'studentId': '2023-003',
-      'avatar': 'assets/images/Avatar.png',
-      'submittedAt': '2024-01-16 09:15 AM',
-      'status': 'late',
-      'score': null,
-      'maxScore': 100,
-      'files': [
-        {'name': 'activity_submission.pdf', 'type': 'pdf', 'size': '3.1 MB'},
-      ],
-      'comments': '',
-    },
-    {
-      'id': '4',
-      'studentName': 'Sophia',
-      'studentId': '2023-004',
-      'avatar': 'assets/images/Avatar.png',
-      'submittedAt': '2024-01-14 08:20 PM',
-      'status': 'graded',
-      'score': 95,
-      'maxScore': 100,
-      'files': [
-        {'name': 'solution_report.pdf', 'type': 'pdf', 'size': '2.7 MB'},
-        {'name': 'data_analysis.xlsx', 'type': 'excel', 'size': '456 KB'},
-      ],
-      'comments': 'Excellent work! Very detailed analysis.',
-    },
-    {
-      'id': '5',
-      'studentName': 'Rose Ann',
-      'studentId': '2023-005',
-      'avatar': 'assets/images/Avatar.png',
-      'submittedAt': '2024-01-15 02:30 PM',
-      'status': 'submitted',
-      'score': null,
-      'maxScore': 100,
-      'files': [
-        {'name': 'activity_10_final.pdf', 'type': 'pdf', 'size': '1.9 MB'},
-      ],
-      'comments': '',
-    },
-    {
-      'id': '6',
-      'studentName': 'Bryan David',
-      'studentId': '2023-006',
-      'avatar': 'assets/images/Avatar.png',
-      'submittedAt': '2024-01-15 12:00 PM',
-      'status': 'graded',
-      'score': 78,
-      'maxScore': 100,
-      'files': [
-        {'name': 'submission.zip', 'type': 'zip', 'size': '4.2 MB'},
-      ],
-      'comments': 'Good effort. Please review the formatting guidelines.',
-    },
-  ];
+  // Alternative method to load submissions directly from Firestore
+  Future<void> _loadSubmissionsDirectly() async {
+    try {
+      final activityData = widget.activityData;
+      final itemType =
+          activityData['type']?.toString().toLowerCase() ?? 'activity';
+      final activityId = activityData['id'] ?? '';
 
-  String _selectedFilter = 'All';
-  final List<String> _filterOptions = ['All', 'Submitted', 'Graded', 'Late'];
+      print('🔧 Direct load: $itemType with ID: $activityId');
+
+      String collectionName;
+      String idFieldName;
+
+      switch (itemType) {
+        case 'assignment':
+          collectionName = 'assignment_submissions';
+          idFieldName = 'assignmentId';
+          break;
+        case 'activity':
+          collectionName = 'activity_submissions';
+          idFieldName = 'activityId';
+          break;
+        case 'quiz':
+          collectionName = 'quiz_submissions';
+          idFieldName = 'quizId';
+          break;
+        case 'pit':
+          collectionName = 'submissions';
+          idFieldName = 'pitId';
+          break;
+        default:
+          collectionName = 'activity_submissions';
+          idFieldName = 'activityId';
+      }
+
+      final querySnapshot =
+          await FirebaseFirestore.instance
+              .collection(collectionName)
+              .where(idFieldName, isEqualTo: activityId)
+              .get();
+
+      print('🔧 Direct query returned ${querySnapshot.docs.length} documents');
+
+      List<Map<String, dynamic>> directSubmissions = [];
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        print('🔧 Found direct submission: ${doc.id}');
+        print('  - Student: ${data['studentName']}');
+        print('  - Section: ${data['sectionId']}');
+        directSubmissions.add({'id': doc.id, 'type': itemType, ...data});
+      }
+
+      submissionsController.submissions.assignAll(directSubmissions);
+      submissionsController.updateStats();
+    } catch (e) {
+      print('❌ Error in direct load: $e');
+    }
+  }
 
   void _handleNavigationSelect(InstructorNavigationItem item) {
     setState(() {
@@ -157,22 +167,8 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
   }
 
   List<Map<String, dynamic>> _getFilteredSubmissions() {
-    if (_selectedFilter == 'All') {
-      return submissionsController.submissions;
-    }
-
-    return submissionsController.submissions.where((submission) {
-      switch (_selectedFilter) {
-        case 'Submitted':
-          return submission['status'] == 'submitted';
-        case 'Graded':
-          return submission['status'] == 'graded';
-        case 'Late':
-          return submission['status'] == 'late';
-        default:
-          return true;
-      }
-    }).toList();
+    // Return all submissions from controller
+    return submissionsController.submissions;
   }
 
   Color _getStatusColor(String status) {
@@ -201,6 +197,32 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
     }
   }
 
+  Color _getTypeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'activity':
+        return Colors.blue;
+      case 'assignment':
+        return Colors.orange;
+      case 'quiz':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getTypeLabel(String type) {
+    switch (type.toLowerCase()) {
+      case 'activity':
+        return 'ACTIVITY';
+      case 'assignment':
+        return 'ASSIGNMENT';
+      case 'quiz':
+        return 'QUIZ';
+      default:
+        return 'UNKNOWN';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -216,9 +238,12 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
             child: Column(
               children: [
                 // App Bar
-                const InstructorAppBar(
-                  instructorName: 'Mia Castro',
-                  instructorRole: 'Instructor',
+                Obx(
+                  () => InstructorAppBar(
+                    instructorName: instructorController.instructorName.value,
+                    instructorRole: 'Instructor',
+                    profileImageUrl: instructorController.profileImageUrl.value,
+                  ),
                 ),
                 // Main Content
                 Expanded(
@@ -260,46 +285,37 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    widget.activityData['title'] ?? 'Activity',
+                                    '${widget.activityData['type'] ?? 'Activity'}: ${widget.activityData['title'] ?? 'Untitled'}',
                                     style: const TextStyle(
                                       fontSize: 16,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Topic: ${widget.activityData['topic'] ?? 'No topic'}',
+                                    style: const TextStyle(
+                                      fontSize: 14,
                                       color: Colors.grey,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            // Filter dropdown
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: const Color(0xFFE0E0E0),
+                            // Refresh button
+                            IconButton(
+                              onPressed: () {
+                                _loadSubmissions();
+                              },
+                              icon: const Icon(Icons.refresh),
+                              tooltip: 'Refresh submissions',
+                              style: IconButton.styleFrom(
+                                backgroundColor: const Color(
+                                  0xFF34A853,
+                                ).withOpacity(0.1),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<String>(
-                                value: _selectedFilter,
-                                underline: const SizedBox(),
-                                isDense: true,
-                                items:
-                                    _filterOptions.map((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text(
-                                          value,
-                                          style: const TextStyle(fontSize: 14),
-                                        ),
-                                      );
-                                    }).toList(),
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    _selectedFilter = newValue!;
-                                  });
-                                },
                               ),
                             ),
                           ],
@@ -307,59 +323,114 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                         const SizedBox(height: 24),
 
                         // Statistics Cards
-                        Row(
-                          children: [
-                            _buildStatCard(
-                              'Total Submissions',
-                              submissionsController.submissions.length
-                                  .toString(),
-                              Icons.people,
-                              Colors.blue,
+                        Obx(
+                          () => Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 16),
-                            _buildStatCard(
-                              'Graded',
-                              submissionsController.submissions
-                                  .where((s) => s['status'] == 'graded')
-                                  .length
-                                  .toString(),
-                              Icons.check_circle,
-                              Colors.green,
+                            child: Row(
+                              children: [
+                                _buildStatCard(
+                                  'Total Submissions',
+                                  submissionsController.submissionStats['total']
+                                      .toString(),
+                                  Icons.people,
+                                  Colors.blue,
+                                ),
+                                const SizedBox(width: 16),
+                                _buildStatCard(
+                                  'Graded',
+                                  submissionsController
+                                      .submissionStats['graded']
+                                      .toString(),
+                                  Icons.check_circle,
+                                  Colors.green,
+                                ),
+                                const SizedBox(width: 16),
+                                _buildStatCard(
+                                  'Pending',
+                                  submissionsController
+                                      .submissionStats['pending']
+                                      .toString(),
+                                  Icons.pending,
+                                  Colors.orange,
+                                ),
+                                const SizedBox(width: 16),
+                                _buildStatCard(
+                                  'Late',
+                                  submissionsController.submissionStats['late']
+                                      .toString(),
+                                  Icons.schedule,
+                                  Colors.red,
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 16),
-                            _buildStatCard(
-                              'Pending',
-                              submissionsController.submissions
-                                  .where((s) => s['status'] == 'submitted')
-                                  .length
-                                  .toString(),
-                              Icons.pending,
-                              Colors.orange,
-                            ),
-                            const SizedBox(width: 16),
-                            _buildStatCard(
-                              'Late',
-                              submissionsController.submissions
-                                  .where((s) => s['status'] == 'late')
-                                  .length
-                                  .toString(),
-                              Icons.schedule,
-                              Colors.red,
-                            ),
-                          ],
+                          ),
                         ),
                         const SizedBox(height: 24),
 
                         // Submissions List
                         Expanded(
-                          child: ListView.builder(
-                            itemCount: _getFilteredSubmissions().length,
-                            itemBuilder: (context, index) {
-                              final submission =
-                                  _getFilteredSubmissions()[index];
-                              return _buildSubmissionCard(submission);
-                            },
-                          ),
+                          child: Obx(() {
+                            if (submissionsController.isLoading.value) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Color(0xFF34A853),
+                                ),
+                              );
+                            }
+
+                            if (submissionsController.submissions.isEmpty) {
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.inbox,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No submissions yet',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Student submissions will appear here once they submit their work.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[500],
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            return ListView.builder(
+                              itemCount: _getFilteredSubmissions().length,
+                              itemBuilder: (context, index) {
+                                final submission =
+                                    _getFilteredSubmissions()[index];
+                                return _buildSubmissionCard(submission);
+                              },
+                            );
+                          }),
                         ),
                       ],
                     ),
@@ -432,6 +503,15 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
   }
 
   Widget _buildSubmissionCard(Map<String, dynamic> submission) {
+    final files = submission['files'] as List<dynamic>? ?? [];
+    final submittedAt = submission['submittedAt'];
+    final studentName = submission['studentName'] ?? 'Unknown Student';
+    final studentId =
+        submission['studentIdNumber'] ?? submission['studentId'] ?? 'N/A';
+    final status = submission['status'] ?? 'submitted';
+    final grade = submission['grade'];
+    final maxScore = widget.activityData['points'] ?? 100;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -455,7 +535,15 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
             // Student Avatar
             CircleAvatar(
               radius: 25,
-              backgroundImage: AssetImage(submission['avatar']),
+              backgroundColor: const Color(0xFF34A853).withOpacity(0.1),
+              child: Text(
+                studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF34A853),
+                ),
+              ),
             ),
             const SizedBox(width: 16),
 
@@ -467,7 +555,7 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                   Row(
                     children: [
                       Text(
-                        submission['studentName'],
+                        studentName,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -476,26 +564,53 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        '(${submission['studentId']})',
+                        '($studentId)',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getTypeColor(
+                            submission['type'] ?? 'activity',
+                          ).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _getTypeLabel(submission['type'] ?? 'activity'),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: _getTypeColor(
+                              submission['type'] ?? 'activity',
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Submitted: ${submission['submittedAt']}',
+                    'Submitted: ${submissionsController.formatSubmissionDate(submittedAt)}',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.attach_file, size: 14, color: Colors.grey),
+                      const Icon(
+                        Icons.attach_file,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        '${submission['files'].length} file(s)',
+                        '${files.length} file(s)',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
@@ -517,35 +632,33 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(
-                      submission['status'],
-                    ).withOpacity(0.1),
+                    color: _getStatusColor(status).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        _getStatusIcon(submission['status']),
+                        _getStatusIcon(status),
                         size: 12,
-                        color: _getStatusColor(submission['status']),
+                        color: _getStatusColor(status),
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        submission['status'].toUpperCase(),
+                        status.toUpperCase(),
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: _getStatusColor(submission['status']),
+                          color: _getStatusColor(status),
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
-                if (submission['score'] != null)
+                if (grade != null)
                   Text(
-                    '${submission['score']}/${submission['maxScore']}',
+                    '$grade/$maxScore',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -553,15 +666,15 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                     ),
                   )
                 else
-                  Text(
+                  const Text(
                     'Not graded',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
               ],
             ),
 
             const SizedBox(width: 16),
-            Icon(Icons.chevron_right, color: Colors.grey),
+            const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
       ),

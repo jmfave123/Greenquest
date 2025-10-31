@@ -176,11 +176,9 @@ class FileUploadService {
     String resourceType = 'raw',
   }) async {
     try {
-      // For now, use the existing image upload method but we'll need to extend it
-      // This is a simplified implementation - in production you'd want to use
-      // Cloudinary's raw file upload endpoint
-      return await _cloudinaryService.uploadImageFromBytes(
-        imageBytes: fileBytes,
+      // Use the proper raw file upload method
+      return await _cloudinaryService.uploadRawFile(
+        fileBytes: fileBytes,
         fileName: fileName,
         folder: folder,
         publicId: publicId,

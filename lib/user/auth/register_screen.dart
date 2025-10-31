@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
@@ -13,6 +14,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   bool agreeTerms = false;
   bool isLoading = false;
+  bool _isPasswordVisible = false;
   final AuthController authController = Get.put(AuthController());
   final TextEditingController fullNameController = TextEditingController();
   final TextEditingController phoneNumberController = TextEditingController();
@@ -159,6 +161,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 20),
                     TextField(
                       controller: phoneNumberController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
+                      ],
                       decoration: InputDecoration(
                         prefixIcon: Padding(
                           padding: EdgeInsets.only(left: 15),
@@ -167,7 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             height: 24,
                           ),
                         ),
-                        hintText: 'Phone Number',
+                        hintText: 'Phone Number (09XXXXXXXXX)',
                         hintStyle: TextStyle(color: Colors.black38),
                         filled: true,
                         fillColor: Color(0xFFF2F2F2),
@@ -201,6 +208,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 20),
                     TextField(
                       controller: idNumberController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
                       decoration: InputDecoration(
                         prefixIcon: Padding(
                           padding: EdgeInsets.only(left: 15),
@@ -209,7 +221,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             height: 24,
                           ),
                         ),
-                        hintText: 'ID Number',
+                        hintText: 'ID Number (10 digits)',
                         hintStyle: TextStyle(color: Colors.black38),
                         filled: true,
                         fillColor: Color(0xFFF2F2F2),
@@ -222,7 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 20),
                     TextField(
                       controller: passwordController,
-                      obscureText: true,
+                      obscureText: !_isPasswordVisible,
                       decoration: InputDecoration(
                         prefixIcon: Padding(
                           padding: EdgeInsets.only(left: 15),
@@ -230,6 +242,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             'assets/icons/charm_shield-keyhole.png',
                             height: 24,
                           ),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
                         ),
                         hintText: 'Password',
                         hintStyle: TextStyle(color: Colors.black38),
@@ -312,6 +336,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             showInfoSnackBar(
                               context,
                               message: 'Please fill in all fields',
+                            );
+                            return;
+                          }
+
+                          // Validate phone number format (must start with 09 and be 11 digits)
+                          if (!phoneNumberController.text.startsWith('09')) {
+                            showErrorSnackBar(
+                              context,
+                              message: 'Phone number must start with 09',
+                            );
+                            return;
+                          }
+
+                          if (phoneNumberController.text.length != 11) {
+                            showErrorSnackBar(
+                              context,
+                              message: 'Phone number must be exactly 11 digits',
+                            );
+                            return;
+                          }
+
+                          // Validate ID number length (must be 10 digits)
+                          if (idNumberController.text.length != 10) {
+                            showErrorSnackBar(
+                              context,
+                              message: 'ID number must be exactly 10 digits',
                             );
                             return;
                           }

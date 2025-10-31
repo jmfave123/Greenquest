@@ -4,11 +4,16 @@ import 'announcement_detail_screen.dart';
 import 'announcement_controller.dart';
 
 class AnnouncementListScreen extends StatelessWidget {
-  const AnnouncementListScreen({Key? key}) : super(key: key);
+  const AnnouncementListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(UserAnnouncementController());
+    UserAnnouncementController controller;
+    try {
+      controller = Get.find<UserAnnouncementController>();
+    } catch (e) {
+      controller = Get.put(UserAnnouncementController());
+    }
 
     return Scaffold(
       appBar: AppBar(

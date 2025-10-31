@@ -17,6 +17,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () => Navigator.pop(context),
@@ -42,29 +44,65 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         return Column(
           children: [
             SizedBox(height: 32),
-            Stack(
-              alignment: Alignment.topRight,
-              children: [
-                CircleAvatar(
-                  radius: 48,
-                  backgroundImage: AssetImage('assets/images/Photo.png'),
-                ),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black12, blurRadius: 4),
-                      ],
+            GestureDetector(
+              onTap: () => controller.uploadProfileImage(),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Obx(() {
+                    final profileImage = controller.userData['profileImage'];
+                    return CircleAvatar(
+                      radius: 48,
+                      backgroundColor:
+                          profileImage != null && profileImage.isNotEmpty
+                              ? null
+                              : const Color(0xFF34A853),
+                      backgroundImage:
+                          profileImage != null && profileImage.isNotEmpty
+                              ? NetworkImage(profileImage)
+                              : null,
+                      child:
+                          profileImage == null || profileImage.isEmpty
+                              ? Text(
+                                controller.getInitials(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                              : null,
+                    );
+                  }),
+                  if (controller.isUploadingImage.value)
+                    const CircleAvatar(
+                      radius: 48,
+                      backgroundColor: Colors.black54,
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
                     ),
-                    padding: const EdgeInsets.all(4),
-                    child: Image.asset('assets/icons/Group 218.png', width: 18),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34A853),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black12, blurRadius: 4),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             SizedBox(height: 12),
             Text(
@@ -106,8 +144,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 class _ProfileField extends StatelessWidget {
   final String label;
   final String value;
-  const _ProfileField({required this.label, required this.value, Key? key})
-    : super(key: key);
+  const _ProfileField({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

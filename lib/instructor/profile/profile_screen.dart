@@ -6,7 +6,7 @@ import '../../shared/instructor/instructor_navigation_constants.dart';
 import 'profile_screen_controller.dart';
 
 class InstructorProfileScreen extends StatefulWidget {
-  const InstructorProfileScreen({Key? key}) : super(key: key);
+  const InstructorProfileScreen({super.key});
 
   @override
   State<InstructorProfileScreen> createState() =>
@@ -51,8 +51,10 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                       labelText: 'Email',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.email),
+                      suffixIcon: Icon(Icons.lock, color: Colors.grey),
                     ),
-                    keyboardType: TextInputType.emailAddress,
+                    readOnly: true,
+                    style: const TextStyle(color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -61,23 +63,36 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                       labelText: 'Phone',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.phone),
+                      hintText: '09XXXXXXXXX',
+                      helperText: 'Enter 11-digit Philippine mobile number',
                     ),
-                    keyboardType: TextInputType.phone,
+                    keyboardType: TextInputType.number,
+                    maxLength: 11,
+                    onChanged: (value) {
+                      // Only allow numbers
+                      if (value.isNotEmpty &&
+                          !RegExp(r'^[0-9]+$').hasMatch(value)) {
+                        _controller!.phoneController.value = TextEditingValue(
+                          text: value.replaceAll(RegExp(r'[^0-9]'), ''),
+                          selection: TextSelection.collapsed(
+                            offset:
+                                value.replaceAll(RegExp(r'[^0-9]'), '').length,
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextField(
-                    controller: _controller!.createdAtController,
-                    decoration: InputDecoration(
-                      labelText: 'Joined Date (e.g., Joined September 2021)',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.calendar_today),
-                      helperText: 'Format: Joined Month Year',
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.calendar_month),
-                        onPressed: () => _selectDate(context),
-                      ),
+                    controller: _controller!.aboutController,
+                    decoration: const InputDecoration(
+                      labelText: 'About',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.info_outline),
+                      hintText: 'Tell us about yourself...',
                     ),
-                    readOnly: true,
+                    maxLines: 4,
+                    textAlignVertical: TextAlignVertical.top,
                   ),
                 ],
               ),
@@ -96,7 +111,8 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                         ? null
                         : () async {
                           await _controller!.saveEditedData();
-                          if (!_controller!.isLoading.value) {
+                          // Only close dialog if editing was successful (isEditing becomes false)
+                          if (!_controller!.isEditing.value) {
                             Navigator.of(context).pop();
                           }
                         },
@@ -114,34 +130,6 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
         );
       },
     );
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null) {
-      const months = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ];
-      final formattedDate = 'Joined ${months[picked.month - 1]} ${picked.year}';
-      _controller?.createdAtController.text = formattedDate;
-    }
   }
 
   @override
@@ -179,205 +167,353 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                         _controller?.name.value.isEmpty ?? true
                             ? 'Loading...'
                             : _controller!.name.value,
+                    instructorRole: 'Instructor',
+                    profileImageUrl: _controller?.profileImageUrl.value,
                   ),
                 ),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 32,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Instructor Profile',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 32,
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal:
+                            MediaQuery.of(context).size.width < 1200 ? 24 : 48,
+                        vertical: 32,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Instructor Profile',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 32,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Manage your professional information',
-                          style: TextStyle(color: Colors.black38, fontSize: 16),
-                        ),
-                        const SizedBox(height: 32),
-                        Obx(() {
-                          if (_controller == null) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Manage your professional information',
+                            style: TextStyle(
+                              color: Colors.black38,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          Obx(() {
+                            if (_controller == null) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
 
-                          if (_controller!.isLoading.value) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
+                            if (_controller!.isLoading.value) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
 
-                          if (_controller!.hasError.value) {
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.error_outline,
-                                    size: 64,
-                                    color: Colors.red,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Error loading profile',
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _controller!.errorMessage.value,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: () => _controller!.refreshData(),
-                                    child: const Text('Retry'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
+                            if (_controller!.hasError.value) {
+                              return Center(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const CircleAvatar(
-                                      radius: 48,
-                                      backgroundImage: AssetImage(
-                                        'assets/images/Photo (4).png',
-                                      ),
+                                    const Icon(
+                                      Icons.error_outline,
+                                      size: 64,
+                                      color: Colors.red,
                                     ),
-                                    const SizedBox(height: 18),
+                                    const SizedBox(height: 16),
                                     Text(
-                                      _controller!.name.value,
+                                      'Error loading profile',
                                       style: const TextStyle(
+                                        fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 22,
                                       ),
                                     ),
-                                    const SizedBox(height: 18),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
-                                      children: [
-                                        const Icon(
-                                          Icons.email_outlined,
-                                          size: 20,
-                                          color: Colors.black54,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          _controller!.email.value,
-                                          style: const TextStyle(fontSize: 15),
-                                        ),
-                                      ],
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _controller!.errorMessage.value,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                      ),
                                     ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
-                                      children: [
-                                        const Icon(
-                                          Icons.phone_outlined,
-                                          size: 20,
-                                          color: Colors.black54,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          _controller!.phone.value,
-                                          style: const TextStyle(fontSize: 15),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
-                                      children: [
-                                        const Icon(
-                                          Icons.calendar_today_outlined,
-                                          size: 20,
-                                          color: Colors.black54,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          _controller!.createdAt.value,
-                                          style: const TextStyle(fontSize: 15),
-                                        ),
-                                      ],
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed:
+                                          () => _controller!.refreshData(),
+                                      child: const Text('Retry'),
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 32),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: Colors.black,
-                                      side: const BorderSide(
-                                        color: Color(0xFFBDBDBD),
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 22,
-                                        vertical: 16,
+                              );
+                            }
+
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isSmallScreen =
+                                    constraints.maxWidth < 800;
+                                return Flex(
+                                  direction:
+                                      isSmallScreen
+                                          ? Axis.vertical
+                                          : Axis.horizontal,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Flexible(
+                                      flex: isSmallScreen ? 0 : 1,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          GestureDetector(
+                                            onTap:
+                                                () =>
+                                                    _controller!
+                                                        .showProfileImageOptions(),
+                                            child: Obx(() {
+                                              // Get initials from name
+                                              String getInitials(String name) {
+                                                if (name.isEmpty) return '';
+                                                final parts = name.trim().split(
+                                                  ' ',
+                                                );
+                                                if (parts.length == 1) {
+                                                  return parts[0]
+                                                      .substring(0, 1)
+                                                      .toUpperCase();
+                                                }
+                                                return (parts.first.substring(
+                                                          0,
+                                                          1,
+                                                        ) +
+                                                        parts.last.substring(
+                                                          0,
+                                                          1,
+                                                        ))
+                                                    .toUpperCase();
+                                              }
+
+                                              final initials = getInitials(
+                                                _controller!.name.value,
+                                              );
+                                              final hasImage =
+                                                  _controller!
+                                                      .profileImageUrl
+                                                      .value
+                                                      .isNotEmpty;
+
+                                              return Stack(
+                                                children: [
+                                                  CircleAvatar(
+                                                    radius: 48,
+                                                    backgroundColor:
+                                                        hasImage
+                                                            ? Colors.transparent
+                                                            : Colors
+                                                                .blue
+                                                                .shade700,
+                                                    backgroundImage:
+                                                        hasImage
+                                                            ? NetworkImage(
+                                                              _controller!
+                                                                  .profileImageUrl
+                                                                  .value,
+                                                            )
+                                                            : null,
+                                                    child:
+                                                        !hasImage
+                                                            ? Text(
+                                                              initials,
+                                                              style: const TextStyle(
+                                                                fontSize: 36,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                            )
+                                                            : null,
+                                                  ),
+                                                  if (_controller!
+                                                      .isUploadingImage
+                                                      .value)
+                                                    Positioned.fill(
+                                                      child: Container(
+                                                        decoration:
+                                                            BoxDecoration(
+                                                              color:
+                                                                  Colors
+                                                                      .black54,
+                                                              shape:
+                                                                  BoxShape
+                                                                      .circle,
+                                                            ),
+                                                        child: const Center(
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                                strokeWidth: 2,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  Positioned(
+                                                    bottom: 0,
+                                                    right: 0,
+                                                    child: Container(
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            color: Colors.blue,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            4,
+                                                          ),
+                                                      child: const Icon(
+                                                        Icons.camera_alt,
+                                                        color: Colors.white,
+                                                        size: 16,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            }),
+                                          ),
+                                          const SizedBox(height: 18),
+                                          Text(
+                                            _controller!.name.value,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 22,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 18),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.start,
+                                            children: [
+                                              const Icon(
+                                                Icons.email_outlined,
+                                                size: 20,
+                                                color: Colors.black54,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _controller!.email.value,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.start,
+                                            children: [
+                                              const Icon(
+                                                Icons.phone_outlined,
+                                                size: 20,
+                                                color: Colors.black54,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _controller!.phone.value,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    onPressed: () => _showEditDialog(context),
-                                    icon: const Icon(Icons.edit, size: 18),
-                                    label: const Text(
-                                      'Edit Profile',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
+                                    if (!isSmallScreen)
+                                      const SizedBox(width: 32),
+                                    if (isSmallScreen)
+                                      const SizedBox(height: 20),
+                                    Flexible(
+                                      flex: 0,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.white,
+                                              foregroundColor: Colors.black,
+                                              side: const BorderSide(
+                                                color: Color(0xFFBDBDBD),
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 22,
+                                                    vertical: 16,
+                                                  ),
+                                            ),
+                                            onPressed:
+                                                () => _showEditDialog(context),
+                                            icon: const Icon(
+                                              Icons.edit,
+                                              size: 18,
+                                            ),
+                                            label: const Text(
+                                              'Edit Profile',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
+                                  ],
+                                );
+                              },
+                            );
+                          }),
+                          const SizedBox(height: 40),
+                          Obx(() {
+                            if (_controller?.about.value.isEmpty ?? true) {
+                              return const SizedBox.shrink();
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'About',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
                                   ),
-                                ],
-                              ),
-                            ],
-                          );
-                        }),
-                        const SizedBox(height: 40),
-                        const Text(
-                          'About',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: 600, // Set desired max width
-                          child: const Text(
-                            'Passionate educator with over 10 years of experience in environmental science and sustainability. Dedicated to inspiring students to make positive environmental impacts through education and hands-on learning experiences.',
-                            style: TextStyle(fontSize: 16),
-                            textAlign:
-                                TextAlign
-                                    .justify, // optional: align text nicely
-                          ),
-                        ),
-                      ],
+                                ),
+                                const SizedBox(height: 10),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 600,
+                                  ),
+                                  child: Text(
+                                    _controller!.about.value,
+                                    style: const TextStyle(fontSize: 16),
+                                    textAlign: TextAlign.justify,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
                     ),
                   ),
                 ),
