@@ -12,7 +12,8 @@ class AdminDashboard extends StatefulWidget {
   State<AdminDashboard> createState() => _AdminDashboardState();
 }
 
-class _AdminDashboardState extends State<AdminDashboard> {
+class _AdminDashboardState extends State<AdminDashboard>
+    with AutomaticKeepAliveClientMixin {
   AdminNavigationItem _selectedItem = AdminNavigationItem.dashboard;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -53,12 +54,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  @override
+  bool get wantKeepAlive => true;
+
   void _handleNavigationSelect(AdminNavigationItem item) {
     setState(() {
       _selectedItem = item;
     });
     String route = AdminNavigationHelper.getRoute(item);
-    Navigator.of(context).pushNamed(route);
+    Get.toNamed(route);
   }
 
   Future<void> _loadData() async {
@@ -871,6 +875,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       body: Row(

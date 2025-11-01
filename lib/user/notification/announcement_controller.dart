@@ -137,7 +137,7 @@ class UserAnnouncementController extends GetxController {
 
             List<Map<String, dynamic>> announcementList =
                 snapshot.docs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
+                  final data = doc.data();
                   return {
                     'id': doc.id,
                     'title': data['title'] ?? '',

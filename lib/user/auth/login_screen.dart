@@ -13,10 +13,26 @@ class LoginScreenApp extends StatefulWidget {
 
 class _LoginScreenAppState extends State<LoginScreenApp> {
   bool _isPasswordVisible = false;
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
+  late final TextEditingController emailController;
+  late final TextEditingController passwordController;
   bool isLoading = false;
   final AuthController authController = Get.put(AuthController());
+
+  @override
+  void initState() {
+    super.initState();
+    emailController = TextEditingController();
+    passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    // Safely dispose controllers
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -187,15 +203,22 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
   }
 
   Future<void> _loginUser() async {
+    // Check if controllers are still valid before using
+    if (!mounted) return;
+
+    // Get text values before async operation to avoid using disposed controllers
+    final email = emailController.text;
+    final password = passwordController.text;
+
+    if (!mounted) return;
     setState(() {
       isLoading = true;
     });
 
-    final result = await authController.loginUser(
-      emailController.text,
-      passwordController.text,
-    );
+    final result = await authController.loginUser(email, password);
 
+    // Check if widget is still mounted before updating state
+    if (!mounted) return;
     setState(() {
       isLoading = false;
     });
@@ -205,7 +228,9 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
       // Navigate to home screen or dashboard
       Get.offAllNamed('/select-instructor');
     } else {
-      showErrorSnackBar(context, message: result['message']);
+      if (mounted) {
+        showErrorSnackBar(context, message: result['message']);
+      }
     }
   }
 }

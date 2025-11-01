@@ -13,8 +13,8 @@ class AdminClassManagementScreen extends StatefulWidget {
       _AdminClassManagementScreenState();
 }
 
-class _AdminClassManagementScreenState
-    extends State<AdminClassManagementScreen> {
+class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
+    with AutomaticKeepAliveClientMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   AdminNavigationItem _selectedItem = AdminNavigationItem.manageClasses;
 
@@ -56,6 +56,9 @@ class _AdminClassManagementScreenState
     _loadData();
   }
 
+  @override
+  bool get wantKeepAlive => true;
+
   void _handleNavigationSelect(AdminNavigationItem item) {
     debugPrint('Navigation selected: $item');
     setState(() {
@@ -63,7 +66,7 @@ class _AdminClassManagementScreenState
     });
     String route = AdminNavigationHelper.getRoute(item);
     debugPrint('Navigating to route: $route');
-    Navigator.of(context).pushNamed(route);
+    Get.toNamed(route);
   }
 
   Future<void> _loadData() async {
@@ -386,6 +389,7 @@ class _AdminClassManagementScreenState
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       body: Row(

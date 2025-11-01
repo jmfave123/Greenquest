@@ -101,14 +101,15 @@ class _CreateScreenState extends State<CreateScreen>
   }
 
   void _toggleTypeDropdown() {
+    // If dropdowns are already open, close them (avoid double-handling with overlay)
+    if (_showTypeDropdown || _showPeriodDropdown) {
+      _closeDropdowns();
+      return;
+    }
     setState(() {
-      _showTypeDropdown = !_showTypeDropdown;
-      if (_showTypeDropdown) {
-        // Show both dropdowns when Create button is clicked
-        _showPeriodDropdown = true;
-      } else {
-        _showPeriodDropdown = false;
-      }
+      _showTypeDropdown = true;
+      _showPeriodDropdown =
+          true; // Show both dropdowns when Create button is clicked
     });
   }
 
@@ -138,6 +139,13 @@ class _CreateScreenState extends State<CreateScreen>
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (context) => const MaterialScreen()))
         .then((_) => _refreshData()); // Refresh data when returning
+  }
+
+  void _closeDropdowns() {
+    setState(() {
+      _showTypeDropdown = false;
+      _showPeriodDropdown = false;
+    });
   }
 
   void _selectPeriod(String period) {
@@ -804,6 +812,14 @@ class _CreateScreenState extends State<CreateScreen>
       backgroundColor: Colors.white,
       body: Stack(
         children: [
+          // Invisible overlay to detect taps outside dropdowns (placed first so it's behind other widgets)
+          if (_showTypeDropdown || _showPeriodDropdown)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _closeDropdowns,
+                behavior: HitTestBehavior.translucent,
+              ),
+            ),
           Row(
             children: [
               // Sidebar
@@ -919,85 +935,123 @@ class _CreateScreenState extends State<CreateScreen>
           // Type Dropdown (right side of Create button)
           if (_showTypeDropdown)
             Positioned(
-              top: 300, // Position next to the Create button
-              left: 300, // Position to the right of Create button
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+              top:
+                  MediaQuery.of(context).padding.top +
+                  200, // Responsive top position
+              left:
+                  MediaQuery.of(context).size.width > 768
+                      ? 300
+                      : 24, // Responsive left position
+              right:
+                  MediaQuery.of(context).size.width > 768
+                      ? null
+                      : 24, // Ensure dropdown doesn't go off-screen on mobile
+              child: Material(
+                color: Colors.transparent,
+                child: GestureDetector(
+                  onTap: () {
+                    // Prevent closing when tapping inside the dropdown
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxHeight:
+                          MediaQuery.of(context).size.height *
+                          0.6, // Max 60% of screen height
+                      maxWidth: 200,
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Select Type',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Colors.black54,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
+                      ],
                     ),
-                    ..._types.map(
-                      (type) => GestureDetector(
-                        onTap: () => _selectType(type),
-                        child: Container(
-                          width: 160,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          margin: const EdgeInsets.only(
-                            bottom: 8,
-                            left: 8,
-                            right: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                _selectedType == type
-                                    ? const Color(0xFF34A853).withOpacity(0.1)
-                                    : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              SafeAssetImage(
-                                assetPath:
-                                    type == 'Material'
-                                        ? 'assets/instructor/images/arcticons_onlyoffice-documents.png'
-                                        : 'assets/instructor/images/arcticons_documents.png',
-                                width: 20,
-                                height: 20,
-                                color: Colors.black,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                type,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  color:
-                                      _selectedType == type
-                                          ? Colors.black
-                                          : Colors.black45,
-                                ),
-                              ),
-                            ],
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Select Type',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black54,
+                            ),
                           ),
                         ),
-                      ),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children:
+                                  _types
+                                      .map(
+                                        (type) => GestureDetector(
+                                          onTap: () => _selectType(type),
+                                          child: Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                            margin: const EdgeInsets.only(
+                                              bottom: 8,
+                                              left: 8,
+                                              right: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  _selectedType == type
+                                                      ? const Color(
+                                                        0xFF34A853,
+                                                      ).withOpacity(0.1)
+                                                      : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                SafeAssetImage(
+                                                  assetPath:
+                                                      type == 'Material'
+                                                          ? 'assets/instructor/images/arcticons_onlyoffice-documents.png'
+                                                          : 'assets/instructor/images/arcticons_documents.png',
+                                                  width: 20,
+                                                  height: 20,
+                                                  color: Colors.black,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  type,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 14,
+                                                    color:
+                                                        _selectedType == type
+                                                            ? Colors.black
+                                                            : Colors.black45,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -1008,76 +1062,119 @@ class _CreateScreenState extends State<CreateScreen>
                   _selectedType == 'Quiz' ||
                   _selectedType == 'PIT'))
             Positioned(
-              top: 350, // Same top position as type dropdown
-              left: 500, // Position to the right of type dropdown with gap
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+              top:
+                  MediaQuery.of(context).padding.top +
+                  (MediaQuery.of(context).size.width > 768
+                      ? 200
+                      : 350), // Same top as type dropdown on desktop, below on mobile
+              left:
+                  MediaQuery.of(context).size.width > 768
+                      ? 520
+                      : 24, // Responsive left position
+              right:
+                  MediaQuery.of(context).size.width > 768
+                      ? null
+                      : 24, // Ensure dropdown doesn't go off-screen on mobile
+              child: Material(
+                color: Colors.transparent,
+                child: GestureDetector(
+                  onTap: () {
+                    // Prevent closing when tapping inside the dropdown
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxHeight:
+                          MediaQuery.of(context).size.height *
+                          0.6, // Max 60% of screen height
+                      maxWidth: 200,
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Select Period',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Colors.black54,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
+                      ],
                     ),
-                    ...(_selectedType == 'PIT' ? _pitPeriods : _periods).map(
-                      (period) => GestureDetector(
-                        onTap: () => _selectPeriod(period),
-                        child: Container(
-                          width: 160,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          margin: const EdgeInsets.only(
-                            bottom: 8,
-                            left: 8,
-                            right: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                _selectedPeriod == period
-                                    ? const Color(0xFF34A853).withOpacity(0.1)
-                                    : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              const SizedBox(width: 12),
-                              Text(
-                                period,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  color:
-                                      _selectedPeriod == period
-                                          ? Colors.black
-                                          : Colors.black45,
-                                ),
-                              ),
-                            ],
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Select Period',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black54,
+                            ),
                           ),
                         ),
-                      ),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children:
+                                  (_selectedType == 'PIT'
+                                          ? _pitPeriods
+                                          : _periods)
+                                      .map(
+                                        (period) => GestureDetector(
+                                          onTap: () => _selectPeriod(period),
+                                          child: Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                            margin: const EdgeInsets.only(
+                                              bottom: 8,
+                                              left: 8,
+                                              right: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  _selectedPeriod == period
+                                                      ? const Color(
+                                                        0xFF34A853,
+                                                      ).withOpacity(0.1)
+                                                      : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  period,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 14,
+                                                    color:
+                                                        _selectedPeriod ==
+                                                                period
+                                                            ? Colors.black
+                                                            : Colors.black45,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
                 ),
               ),
             ),

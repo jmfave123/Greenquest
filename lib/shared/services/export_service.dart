@@ -10,20 +10,21 @@ class ExportService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// Helper function to format student name from "Jv P. Tenefrancia" to "Tenefrancia, Jv P."
+  /// Helper function to format student name from "Jv P. Tenefrancia" to "TENEFRANCIA, JV P."
   String _formatStudentName(String name) {
     if (name.isEmpty) return '';
 
     // Split the name into parts
     final parts = name.trim().split(' ');
 
-    if (parts.length < 2) return name; // If only one word, return as is
+    if (parts.length < 2)
+      return name.toUpperCase(); // If only one word, return as uppercase
 
     // Last part is the last name, everything else is first/middle name
     final lastName = parts.last;
     final firstMiddleName = parts.sublist(0, parts.length - 1).join(' ');
 
-    return '$lastName, $firstMiddleName';
+    return '${lastName.toUpperCase()}, ${firstMiddleName.toUpperCase()}';
   }
 
   /// Export the complete Class Record (Midterm, Final, Computed) for testing
@@ -95,62 +96,77 @@ class ExportService {
             .setText(_formatStudentName(student['name'] ?? ''));
 
         // Class Standing items
+        int csItemsStartCol = col;
         for (var item in classStandingItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int csItemsEndCol = col;
         // Total (SRC) and CPA
         final csTotal = _calculateGroupTotal(student, classStandingItems);
         final csPct = _calculateGroupPercent(student, classStandingItems);
+        int srcMidCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(csTotal.toString());
+        int cpaMidCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${csPct.round()}%');
 
         // Quiz/Prelim items
+        int qpItemsStartCol = col;
         for (var item in quizPrelimItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int qpItemsEndCol = col;
         final qpTotal = _calculateGroupTotal(student, quizPrelimItems);
         final qpPct = _calculateGroupPercent(student, quizPrelimItems);
+        int srqMidCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(qpTotal.toString());
+        int qaMidCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${qpPct.round()}%');
 
         // Midterm Exam items
+        int meItemsStartCol = col;
         for (var item in midtermExamItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int meItemsEndCol = col;
         final mPct = _calculateGroupPercent(student, midtermExamItems);
+        int mCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${mPct.round()}%');
 
         // PIT items
+        int pitItemsStartCol = col;
         for (var item in pitItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int pitItemsEndCol = col;
         final pitTotal = _calculateGroupTotal(student, pitItems);
         final pitPct = _calculateGroupPercent(student, pitItems);
+        int pitTotalMidCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(pitTotal.toString());
+        int pitPercentMidCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${pitPct.round()}%');
@@ -163,76 +179,95 @@ class ExportService {
           midtermExamItems,
           pitItems,
         );
+        int mgaCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${(mga * 100).round()}%');
         final midLec = _gradePointFromRatio(mga);
+        int midLecGradePointCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(midLec.toStringAsFixed(3));
+        int midGradePointCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(midLec.toStringAsFixed(3));
+        int midtermGradeDataCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(_mapGradePointToEquivalent(midLec));
 
         // Final Class Standing items
+        int fcsItemsStartCol = col;
         for (var item in finalClassStandingItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int fcsItemsEndCol = col;
         final fcsTotal = _calculateGroupTotal(student, finalClassStandingItems);
         final fcsPct = _calculateGroupPercent(student, finalClassStandingItems);
+        int srcFinalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(fcsTotal.toString());
+        int cpaFinalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${fcsPct.round()}%');
 
         // Final Quiz items
+        int fqItemsStartCol = col;
         for (var item in finalQuizItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int fqItemsEndCol = col;
         final fqTotal = _calculateGroupTotal(student, finalQuizItems);
         final fqPct = _calculateGroupPercent(student, finalQuizItems);
+        int srqFinalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(fqTotal.toString());
+        int qaFinalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${fqPct.round()}%');
 
         // Final Exam items
+        int feItemsStartCol = col;
         for (var item in finalExamItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int feItemsEndCol = col;
         final fPct = _calculateGroupPercent(student, finalExamItems);
+        int fCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${fPct.round()}%');
 
         // Final PIT items
+        int fpitItemsStartCol = col;
         for (var item in finalPitItems) {
           final key = _makeItemKey(item);
           sheet
               .getRangeByName('${_getColumnLetter(col++)}$row')
               .setText(_readScore(student, key));
         }
+        int fpitItemsEndCol = col;
         final fpitTotal = _calculateGroupTotal(student, finalPitItems);
         final fpitPct = _calculateGroupPercent(student, finalPitItems);
+        int pitTotalFinalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(fpitTotal.toString());
+        int pitPercentFinalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${fpitPct.round()}%');
@@ -245,17 +280,21 @@ class ExportService {
           finalExamItems,
           finalPitItems,
         );
+        int fgaCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText('${(fga * 100).round()}%');
         final finLec = _gradePointFromRatio(fga);
+        int finLecGradePointCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(finLec.toStringAsFixed(3));
+        int finGradePointCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(finLec.toStringAsFixed(3));
         final ftg = _mapGradePointToEquivalent(finLec);
+        int finalPeriodGradeDataCol = col;
         sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText(ftg);
 
         // Computed Final Grade section
@@ -266,42 +305,50 @@ class ExportService {
         double comp13 = (1.0 / 3.0) * mtg + (2.0 / 3.0) * ftgNum;
 
         // 1/2 MTG + 1/2 FTG
+        int comp12Col = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(comp12.toStringAsFixed(2));
         // For Removal (cap > 3.50 -> 5.00)
         final comp12Mapped = _gradeLadder(comp12);
+        int comp12RemovalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(
               comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2),
             );
         // After Removal (copy For Removal)
+        int comp12AfterCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(
               comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2),
             );
         // Description
+        int comp12DescCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(_descFromNumeric(comp12));
 
         // 1/3 MTG + 2/3 FTG
+        int comp13Col = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(comp13.toStringAsFixed(2));
         final comp13Mapped = _gradeLadder(comp13);
+        int comp13RemovalCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(
               comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2),
             );
+        int comp13AfterCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(
               comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2),
             );
+        int comp13DescCol = col;
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(_descFromNumeric(comp13));
@@ -311,6 +358,397 @@ class ExportService {
           'A$row:${_getColumnLetter(col - 1)}$row',
         );
         rowRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+
+        // Apply bold and foreground color #333399 to Total Score, CPA, QA, M, PIT%, MGA (both midterm and final)
+        // Midterm columns
+        sheet
+            .getRangeByName('${_getColumnLetter(srcMidCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(srcMidCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(cpaMidCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(cpaMidCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(srqMidCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(srqMidCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(qaMidCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(qaMidCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet.getRangeByName('${_getColumnLetter(mCol)}$row').cellStyle.bold =
+            true;
+        sheet
+            .getRangeByName('${_getColumnLetter(mCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(pitTotalMidCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(pitTotalMidCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.bold =
+            true;
+        sheet
+            .getRangeByName('${_getColumnLetter(mgaCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        // Final columns
+        sheet
+            .getRangeByName('${_getColumnLetter(srcFinalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(srcFinalCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(srqFinalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(srqFinalCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(qaFinalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(qaFinalCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet.getRangeByName('${_getColumnLetter(fCol)}$row').cellStyle.bold =
+            true;
+        sheet
+            .getRangeByName('${_getColumnLetter(fCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(pitTotalFinalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(pitTotalFinalCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.bold =
+            true;
+        sheet
+            .getRangeByName('${_getColumnLetter(fgaCol)}$row')
+            .cellStyle
+            .fontColor = '#333399';
+
+        // Apply white background to item columns (assignments, quizzes, etc.)
+        if (csItemsEndCol > csItemsStartCol) {
+          final csItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(csItemsStartCol)}$row:${_getColumnLetter(csItemsEndCol - 1)}$row',
+          );
+          csItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+        if (qpItemsEndCol > qpItemsStartCol) {
+          final qpItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(qpItemsStartCol)}$row:${_getColumnLetter(qpItemsEndCol - 1)}$row',
+          );
+          qpItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+        if (meItemsEndCol > meItemsStartCol) {
+          final meItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(meItemsStartCol)}$row:${_getColumnLetter(meItemsEndCol - 1)}$row',
+          );
+          meItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+        if (pitItemsEndCol > pitItemsStartCol) {
+          final pitItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(pitItemsStartCol)}$row:${_getColumnLetter(pitItemsEndCol - 1)}$row',
+          );
+          pitItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+        if (fcsItemsEndCol > fcsItemsStartCol) {
+          final fcsItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(fcsItemsStartCol)}$row:${_getColumnLetter(fcsItemsEndCol - 1)}$row',
+          );
+          fcsItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+        if (fqItemsEndCol > fqItemsStartCol) {
+          final fqItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(fqItemsStartCol)}$row:${_getColumnLetter(fqItemsEndCol - 1)}$row',
+          );
+          fqItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+        if (feItemsEndCol > feItemsStartCol) {
+          final feItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(feItemsStartCol)}$row:${_getColumnLetter(feItemsEndCol - 1)}$row',
+          );
+          feItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+        if (fpitItemsEndCol > fpitItemsStartCol) {
+          final fpitItemsRange = sheet.getRangeByName(
+            '${_getColumnLetter(fpitItemsStartCol)}$row:${_getColumnLetter(fpitItemsEndCol - 1)}$row',
+          );
+          fpitItemsRange.cellStyle.backColor = '#FFFFFF';
+        }
+
+        // Apply #C6E0B4 background to Mid Lec Grade Point and Fin Lec Grade Point columns
+        sheet
+            .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
+            .cellStyle
+            .backColor = '#C6E0B4';
+        sheet
+            .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
+            .cellStyle
+            .backColor = '#C6E0B4';
+
+        // Apply #FFC000 background to Midterm Grade and Final Period Grade columns
+        sheet
+            .getRangeByName('${_getColumnLetter(midtermGradeDataCol)}$row')
+            .cellStyle
+            .backColor = '#FFC000';
+        sheet
+            .getRangeByName('${_getColumnLetter(finalPeriodGradeDataCol)}$row')
+            .cellStyle
+            .backColor = '#FFC000';
+
+        // Apply bold and conditional color to Mid Lec Grade Point, Mid Grade Point, Midterm Grade values
+        // Green if passing (<= 3.00), Red if failing (> 3.00)
+        double midLecValue = double.tryParse(midLec.toStringAsFixed(3)) ?? 5.00;
+        String midLecColor = midLecValue <= 3.00 ? '#34A853' : '#E53935';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
+            .cellStyle
+            .fontColor = midLecColor;
+
+        sheet
+            .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
+            .cellStyle
+            .fontColor = midLecColor;
+
+        double midtermGradeValue =
+            double.tryParse(_mapGradePointToEquivalent(midLec)) ?? 5.00;
+        String midtermGradeColor =
+            midtermGradeValue <= 3.00 ? '#34A853' : '#E53935';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(midtermGradeDataCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(midtermGradeDataCol)}$row')
+            .cellStyle
+            .fontColor = midtermGradeColor;
+
+        // Apply bold and conditional color to Fin Lec Grade Point, Fin Grade Point, Final Period Grade values
+        // Green if passing (<= 3.00), Red if failing (> 3.00)
+        double finLecValue = double.tryParse(finLec.toStringAsFixed(3)) ?? 5.00;
+        String finLecColor = finLecValue <= 3.00 ? '#34A853' : '#E53935';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
+            .cellStyle
+            .fontColor = finLecColor;
+
+        sheet
+            .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
+            .cellStyle
+            .fontColor = finLecColor;
+
+        double finalGradeValue = double.tryParse(ftg) ?? 5.00;
+        String finalGradeColor =
+            finalGradeValue <= 3.00 ? '#34A853' : '#E53935';
+
+        sheet
+            .getRangeByName('${_getColumnLetter(finalPeriodGradeDataCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(finalPeriodGradeDataCol)}$row')
+            .cellStyle
+            .fontColor = finalGradeColor;
+
+        // Apply bold and conditional color to all computed final grade values
+        // Green if passing (<= 3.00), Red if failing (> 3.00)
+
+        // 1/2 MTG + 1/2 FTG values
+        double comp12Value = comp12;
+        String comp12Color = comp12Value <= 3.00 ? '#34A853' : '#E53935';
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12Col)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12Col)}$row')
+            .cellStyle
+            .fontColor = comp12Color;
+
+        double comp12RemovalValue = comp12Mapped > 3.50 ? 5.00 : comp12Mapped;
+        String comp12RemovalColor =
+            comp12RemovalValue <= 3.00 ? '#34A853' : '#E53935';
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12RemovalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12RemovalCol)}$row')
+            .cellStyle
+            .fontColor = comp12RemovalColor;
+
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12AfterCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12AfterCol)}$row')
+            .cellStyle
+            .fontColor = comp12RemovalColor;
+
+        // Description for comp12 - color based on text
+        String comp12Desc = _descFromNumeric(comp12);
+        String comp12DescColor =
+            comp12Desc.toLowerCase() == 'failed'
+                ? '#E53935'
+                : (comp12Desc.toLowerCase() == 'excellent'
+                    ? '#34A853'
+                    : '#000000');
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12DescCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp12DescCol)}$row')
+            .cellStyle
+            .fontColor = comp12DescColor;
+
+        // 1/3 MTG + 2/3 FTG values
+        double comp13Value = comp13;
+        String comp13Color = comp13Value <= 3.00 ? '#34A853' : '#E53935';
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13Col)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13Col)}$row')
+            .cellStyle
+            .fontColor = comp13Color;
+
+        double comp13RemovalValue = comp13Mapped > 3.50 ? 5.00 : comp13Mapped;
+        String comp13RemovalColor =
+            comp13RemovalValue <= 3.00 ? '#34A853' : '#E53935';
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13RemovalCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13RemovalCol)}$row')
+            .cellStyle
+            .fontColor = comp13RemovalColor;
+
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13AfterCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13AfterCol)}$row')
+            .cellStyle
+            .fontColor = comp13RemovalColor;
+
+        // Description for comp13 - color based on text
+        String comp13Desc = _descFromNumeric(comp13);
+        String comp13DescColor =
+            comp13Desc.toLowerCase() == 'failed'
+                ? '#E53935'
+                : (comp13Desc.toLowerCase() == 'excellent'
+                    ? '#34A853'
+                    : '#000000');
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13DescCol)}$row')
+            .cellStyle
+            .bold = true;
+        sheet
+            .getRangeByName('${_getColumnLetter(comp13DescCol)}$row')
+            .cellStyle
+            .fontColor = comp13DescColor;
+
+        // Apply white background to all computed final grade columns (8 columns)
+        final computedRange = sheet.getRangeByName(
+          '${_getColumnLetter(comp12Col)}$row:${_getColumnLetter(comp13DescCol)}$row',
+        );
+        computedRange.cellStyle.backColor = '#FFFFFF';
       }
 
       _autoFitColumns(sheet);
@@ -371,6 +809,12 @@ class ExportService {
     sheet.getRangeByName('A1').cellStyle.bold = true;
     sheet.getRangeByName('A1').cellStyle.backColor = '#E3F2FD';
 
+    // Row 2: Subject (merged across all columns)
+    sheet.getRangeByName('A2:${_getColumnLetter(totalColumns)}2').merge();
+    sheet.getRangeByName('A2').setText('Subject: NSTP 101C');
+    sheet.getRangeByName('A2').cellStyle.bold = true;
+    sheet.getRangeByName('A2').cellStyle.backColor = '#E3F2FD';
+
     // Row 7: Top stacked headers for sections
     row = 7;
     int col = 1;
@@ -395,7 +839,7 @@ class ExportService {
         HAlignType.center;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#E3F2FD';
+        '#99CCFF';
     col += midtermGroup;
 
     sheet
@@ -408,7 +852,7 @@ class ExportService {
         HAlignType.center;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#E3F2FD';
+        '#99CCFF';
     col += finalGroup;
 
     sheet
@@ -424,6 +868,8 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
         '#66BB6A';
+    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.fontColor =
+        '#FFFFFF';
 
     // Row 8: Lecture 100% over midterm and final groups
     row = 8;
@@ -437,7 +883,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Lecture 100%');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFE082';
+        '#FFC000';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -452,7 +898,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Lecture 100%');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFE082';
+        '#FFC000';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -477,7 +923,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Class Standing Performance Items (10%)');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -492,7 +938,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Quiz/Prelim Performance Item (40%)');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -507,7 +953,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Midterm Exam (30%)');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -522,7 +968,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Per Inno Task (20%)');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -535,7 +981,7 @@ class ExportService {
         .merge();
     sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Lecture');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -551,7 +997,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Class Standing Performance Items (10%)');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -568,7 +1014,7 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.wrapText =
         true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -583,7 +1029,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Final Exam (30%)');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -598,7 +1044,7 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col)}$row')
         .setText('Per Inno Task (20%)');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -611,7 +1057,7 @@ class ExportService {
         .merge();
     sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Lecture');
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFF59D';
+        '#FCF305';
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
@@ -631,6 +1077,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRC)');
+    int cpaMidCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('CPA');
 
     for (var item in quizPrelimItems) {
@@ -641,6 +1088,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRQ)');
+    int qaMidCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('QA');
 
     for (var item in midtermExamItems) {
@@ -648,6 +1096,7 @@ class ExportService {
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int mCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('M');
 
     for (var item in pitItems) {
@@ -658,15 +1107,20 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (PIT)');
+    int pitPercentMidCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('PIT%');
 
+    int mgaCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('MGA');
+    int midLecGradePointCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
-        .setText('Mid Lec Grade Poi');
+        .setText('Mid Lec Grade Point');
+    int midGradePointCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Mid Grade Point');
+    int midtermGradeCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Midterm Grade');
@@ -679,6 +1133,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRC)');
+    int cpaFinalCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('CPA');
 
     for (var item in finalQuizItems) {
@@ -689,6 +1144,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRQ)');
+    int qaFinalCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('QA');
 
     for (var item in finalExamItems) {
@@ -696,6 +1152,7 @@ class ExportService {
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int fCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('F');
 
     for (var item in finalPitItems) {
@@ -706,19 +1163,25 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (PIT)');
+    int pitPercentFinalCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('PIT%');
 
+    int fgaCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('FGA');
+    int finLecGradePointCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
-        .setText('Fin Lec Grade Poi');
+        .setText('Fin Lec Grade Point');
+    int finGradePointCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Fin Grade Point');
+    int finalPeriodGradeCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Final Period Grade');
 
+    int computedStartCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('1/2 MTG + 1/2 FTG');
@@ -744,12 +1207,80 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Description');
 
+    // Set header styling - all normal first
     final headerRange = sheet.getRangeByName(
       'A$row:${_getColumnLetter(col - 1)}$row',
     );
-    headerRange.cellStyle.bold = true;
-    headerRange.cellStyle.backColor = '#F8FAFB';
+    headerRange.cellStyle.bold = false; // Set all to normal first
+    headerRange.cellStyle.backColor = '#FFFFFF'; // White background
     headerRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+
+    // Set bold for specific columns: Midterm
+    sheet.getRangeByName('${_getColumnLetter(cpaMidCol)}$row').cellStyle.bold =
+        true;
+    sheet.getRangeByName('${_getColumnLetter(qaMidCol)}$row').cellStyle.bold =
+        true;
+    sheet.getRangeByName('${_getColumnLetter(mCol)}$row').cellStyle.bold = true;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.bold =
+        true;
+    sheet
+        .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${_getColumnLetter(midtermGradeCol)}$row')
+        .cellStyle
+        .bold = true;
+    // Apply #FFC000 background to Midterm Grade header
+    sheet
+        .getRangeByName('${_getColumnLetter(midtermGradeCol)}$row')
+        .cellStyle
+        .backColor = '#FFC000';
+
+    // Set bold for specific columns: Final
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet.getRangeByName('${_getColumnLetter(qaFinalCol)}$row').cellStyle.bold =
+        true;
+    sheet.getRangeByName('${_getColumnLetter(fCol)}$row').cellStyle.bold = true;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.bold =
+        true;
+    sheet
+        .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${_getColumnLetter(finalPeriodGradeCol)}$row')
+        .cellStyle
+        .bold = true;
+    // Apply #FFC000 background to Final Period Grade header
+    sheet
+        .getRangeByName('${_getColumnLetter(finalPeriodGradeCol)}$row')
+        .cellStyle
+        .backColor = '#FFC000';
+
+    // Set bold for all computed final grade columns (8 columns)
+    for (int i = computedStartCol; i < col; i++) {
+      sheet.getRangeByName('${_getColumnLetter(i)}$row').cellStyle.bold = true;
+    }
 
     // Make the first three header cells (No., ID Number, Names) appear white
     // to look like normal cells after removing labels.
@@ -770,98 +1301,124 @@ class ExportService {
     List<Map<String, dynamic>> finalPitItems,
   ) {
     int col = 1;
+    // No.
+    int noCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('No.');
+    // ID Number
+    int idCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('ID Number');
+    // Names
+    int namesCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('Names');
 
     int csMax = _maxPoints(classStandingItems);
+    int csItemsStartCol = col;
     for (var item in classStandingItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int csItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText(csMax.toString());
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
     int qpMax = _maxPoints(quizPrelimItems);
+    int qpItemsStartCol = col;
     for (var item in quizPrelimItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int qpItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText(qpMax.toString());
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
+    int meItemsStartCol = col;
     for (var item in midtermExamItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int meItemsEndCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
     int pitMax = _maxPoints(pitItems);
+    int pitItemsStartCol = col;
     for (var item in pitItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int pitItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText(pitMax.toString());
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+    int midLecGradePointMaxCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
+    int midtermGradeMaxCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
 
     int fcsMax = _maxPoints(finalClassStandingItems);
+    int fcsItemsStartCol = col;
     for (var item in finalClassStandingItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int fcsItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText(fcsMax.toString());
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
     int fqMax = _maxPoints(finalQuizItems);
+    int fqItemsStartCol = col;
     for (var item in finalQuizItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int fqItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText(fqMax.toString());
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
+    int feItemsStartCol = col;
     for (var item in finalExamItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int feItemsEndCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
     int fpitMax = _maxPoints(finalPitItems);
+    int fpitItemsStartCol = col;
     for (var item in finalPitItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText((item['points'] ?? 0).toString());
     }
+    int fpitItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText(fpitMax.toString());
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
 
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('100%');
+    int finLecGradePointMaxCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.000');
+    int finalPeriodGradeMaxCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('1.00');
 
     // Computed section defaults
@@ -878,7 +1435,110 @@ class ExportService {
       'A$row:${_getColumnLetter(col - 1)}$row',
     );
     rowRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
-    rowRange.cellStyle.backColor = '#EEEEEE';
+    rowRange.cellStyle.backColor = '#FFFFFF'; // White background
+    rowRange.cellStyle.fontColor = '#333399'; // Foreground text color
+
+    // Style No., ID Number, and Names columns: BOLD, white background, black foreground
+    sheet.getRangeByName('${_getColumnLetter(noCol)}$row').cellStyle.bold =
+        true;
+    sheet.getRangeByName('${_getColumnLetter(noCol)}$row').cellStyle.backColor =
+        '#FFFFFF';
+    sheet.getRangeByName('${_getColumnLetter(noCol)}$row').cellStyle.fontColor =
+        '#000000';
+
+    sheet.getRangeByName('${_getColumnLetter(idCol)}$row').cellStyle.bold =
+        true;
+    sheet.getRangeByName('${_getColumnLetter(idCol)}$row').cellStyle.backColor =
+        '#FFFFFF';
+    sheet.getRangeByName('${_getColumnLetter(idCol)}$row').cellStyle.fontColor =
+        '#000000';
+
+    sheet.getRangeByName('${_getColumnLetter(namesCol)}$row').cellStyle.bold =
+        true;
+    sheet
+        .getRangeByName('${_getColumnLetter(namesCol)}$row')
+        .cellStyle
+        .backColor = '#FFFFFF';
+    sheet
+        .getRangeByName('${_getColumnLetter(namesCol)}$row')
+        .cellStyle
+        .fontColor = '#000000';
+
+    // Make all max points numbers bold (starting from column 4, after No., ID Number, Names)
+    final numbersRange = sheet.getRangeByName(
+      '${_getColumnLetter(4)}$row:${_getColumnLetter(col - 1)}$row',
+    );
+    numbersRange.cellStyle.bold = true;
+
+    // Apply white background to item columns (assignments, quizzes, etc.)
+    if (csItemsEndCol > csItemsStartCol) {
+      final csItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(csItemsStartCol)}$row:${_getColumnLetter(csItemsEndCol - 1)}$row',
+      );
+      csItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+    if (qpItemsEndCol > qpItemsStartCol) {
+      final qpItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(qpItemsStartCol)}$row:${_getColumnLetter(qpItemsEndCol - 1)}$row',
+      );
+      qpItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+    if (meItemsEndCol > meItemsStartCol) {
+      final meItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(meItemsStartCol)}$row:${_getColumnLetter(meItemsEndCol - 1)}$row',
+      );
+      meItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+    if (pitItemsEndCol > pitItemsStartCol) {
+      final pitItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(pitItemsStartCol)}$row:${_getColumnLetter(pitItemsEndCol - 1)}$row',
+      );
+      pitItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+    if (fcsItemsEndCol > fcsItemsStartCol) {
+      final fcsItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(fcsItemsStartCol)}$row:${_getColumnLetter(fcsItemsEndCol - 1)}$row',
+      );
+      fcsItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+    if (fqItemsEndCol > fqItemsStartCol) {
+      final fqItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(fqItemsStartCol)}$row:${_getColumnLetter(fqItemsEndCol - 1)}$row',
+      );
+      fqItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+    if (feItemsEndCol > feItemsStartCol) {
+      final feItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(feItemsStartCol)}$row:${_getColumnLetter(feItemsEndCol - 1)}$row',
+      );
+      feItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+    if (fpitItemsEndCol > fpitItemsStartCol) {
+      final fpitItemsRange = sheet.getRangeByName(
+        '${_getColumnLetter(fpitItemsStartCol)}$row:${_getColumnLetter(fpitItemsEndCol - 1)}$row',
+      );
+      fpitItemsRange.cellStyle.backColor = '#FFFFFF';
+    }
+
+    // Apply #C6E0B4 background to Mid Lec Grade Point and Fin Lec Grade Point columns
+    sheet
+        .getRangeByName('${_getColumnLetter(midLecGradePointMaxCol)}$row')
+        .cellStyle
+        .backColor = '#C6E0B4';
+    sheet
+        .getRangeByName('${_getColumnLetter(finLecGradePointMaxCol)}$row')
+        .cellStyle
+        .backColor = '#C6E0B4';
+
+    // Apply #FFC000 background to Midterm Grade and Final Period Grade columns
+    sheet
+        .getRangeByName('${_getColumnLetter(midtermGradeMaxCol)}$row')
+        .cellStyle
+        .backColor = '#FFC000';
+    sheet
+        .getRangeByName('${_getColumnLetter(finalPeriodGradeMaxCol)}$row')
+        .cellStyle
+        .backColor = '#FFC000';
   }
 
   // Helpers used by the full export (mirror grid logic)
@@ -1166,7 +1826,8 @@ class ExportService {
     // Style headers
     final headerRange = sheet.getRangeByName('A$row:E$row');
     headerRange.cellStyle.bold = true;
-    headerRange.cellStyle.backColor = '#F5F5F5';
+    headerRange.cellStyle.backColor = '#FFFFFF';
+    headerRange.cellStyle.fontColor = '#000000';
     headerRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
   }
 
@@ -1194,7 +1855,7 @@ class ExportService {
     sheet.getRangeByName('A$row').setText('MIDTERM GRADE');
     sheet.getRangeByName('A$row').cellStyle.bold = true;
     sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
-    sheet.getRangeByName('A$row').cellStyle.backColor = '#E3F2FD'; // Light blue
+    sheet.getRangeByName('A$row').cellStyle.backColor = '#99CCFF'; // Light blue
     row++;
 
     // Row 2: LECTURE 100% (merged across all columns)
@@ -1202,7 +1863,7 @@ class ExportService {
     sheet.getRangeByName('A$row').setText('LECTURE 100%');
     sheet.getRangeByName('A$row').cellStyle.bold = true;
     sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
-    sheet.getRangeByName('A$row').cellStyle.backColor = '#FFE0B2'; // Orange
+    sheet.getRangeByName('A$row').cellStyle.backColor = '#FFC000'; // Orange
     row++;
 
     // Row 3: Performance Categories
@@ -1226,7 +1887,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(startCol)}$row')
         .cellStyle
-        .backColor = '#FFF9C4'; // Yellow
+        .backColor = '#FCF305'; // Yellow
 
     // Quiz/Prelim Performance Item
     int quizStartCol = startCol + classStandingCols;
@@ -1249,7 +1910,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(quizStartCol)}$row')
         .cellStyle
-        .backColor = '#FFF9C4'; // Yellow
+        .backColor = '#FCF305'; // Yellow
     row++;
 
     // Row 4: Department and Subject Info

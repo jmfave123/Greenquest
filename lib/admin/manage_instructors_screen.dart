@@ -14,7 +14,8 @@ class ManageInstructorsScreen extends StatefulWidget {
       _ManageInstructorsScreenState();
 }
 
-class _ManageInstructorsScreenState extends State<ManageInstructorsScreen> {
+class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
+    with AutomaticKeepAliveClientMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   AdminNavigationItem _selectedItem = AdminNavigationItem.manageInstructors;
   String _searchQuery = '';
@@ -47,6 +48,9 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen> {
     return 24;
   }
 
+  @override
+  bool get wantKeepAlive => true;
+
   void _handleNavigationSelect(AdminNavigationItem item) {
     debugPrint('Navigation selected: $item');
     setState(() {
@@ -54,7 +58,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen> {
     });
     String route = AdminNavigationHelper.getRoute(item);
     debugPrint('Navigating to route: $route');
-    Navigator.of(context).pushNamed(route);
+    Get.toNamed(route);
   }
 
   void _showInstructorProfile(Map<String, dynamic> instructorData) {
@@ -262,6 +266,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       body: Row(
@@ -1136,95 +1141,11 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen> {
                                         ),
                                         // Actions
                                         Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
                                           children: [
-                                            // View Profile button
-                                            OutlinedButton.icon(
-                                              onPressed: () {
-                                                final instructorData = {
-                                                  'id': doc.id,
-                                                  'name':
-                                                      data['name'] ?? 'Unknown',
-                                                  'email':
-                                                      data['email'] ??
-                                                      'No email',
-                                                  'phone': data['phone'] ?? '',
-                                                  'department':
-                                                      data['department'] ?? '',
-                                                  'profileUrl':
-                                                      data['profileUrl'] ??
-                                                      data['profileImageUrl'] ??
-                                                      '',
-                                                };
-                                                _showInstructorProfile(
-                                                  instructorData,
-                                                );
-                                              },
-                                              icon: const Icon(
-                                                Icons.person,
-                                                size: 16,
-                                              ),
-                                              label: const Text('View Profile'),
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor: const Color(
-                                                  0xFF34A853,
-                                                ),
-                                                side: const BorderSide(
-                                                  color: Color(0xFF34A853),
-                                                ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            if (status == 'Pending') ...[
-                                              ElevatedButton.icon(
-                                                onPressed:
-                                                    () => _approveInstructor(
-                                                      doc.id,
-                                                    ),
-                                                icon: const Icon(
-                                                  Icons.check,
-                                                  size: 18,
-                                                ),
-                                                label: const Text('Approve'),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.green,
-                                                  foregroundColor: Colors.white,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              ElevatedButton.icon(
-                                                onPressed:
-                                                    () => _rejectInstructor(
-                                                      doc.id,
-                                                    ),
-                                                icon: const Icon(
-                                                  Icons.close,
-                                                  size: 18,
-                                                ),
-                                                label: const Text('Reject'),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor:
-                                                      Colors.orange,
-                                                  foregroundColor: Colors.white,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ] else if (status ==
-                                                'Approved') ...[
+                                            // Status Badge (for Approved/Rejected)
+                                            if (status == 'Approved') ...[
                                               Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
@@ -1263,6 +1184,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen> {
                                                   ],
                                                 ),
                                               ),
+                                              const SizedBox(height: 12),
                                             ] else if (status ==
                                                 'Rejected') ...[
                                               Container(
@@ -1304,59 +1226,228 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen> {
                                                   ],
                                                 ),
                                               ),
+                                              const SizedBox(height: 12),
                                             ],
-                                            const SizedBox(height: 8),
-                                            // Assign Department & Section button
-                                            OutlinedButton.icon(
-                                              onPressed:
-                                                  () => _showAssignmentDialog(
-                                                    doc.id,
-                                                    data['name'] ?? 'Unknown',
-                                                    data['assignments'] != null
-                                                        ? List<
-                                                          Map<String, dynamic>
-                                                        >.from(
-                                                          data['assignments'],
-                                                        )
-                                                        : null,
+                                            // Primary Actions (for Pending status)
+                                            if (status == 'Pending') ...[
+                                              SizedBox(
+                                                width: 140,
+                                                child: ElevatedButton.icon(
+                                                  onPressed:
+                                                      () => _approveInstructor(
+                                                        doc.id,
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.check,
+                                                    size: 18,
                                                   ),
-                                              icon: const Icon(
-                                                Icons.school_rounded,
-                                                size: 16,
+                                                  label: const Text('Approve'),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.green,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
+                                                        ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
-                                              label: const Text('Assign'),
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor: const Color(
-                                                  0xFF34A853,
+                                              const SizedBox(height: 8),
+                                              SizedBox(
+                                                width: 140,
+                                                child: ElevatedButton.icon(
+                                                  onPressed:
+                                                      () => _rejectInstructor(
+                                                        doc.id,
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.close,
+                                                    size: 18,
+                                                  ),
+                                                  label: const Text('Reject'),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.orange,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
+                                                        ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                  ),
                                                 ),
-                                                side: const BorderSide(
-                                                  color: Color(0xFF34A853),
+                                              ),
+                                              const SizedBox(height: 12),
+                                            ],
+                                            // Secondary Actions
+                                            SizedBox(
+                                              width: 140,
+                                              child: OutlinedButton.icon(
+                                                onPressed: () {
+                                                  final instructorData = {
+                                                    'id': doc.id,
+                                                    'name':
+                                                        data['name'] ??
+                                                        'Unknown',
+                                                    'email':
+                                                        data['email'] ??
+                                                        'No email',
+                                                    'phone':
+                                                        data['phone'] ?? '',
+                                                    'department':
+                                                        data['department'] ??
+                                                        '',
+                                                    'profileUrl':
+                                                        data['profileUrl'] ??
+                                                        data['profileImageUrl'] ??
+                                                        '',
+                                                    'about':
+                                                        data['about'] ?? '',
+                                                  };
+                                                  _showInstructorProfile(
+                                                    instructorData,
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons.person_outline,
+                                                  size: 18,
                                                 ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
+                                                label: const Text(
+                                                  'View Profile',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: const Color(
+                                                    0xFF34A853,
+                                                  ),
+                                                  side: const BorderSide(
+                                                    color: Color(0xFF34A853),
+                                                    width: 1.5,
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 12,
+                                                      ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                             const SizedBox(height: 8),
-                                            // Delete button for all statuses
-                                            OutlinedButton.icon(
-                                              onPressed:
-                                                  () =>
-                                                      _deleteInstructor(doc.id),
-                                              icon: const Icon(
-                                                Icons.delete,
-                                                size: 16,
-                                              ),
-                                              label: const Text('Delete'),
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor: Colors.red,
-                                                side: const BorderSide(
-                                                  color: Colors.red,
+                                            SizedBox(
+                                              width: 140,
+                                              child: OutlinedButton.icon(
+                                                onPressed:
+                                                    () => _showAssignmentDialog(
+                                                      doc.id,
+                                                      data['name'] ?? 'Unknown',
+                                                      data['assignments'] !=
+                                                              null
+                                                          ? List<
+                                                            Map<String, dynamic>
+                                                          >.from(
+                                                            data['assignments'],
+                                                          )
+                                                          : null,
+                                                    ),
+                                                icon: const Icon(
+                                                  Icons.school_outlined,
+                                                  size: 18,
                                                 ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
+                                                label: const Text(
+                                                  'Assign',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: const Color(
+                                                    0xFF34A853,
+                                                  ),
+                                                  side: const BorderSide(
+                                                    color: Color(0xFF34A853),
+                                                    width: 1.5,
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 12,
+                                                      ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            // Divider
+                                            Container(
+                                              width: 140,
+                                              height: 1,
+                                              color: Colors.grey[300],
+                                            ),
+                                            const SizedBox(height: 12),
+                                            // Destructive Action
+                                            SizedBox(
+                                              width: 140,
+                                              child: OutlinedButton.icon(
+                                                onPressed:
+                                                    () => _deleteInstructor(
+                                                      doc.id,
+                                                    ),
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  size: 18,
+                                                ),
+                                                label: const Text(
+                                                  'Delete',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: Colors.red,
+                                                  side: const BorderSide(
+                                                    color: Colors.red,
+                                                    width: 1.5,
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 12,
+                                                      ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -1584,7 +1675,9 @@ class InstructorProfileView extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Passionate educator dedicated to inspiring students through environmental science and sustainability education. Committed to creating engaging learning experiences that promote positive environmental impacts.',
+                  (instructor['about']?.toString().isNotEmpty ?? false)
+                      ? instructor['about']
+                      : 'No information provided yet.',
                   style: TextStyle(
                     fontSize: 15,
                     color: Colors.grey[700],

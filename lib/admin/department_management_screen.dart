@@ -14,11 +14,14 @@ class DepartmentManagementScreen extends StatefulWidget {
       _DepartmentManagementScreenState();
 }
 
-class _DepartmentManagementScreenState
-    extends State<DepartmentManagementScreen> {
+class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
+    with AutomaticKeepAliveClientMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   AdminNavigationItem _selectedItem = AdminNavigationItem.manageDepartments;
   List<Map<String, dynamic>> _semesters = [];
+
+  @override
+  bool get wantKeepAlive => true;
 
   void _handleNavigationSelect(AdminNavigationItem item) {
     debugPrint('Navigation selected: $item');
@@ -27,7 +30,7 @@ class _DepartmentManagementScreenState
     });
     String route = AdminNavigationHelper.getRoute(item);
     debugPrint('Navigating to route: $route');
-    Navigator.of(context).pushNamed(route);
+    Get.toNamed(route);
   }
 
   Future<void> _createDepartment() async {
@@ -1831,6 +1834,7 @@ class _DepartmentManagementScreenState
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       body: Row(

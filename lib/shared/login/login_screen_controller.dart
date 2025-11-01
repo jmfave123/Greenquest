@@ -63,13 +63,16 @@ class LoginScreenController extends GetxController {
         errorMessage.value = '';
       }
     } catch (e) {
-      debugPrint('Error clearing error message: $e');
+      // Controllers might be disposed, ignore silently
+      debugPrint(
+        'Error clearing error message (controller may be disposed): $e',
+      );
     }
   }
 
   // Real-time form validation
   void _validateFormRealTime() {
-    // Check if controllers are still valid
+    // Check if controllers are still valid before using
     try {
       final email = emailController.text.trim();
       final password = passwordController.text.trim();
@@ -80,34 +83,40 @@ class LoginScreenController extends GetxController {
           password.isNotEmpty &&
           password.length >= 6;
     } catch (e) {
-      debugPrint('Error in form validation: $e');
-      isFormValid.value = false;
+      // Controllers might be disposed, skip validation silently
+      debugPrint('Error in form validation (controller may be disposed): $e');
     }
   }
 
   // Validate form fields
   bool _validateForm() {
-    if (emailController.text.trim().isEmpty) {
-      errorMessage.value = 'Please enter your email';
+    try {
+      if (emailController.text.trim().isEmpty) {
+        errorMessage.value = 'Please enter your email';
+        return false;
+      }
+
+      if (!GetUtils.isEmail(emailController.text.trim())) {
+        errorMessage.value = 'Please enter a valid email address';
+        return false;
+      }
+
+      if (passwordController.text.trim().isEmpty) {
+        errorMessage.value = 'Please enter your password';
+        return false;
+      }
+
+      if (passwordController.text.length < 6) {
+        errorMessage.value = 'Password must be at least 6 characters';
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      // Controllers might be disposed
+      debugPrint('Error validating form (controller may be disposed): $e');
       return false;
     }
-
-    if (!GetUtils.isEmail(emailController.text.trim())) {
-      errorMessage.value = 'Please enter a valid email address';
-      return false;
-    }
-
-    if (passwordController.text.trim().isEmpty) {
-      errorMessage.value = 'Please enter your password';
-      return false;
-    }
-
-    if (passwordController.text.length < 6) {
-      errorMessage.value = 'Password must be at least 6 characters';
-      return false;
-    }
-
-    return true;
   }
 
   // Login method - Firebase Auth with email verification
@@ -127,13 +136,20 @@ class LoginScreenController extends GetxController {
       // Dismiss keyboard
       Get.focusScope?.unfocus();
 
-      // Debug logging
-      debugPrint(
-        'Attempting Firebase login with email: ${emailController.text.trim()}',
-      );
+      // Get text values safely (controllers might be disposed)
+      String email;
+      String password;
+      try {
+        email = emailController.text.trim();
+        password = passwordController.text.trim();
+      } catch (e) {
+        debugPrint('Controllers disposed, aborting login: $e');
+        isLoading.value = false;
+        return;
+      }
 
-      final email = emailController.text.trim();
-      final password = passwordController.text.trim();
+      // Debug logging
+      debugPrint('Attempting Firebase login with email: $email');
 
       // Sign in with Firebase Auth
       final UserCredential userCredential = await _auth

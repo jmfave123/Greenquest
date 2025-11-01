@@ -614,8 +614,9 @@ class _AnnouncementContent extends StatelessWidget {
                                             child,
                                             loadingProgress,
                                           ) {
-                                            if (loadingProgress == null)
+                                            if (loadingProgress == null) {
                                               return child;
+                                            }
                                             return Container(
                                               color: Colors.grey[100],
                                               child: Center(
