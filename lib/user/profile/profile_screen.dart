@@ -5,6 +5,7 @@ import '../../shared/login/custom_drawer.dart';
 import 'edit_profile_screen.dart';
 import 'about_screen.dart';
 import 'privacy_policy_screen.dart';
+import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -48,7 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Obx(() {
         RxMap userData = controller.userData;
         if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
+          return const SkeletonProfileScreen();
         }
         return Column(
           children: [

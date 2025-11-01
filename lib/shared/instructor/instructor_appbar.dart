@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/safe_asset_image.dart';
 
 class InstructorAppBar extends StatelessWidget {
   final String instructorName;

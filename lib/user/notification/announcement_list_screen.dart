@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'announcement_detail_screen.dart';
 import 'announcement_controller.dart';
+import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 
 class AnnouncementListScreen extends StatelessWidget {
   const AnnouncementListScreen({super.key});
@@ -38,9 +39,7 @@ class AnnouncementListScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Obx(() {
         if (controller.isLoading.value) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF34A853)),
-          );
+          return const SkeletonAnnouncementCard();
         }
 
         if (!controller.hasValidInstructor) {

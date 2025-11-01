@@ -161,6 +161,9 @@ class AnnouncementScreenController extends GetxController {
           colorText: Colors.white,
         );
       } else {
+        // Get instructor's assigned semester
+        final semester = await _getInstructorSemester(user.uid);
+
         // Create new announcement
         final announcementData = {
           'title': titleController.text.trim(),
@@ -171,6 +174,8 @@ class AnnouncementScreenController extends GetxController {
           'createdAt': FieldValue.serverTimestamp(),
           'instructorId': user.uid,
           'instructorName': user.displayName ?? 'Unknown Instructor',
+          // Add assigned semester data
+          if (semester != null) 'assignedSemester': semester,
         };
 
         // Add to Firestore
@@ -325,6 +330,58 @@ class AnnouncementScreenController extends GetxController {
     }
 
     return '${date.month}/${date.day}/${date.year}';
+  }
+
+  /// Get instructor's assigned semester (preferably active one)
+  Future<Map<String, dynamic>?> _getInstructorSemester(
+    String instructorId,
+  ) async {
+    try {
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(instructorId).get();
+
+      if (!instructorDoc.exists) {
+        return null;
+      }
+
+      final instructorData = instructorDoc.data();
+      final assignedSemesters =
+          (instructorData?['assignedSemesters'] as List<dynamic>?) ?? [];
+
+      if (assignedSemesters.isEmpty) {
+        return null;
+      }
+
+      // Prefer active semester, otherwise get the most recent one
+      Map<String, dynamic>? activeSemester;
+      Map<String, dynamic>? mostRecentSemester;
+      Timestamp? mostRecentTimestamp;
+
+      for (var sem in assignedSemesters) {
+        final semesterData = sem as Map<String, dynamic>;
+        final isActive = semesterData['isActive'] ?? false;
+        final assignedAt = semesterData['assignedAt'];
+
+        if (isActive && activeSemester == null) {
+          activeSemester = semesterData;
+        }
+
+        // Track most recent by assignedAt timestamp
+        if (assignedAt is Timestamp) {
+          if (mostRecentTimestamp == null ||
+              assignedAt.compareTo(mostRecentTimestamp) > 0) {
+            mostRecentTimestamp = assignedAt;
+            mostRecentSemester = semesterData;
+          }
+        }
+      }
+
+      // Return active semester if found, otherwise most recent
+      return activeSemester ?? mostRecentSemester;
+    } catch (e) {
+      print('Error getting instructor semester: $e');
+      return null;
+    }
   }
 
   /// Load instructor name using FirebaseAuth user.uid

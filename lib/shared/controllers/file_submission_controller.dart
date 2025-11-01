@@ -167,6 +167,10 @@ class FileSubmissionController extends GetxController {
 
       final assignmentData = assignmentDoc.data() ?? {};
 
+      // Extract assignedSemester if it exists
+      final assignedSemester =
+          assignmentData['assignedSemester'] as Map<String, dynamic>?;
+
       // Create submission data with student's actual enrolled section
       final submissionData = {
         'assignmentId': assignmentId,
@@ -186,6 +190,8 @@ class FileSubmissionController extends GetxController {
         'feedback': null,
         'gradedAt': null,
         'gradedBy': null,
+        // Add assigned semester if available
+        if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
       // Save to assignment_submissions collection
@@ -271,6 +277,10 @@ class FileSubmissionController extends GetxController {
 
       final activityData = activityDoc.data() ?? {};
 
+      // Extract assignedSemester if it exists
+      final assignedSemester =
+          activityData['assignedSemester'] as Map<String, dynamic>?;
+
       // Create submission data with student's actual enrolled section
       final submissionData = {
         'activityId': activityId,
@@ -290,6 +300,8 @@ class FileSubmissionController extends GetxController {
         'feedback': null,
         'gradedAt': null,
         'gradedBy': null,
+        // Add assigned semester if available
+        if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
       // Save to activity_submissions collection
@@ -427,6 +439,10 @@ class FileSubmissionController extends GetxController {
 
       final quizData = quizDoc.data() ?? {};
 
+      // Extract assignedSemester if it exists
+      final assignedSemester =
+          quizData['assignedSemester'] as Map<String, dynamic>?;
+
       // Create submission data with student's actual enrolled section
       final submissionData = {
         'quizId': quizId,
@@ -446,6 +462,8 @@ class FileSubmissionController extends GetxController {
         'feedback': null,
         'gradedAt': null,
         'gradedBy': null,
+        // Add assigned semester if available
+        if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
       // Save to quiz_submissions collection
@@ -595,6 +613,10 @@ class FileSubmissionController extends GetxController {
 
       final pitData = pitDoc.data() ?? {};
 
+      // Extract assignedSemester if it exists
+      final assignedSemester =
+          pitData['assignedSemester'] as Map<String, dynamic>?;
+
       // Create submission data with student's actual enrolled section
       final submissionData = {
         'pitId': pitId,
@@ -614,6 +636,8 @@ class FileSubmissionController extends GetxController {
         'feedback': null,
         'gradedAt': null,
         'gradedBy': null,
+        // Add assigned semester if available
+        if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
       // Save to pit_submissions collection

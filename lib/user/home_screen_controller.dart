@@ -3,10 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../shared/services/tree_progress_service.dart';
 
 class HomeScreenController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final TreeProgressService _treeProgressService = TreeProgressService();
 
   // Observable variables
   final RxBool isLoading = true.obs;
@@ -15,6 +17,16 @@ class HomeScreenController extends GetxController {
   final RxString instructorId = ''.obs;
   final RxString selectedSectionCode = ''.obs;
   final RxBool isApproved = false.obs;
+  final RxDouble treeProgress = 0.0.obs; // Start at 0%
+  final RxBool isLoadingProgress = false.obs;
+  final RxList<Map<String, dynamic>> midtermCompletions =
+      <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> finalCompletions =
+      <Map<String, dynamic>>[].obs;
+
+  // Stream for real-time updates
+  Stream<ProgressResult>? get progressStream =>
+      isApproved.value ? _treeProgressService.progressStream() : null;
 
   @override
   void onInit() {
@@ -29,9 +41,71 @@ class HomeScreenController extends GetxController {
   Future<void> _initializeData() async {
     try {
       await _checkApprovalStatus();
+      // Load tree progress after approval check
+      if (isApproved.value) {
+        await loadTreeProgress();
+      }
     } catch (e) {
       log('Error initializing HomeScreenController: $e');
     }
+  }
+
+  /// Load tree progress based on grades
+  Future<void> loadTreeProgress() async {
+    try {
+      isLoadingProgress.value = true;
+      final result =
+          await _treeProgressService.calculateProgressWithCompletion();
+      treeProgress.value = result.progress.clamp(
+        0.0,
+        1.0,
+      ); // Ensure between 0 and 1
+
+      // Update completion data
+      midtermCompletions.value =
+          result.midtermCompletions
+              .map(
+                (c) => {
+                  'category': c.category,
+                  'displayName': c.displayName,
+                  'completed': c.completed,
+                  'total': c.total,
+                  'percentage': c.percentage,
+                  'period': c.period,
+                },
+              )
+              .toList();
+
+      finalCompletions.value =
+          result.finalCompletions
+              .map(
+                (c) => {
+                  'category': c.category,
+                  'displayName': c.displayName,
+                  'completed': c.completed,
+                  'total': c.total,
+                  'percentage': c.percentage,
+                  'period': c.period,
+                },
+              )
+              .toList();
+
+      log(
+        '✅ Tree progress calculated: ${(result.progress * 100).toStringAsFixed(1)}%',
+      );
+    } catch (e) {
+      log('❌ Error loading tree progress: $e');
+      treeProgress.value = 0.0; // Default on error
+      midtermCompletions.clear();
+      finalCompletions.clear();
+    } finally {
+      isLoadingProgress.value = false;
+    }
+  }
+
+  /// Refresh tree progress (called when grades might have changed)
+  Future<void> refreshTreeProgress() async {
+    await loadTreeProgress();
   }
 
   Future<void> _checkApprovalStatus() async {
@@ -58,6 +132,11 @@ class HomeScreenController extends GetxController {
         log('Home screen - Instructor: ${instructorName.value}');
         log('Home screen - Section: ${selectedSectionCode.value}');
         log('Home screen - Is approved: ${isApproved.value}');
+
+        // Load tree progress if approved
+        if (isApproved.value) {
+          await loadTreeProgress();
+        }
       }
     } catch (e) {
       log('Error checking approval status: $e');

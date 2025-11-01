@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'materials_list_screen_controller.dart';
 import 'materials_detail_screen.dart';
+import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 
 class MaterialsListScreen extends StatefulWidget {
   const MaterialsListScreen({super.key});
@@ -42,31 +43,60 @@ class _MaterialsListScreenState extends State<MaterialsListScreen> {
       backgroundColor: Colors.white,
       body:
           controller == null
-              ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF34A853),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Initializing...',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  ],
+              ? SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
+                  child: GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 1,
+                          crossAxisSpacing: 12.0,
+                          mainAxisSpacing: 20,
+                          childAspectRatio: 2.2,
+                        ),
+                    itemCount: 6,
+                    itemBuilder: (context, i) => const SkeletonGridItem(),
+                  ),
                 ),
               )
               : Obx(() {
                 if (controller!.isLoading.value) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF34A853),
-                      ),
-                    ),
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final screenWidth = constraints.maxWidth;
+                      final isMobile = screenWidth < 600;
+                      final isTablet = screenWidth >= 600 && screenWidth < 1200;
+                      final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+
+                      return SafeArea(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal:
+                                isMobile ? 20.0 : (isTablet ? 24.0 : 32.0),
+                            vertical:
+                                isMobile ? 20.0 : (isTablet ? 24.0 : 32.0),
+                          ),
+                          child: GridView.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  crossAxisSpacing: isMobile ? 12.0 : 16.0,
+                                  mainAxisSpacing:
+                                      isMobile
+                                          ? 20.0
+                                          : (isTablet ? 24.0 : 32.0),
+                                  childAspectRatio: 2.2,
+                                ),
+                            itemCount: 6,
+                            itemBuilder:
+                                (context, i) => const SkeletonGridItem(),
+                          ),
+                        ),
+                      );
+                    },
                   );
                 }
 

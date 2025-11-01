@@ -21,11 +21,22 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // State variables for different item types
+  // State variables for different item types (Midterm)
   List<Map<String, dynamic>> _classStandingItems = [];
   List<Map<String, dynamic>> _quizPrelimItems = [];
   List<Map<String, dynamic>> _midtermExamItems = [];
   List<Map<String, dynamic>> _pitItems = [];
+
+  // State variables for Final items
+  List<Map<String, dynamic>> _finalClassStandingItems = [];
+  List<Map<String, dynamic>> _finalQuizItems = [];
+  List<Map<String, dynamic>> _finalExamItems = [];
+  List<Map<String, dynamic>> _finalPitItems = [];
+
+  // Semester filter state
+  List<Map<String, dynamic>> _semesters = [];
+  String? _selectedSemesterId; // null => All
+  bool _isFiltering = false;
 
   // UI controllers (keeping for future use)
   // final TextEditingController _searchController = TextEditingController();
@@ -40,10 +51,16 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
   void initState() {
     super.initState();
     _classReportController = Get.put(ClassReportController());
+    _loadSemesters();
     _fetchClassStandingItems();
     _fetchQuizPrelimItems();
     _fetchMidtermExamItems();
     _fetchPitItems();
+    // Finals
+    _fetchFinalClassStandingItems();
+    _fetchFinalQuizItems();
+    _fetchFinalExamItems();
+    _fetchFinalPitItems();
   }
 
   @override
@@ -110,6 +127,91 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
     );
   }
 
+  // Build semester filter dropdown
+  Widget _buildSemesterFilter() {
+    final List<DropdownMenuItem<String?>> items = [
+      const DropdownMenuItem<String?>(value: null, child: Text('All')),
+      ..._semesters.map(
+        (s) => DropdownMenuItem<String?>(
+          value: s['id'] as String,
+          child: Text(s['displayName']?.toString() ?? 'Unnamed Semester'),
+        ),
+      ),
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        const Text('Semester:', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(width: 12),
+        DropdownButton<String?>(
+          value: _selectedSemesterId,
+          items: items,
+          onChanged: (val) {
+            setState(() {
+              _selectedSemesterId = val; // null => All
+            });
+            // Re-fetch all item groups with new filter with loading overlay
+            _refetchAllItems();
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _refetchAllItems() async {
+    setState(() {
+      _isFiltering = true;
+    });
+    try {
+      await Future.wait([
+        _fetchClassStandingItems(),
+        _fetchQuizPrelimItems(),
+        _fetchMidtermExamItems(),
+        _fetchPitItems(),
+        _fetchFinalClassStandingItems(),
+        _fetchFinalQuizItems(),
+        _fetchFinalExamItems(),
+        _fetchFinalPitItems(),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFiltering = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadSemesters() async {
+    try {
+      final snapshot =
+          await _firestore
+              .collection('semesters')
+              .orderBy('createdAt', descending: true)
+              .get();
+
+      _semesters =
+          snapshot.docs
+              .map((d) {
+                final data = d.data();
+                return {
+                  'id': d.id,
+                  'displayName': data['displayName'] ?? '',
+                  'year': data['year'] ?? '',
+                  'semester': data['semester'] ?? '',
+                  'isActive': data['isActive'] ?? true,
+                };
+              })
+              .where((s) => (s['displayName'] as String).trim().isNotEmpty)
+              .toList();
+
+      setState(() {});
+    } catch (e) {
+      print('Error loading semesters for filter: $e');
+    }
+  }
+
   // Fetch class standing items from database (all item types) - filtered by current section
   Future<void> _fetchClassStandingItems() async {
     try {
@@ -131,16 +233,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       List<Map<String, dynamic>> items = [];
 
       // Fetch assignments with category: 'class_standing' AND selectedClasses containing current section
-      final assignmentsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('assignments')
-              .where('category', isEqualTo: 'class_standing')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> assignmentsQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        assignmentsQuery = assignmentsQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final assignmentsSnap = await assignmentsQuery.get();
 
-      for (var doc in assignmentsQuery.docs) {
+      for (var doc in assignmentsSnap.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -156,16 +263,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add activities
-      final activitiesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('activities')
-              .where('category', isEqualTo: 'class_standing')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> activitiesQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        activitiesQuery = activitiesQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final activitiesSnap = await activitiesQuery.get();
 
-      for (var doc in activitiesQuery.docs) {
+      for (var doc in activitiesSnap.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -181,16 +293,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add quizzes
-      final quizzesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('quizzes')
-              .where('category', isEqualTo: 'class_standing')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> quizzesQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        quizzesQuery = quizzesQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final quizzesSnap = await quizzesQuery.get();
 
-      for (var doc in quizzesQuery.docs) {
+      for (var doc in quizzesSnap.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -206,16 +323,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add PITs
-      final pitsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('pits')
-              .where('category', isEqualTo: 'class_standing')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> pitsQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pitsQuery = pitsQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pitsSnap = await pitsQuery.get();
 
-      for (var doc in pitsQuery.docs) {
+      for (var doc in pitsSnap.docs) {
         items.add({
           'id': doc.id,
           'title': doc.data()['title'],
@@ -262,17 +384,22 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       print('🔍 Fetching quiz/prelim items for section: $currentSectionCode');
       List<Map<String, dynamic>> items = [];
 
-      // Fetch assignments with category: 'quiz_prelim' AND selectedClasses containing current section
-      final assignmentsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('assignments')
-              .where('category', isEqualTo: 'quiz_prelim')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      // Fetch assignments with category and optional semester filter
+      Query<Map<String, dynamic>> assignmentsQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        assignmentsQuery = assignmentsQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final assignmentsSnap = await assignmentsQuery.get();
 
-      for (var doc in assignmentsQuery.docs) {
+      for (var doc in assignmentsSnap.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -288,16 +415,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add activities
-      final activitiesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('activities')
-              .where('category', isEqualTo: 'quiz_prelim')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> activitiesQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        activitiesQuery = activitiesQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final activitiesSnap2 = await activitiesQuery.get();
 
-      for (var doc in activitiesQuery.docs) {
+      for (var doc in activitiesSnap2.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -313,16 +445,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add quizzes
-      final quizzesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('quizzes')
-              .where('category', isEqualTo: 'quiz_prelim')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> quizzesQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        quizzesQuery = quizzesQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final quizzesSnap2 = await quizzesQuery.get();
 
-      for (var doc in quizzesQuery.docs) {
+      for (var doc in quizzesSnap2.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -338,16 +475,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add PITs
-      final pitsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('pits')
-              .where('category', isEqualTo: 'quiz_prelim')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> pitsQuery = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pitsQuery = pitsQuery.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pitsSnap2 = await pitsQuery.get();
 
-      for (var doc in pitsQuery.docs) {
+      for (var doc in pitsSnap2.docs) {
         items.add({
           'id': doc.id,
           'title': doc.data()['title'],
@@ -378,6 +520,507 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
     }
   }
 
+  // Fetch Final Class Standing items (period == 'Final')
+  Future<void> _fetchFinalClassStandingItems() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final currentSectionCode = _classReportController.sectionName.value;
+      if (currentSectionCode.isEmpty) return;
+
+      List<Map<String, dynamic>> items = [];
+
+      // Assignments
+      Query<Map<String, dynamic>> aQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        aQ = aQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final aSnap = await aQ.get();
+      for (var doc in aSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'assignment',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Activities
+      Query<Map<String, dynamic>> actQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        actQ = actQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final actSnap = await actQ.get();
+      for (var doc in actSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'activity',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Quizzes
+      Query<Map<String, dynamic>> qQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        qQ = qQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final qSnap = await qQ.get();
+      for (var doc in qSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'quiz',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // PITs
+      Query<Map<String, dynamic>> pQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'class_standing')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pQ = pQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pSnap = await pQ.get();
+      for (var doc in pSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'pit',
+            'category': data['category'],
+          });
+        }
+      }
+
+      items.sort((a, b) => a['title'].compareTo(b['title']));
+      setState(() => _finalClassStandingItems = items);
+    } catch (e) {
+      print('❌ Error fetching final class standing items: $e');
+    }
+  }
+
+  // Fetch Final Quiz/Pre-final items (period == 'Final')
+  Future<void> _fetchFinalQuizItems() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+      final currentSectionCode = _classReportController.sectionName.value;
+      if (currentSectionCode.isEmpty) return;
+
+      List<Map<String, dynamic>> items = [];
+
+      // Assignments
+      Query<Map<String, dynamic>> aQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        aQ = aQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final aSnap = await aQ.get();
+      for (var doc in aSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'assignment',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Activities
+      Query<Map<String, dynamic>> actQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        actQ = actQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final actSnap = await actQ.get();
+      for (var doc in actSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'activity',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Quizzes
+      Query<Map<String, dynamic>> qQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        qQ = qQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final qSnap = await qQ.get();
+      for (var doc in qSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'quiz',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // PITs
+      Query<Map<String, dynamic>> pQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'quiz_prelim')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pQ = pQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pSnap = await pQ.get();
+      for (var doc in pSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'pit',
+            'category': data['category'],
+          });
+        }
+      }
+
+      items.sort((a, b) => a['title'].compareTo(b['title']));
+      setState(() => _finalQuizItems = items);
+    } catch (e) {
+      print('❌ Error fetching final quiz items: $e');
+    }
+  }
+
+  // Fetch Final Exam items (we reuse category 'midterm_exam' but period == 'Final')
+  Future<void> _fetchFinalExamItems() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+      final currentSectionCode = _classReportController.sectionName.value;
+      if (currentSectionCode.isEmpty) return;
+
+      List<Map<String, dynamic>> items = [];
+
+      // Assignments
+      Query<Map<String, dynamic>> aQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        aQ = aQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final aSnap = await aQ.get();
+      for (var doc in aSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'assignment',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Activities
+      Query<Map<String, dynamic>> actQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        actQ = actQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final actSnap = await actQ.get();
+      for (var doc in actSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'activity',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Quizzes
+      Query<Map<String, dynamic>> qQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        qQ = qQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final qSnap = await qQ.get();
+      for (var doc in qSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'quiz',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // PITs
+      Query<Map<String, dynamic>> pQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pQ = pQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pSnap = await pQ.get();
+      for (var doc in pSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'pit',
+            'category': data['category'],
+          });
+        }
+      }
+
+      items.sort((a, b) => a['title'].compareTo(b['title']));
+      setState(() => _finalExamItems = items);
+    } catch (e) {
+      print('❌ Error fetching final exam items: $e');
+    }
+  }
+
+  // Fetch Final PIT items (period == 'Final')
+  Future<void> _fetchFinalPitItems() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+      final currentSectionCode = _classReportController.sectionName.value;
+      if (currentSectionCode.isEmpty) return;
+
+      List<Map<String, dynamic>> items = [];
+
+      // Assignments
+      Query<Map<String, dynamic>> aQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        aQ = aQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final aSnap = await aQ.get();
+      for (var doc in aSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'assignment',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Activities
+      Query<Map<String, dynamic>> actQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        actQ = actQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final actSnap = await actQ.get();
+      for (var doc in actSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'activity',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // Quizzes
+      Query<Map<String, dynamic>> qQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        qQ = qQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final qSnap = await qQ.get();
+      for (var doc in qSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'quiz',
+            'category': data['category'],
+          });
+        }
+      }
+
+      // PITs
+      Query<Map<String, dynamic>> pQ = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pQ = pQ.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pSnap = await pQ.get();
+      for (var doc in pSnap.docs) {
+        final data = doc.data();
+        if ((data['period'] as String?) == 'Final') {
+          items.add({
+            'id': doc.id,
+            'title': data['title'],
+            'points': data['points'],
+            'type': 'pit',
+            'category': data['category'],
+          });
+        }
+      }
+
+      items.sort((a, b) => a['title'].compareTo(b['title']));
+      setState(() => _finalPitItems = items);
+    } catch (e) {
+      print('❌ Error fetching final PIT items: $e');
+    }
+  }
+
   // Fetch midterm exam items from database (all item types) - filtered by current section
   Future<void> _fetchMidtermExamItems() async {
     try {
@@ -395,16 +1038,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       List<Map<String, dynamic>> items = [];
 
       // Fetch assignments with category: 'midterm_exam' AND selectedClasses containing current section
-      final assignmentsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('assignments')
-              .where('category', isEqualTo: 'midterm_exam')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> assignmentsQuery2 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        assignmentsQuery2 = assignmentsQuery2.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final assignmentsSnap2 = await assignmentsQuery2.get();
 
-      for (var doc in assignmentsQuery.docs) {
+      for (var doc in assignmentsSnap2.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -420,16 +1068,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add activities
-      final activitiesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('activities')
-              .where('category', isEqualTo: 'midterm_exam')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> activitiesQuery3 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        activitiesQuery3 = activitiesQuery3.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final activitiesSnap3 = await activitiesQuery3.get();
 
-      for (var doc in activitiesQuery.docs) {
+      for (var doc in activitiesSnap3.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -445,16 +1098,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add quizzes
-      final quizzesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('quizzes')
-              .where('category', isEqualTo: 'midterm_exam')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> quizzesQuery3 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        quizzesQuery3 = quizzesQuery3.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final quizzesSnap3 = await quizzesQuery3.get();
 
-      for (var doc in quizzesQuery.docs) {
+      for (var doc in quizzesSnap3.docs) {
         final data = doc.data();
         // Filter by period: only Prelim and Midterm
         final period = data['period'] as String?;
@@ -470,16 +1128,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add PITs
-      final pitsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('pits')
-              .where('category', isEqualTo: 'midterm_exam')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> pitsQuery3 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'midterm_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pitsQuery3 = pitsQuery3.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pitsSnap3 = await pitsQuery3.get();
 
-      for (var doc in pitsQuery.docs) {
+      for (var doc in pitsSnap3.docs) {
         items.add({
           'id': doc.id,
           'title': doc.data()['title'],
@@ -526,17 +1189,22 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       print('🔍 Fetching PIT items for section: $currentSectionCode');
       List<Map<String, dynamic>> items = [];
 
-      // Fetch assignments with category: 'pit' AND selectedClasses containing current section
-      final assignmentsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('assignments')
-              .where('category', isEqualTo: 'pit')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      // Fetch assignments with category: 'pit' and optional semester filter
+      Query<Map<String, dynamic>> assignmentsQuery4 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        assignmentsQuery4 = assignmentsQuery4.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final assignmentsSnap4 = await assignmentsQuery4.get();
 
-      for (var doc in assignmentsQuery.docs) {
+      for (var doc in assignmentsSnap4.docs) {
         final data = doc.data();
         // Filter by period: only Midterm (PITs can have Midterm or Final, but for midterm grades we only want Midterm)
         final period = data['period'] as String?;
@@ -552,16 +1220,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add activities
-      final activitiesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('activities')
-              .where('category', isEqualTo: 'pit')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> activitiesQuery4 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        activitiesQuery4 = activitiesQuery4.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final activitiesSnap4 = await activitiesQuery4.get();
 
-      for (var doc in activitiesQuery.docs) {
+      for (var doc in activitiesSnap4.docs) {
         final data = doc.data();
         // Filter by period: only Midterm (PITs can have Midterm or Final, but for midterm grades we only want Midterm)
         final period = data['period'] as String?;
@@ -577,16 +1250,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add quizzes
-      final quizzesQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('quizzes')
-              .where('category', isEqualTo: 'pit')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> quizzesQuery4 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        quizzesQuery4 = quizzesQuery4.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final quizzesSnap4 = await quizzesQuery4.get();
 
-      for (var doc in quizzesQuery.docs) {
+      for (var doc in quizzesSnap4.docs) {
         final data = doc.data();
         // Filter by period: only Midterm (PITs can have Midterm or Final, but for midterm grades we only want Midterm)
         final period = data['period'] as String?;
@@ -602,16 +1280,21 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       }
 
       // Add PITs
-      final pitsQuery =
-          await _firestore
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('pits')
-              .where('category', isEqualTo: 'pit')
-              .where('selectedClasses', arrayContains: currentSectionCode)
-              .get();
+      Query<Map<String, dynamic>> pitsQuery4 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'pit')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pitsQuery4 = pitsQuery4.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pitsSnap4 = await pitsQuery4.get();
 
-      for (var doc in pitsQuery.docs) {
+      for (var doc in pitsSnap4.docs) {
         final data = doc.data();
         // Filter by period: only Midterm (PITs can have Midterm or Final, but for midterm grades we only want Midterm)
         final period = data['period'] as String?;
@@ -667,6 +1350,10 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         _fetchQuizPrelimItems(),
         _fetchMidtermExamItems(),
         _fetchPitItems(),
+        _fetchFinalClassStandingItems(),
+        _fetchFinalQuizItems(),
+        _fetchFinalExamItems(),
+        _fetchFinalPitItems(),
       ]);
 
       // Close loading dialog
@@ -702,16 +1389,6 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
   /// Export class report data
   Future<void> _exportData() async {
     try {
-      // Show loading indicator
-      Get.dialog(
-        const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF22C55E)),
-          ),
-        ),
-        barrierDismissible: false,
-      );
-
       // Snapshot current data
       final students = _classReportController.students.toList();
       final sectionName = _classReportController.sectionName.value;
@@ -719,17 +1396,17 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       final instructorName = _classReportController.instructorName.value;
       final departmentName = _classReportController.departmentName.value;
 
-      // Invoke export
+      // Invoke export (ExportService handles success/error messages)
       await ExportService().exportCompleteClassRecord(
         students: students,
         classStandingItems: _classStandingItems,
         quizPrelimItems: _quizPrelimItems,
         midtermExamItems: _midtermExamItems,
         pitItems: _pitItems,
-        finalClassStandingItems: const [],
-        finalQuizItems: const [],
-        finalExamItems: const [],
-        finalPitItems: const [],
+        finalClassStandingItems: _finalClassStandingItems,
+        finalQuizItems: _finalQuizItems,
+        finalExamItems: _finalExamItems,
+        finalPitItems: _finalPitItems,
         sectionName: sectionName,
         courseName: courseName,
         instructorName: instructorName,
@@ -738,25 +1415,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                 ? departmentName
                 : 'Department of NATIONAL SERVICE TRAINING PROGRAM',
       );
-
-      // Close loading dialog
-      Get.back();
-
-      // Show success message
-      Get.snackbar(
-        'Export Complete',
-        'Class report exported successfully',
-        backgroundColor: const Color(0xFF22C55E),
-        colorText: Colors.white,
-        snackPosition: SnackPosition.TOP,
-        duration: const Duration(seconds: 2),
-      );
     } catch (e) {
-      // Close loading dialog if still open
-      if (Get.isDialogOpen == true) {
-        Get.back();
-      }
-
       // Show error message
       Get.snackbar(
         'Export Failed',
@@ -936,69 +1595,127 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 24),
-                        // Table with Pull-to-Refresh
+                        const SizedBox(height: 16),
+                        // Semester Filter
+                        _buildSemesterFilter(),
+                        const SizedBox(height: 16),
+                        // Table with Pull-to-Refresh + filtering overlay
                         Expanded(
-                          child: RefreshIndicator(
-                            onRefresh: _refreshData,
-                            color: const Color(0xFF34A853),
-                            child: Obx(() {
-                              if (_classReportController
-                                  .isLoadingStudents
-                                  .value) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Color(0xFF34A853),
+                          child: Stack(
+                            children: [
+                              RefreshIndicator(
+                                onRefresh: _refreshData,
+                                color: const Color(0xFF34A853),
+                                child: Obx(() {
+                                  if (_classReportController
+                                      .isLoadingStudents
+                                      .value) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF34A853),
+                                            ),
+                                      ),
+                                    );
+                                  }
+
+                                  if (_classReportController
+                                      .errorMessage
+                                      .value
+                                      .isNotEmpty) {
+                                    return Center(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.error_outline,
+                                            size: 64,
+                                            color: Colors.red[400],
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'Error: ${_classReportController.errorMessage.value}',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.red[600],
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          ElevatedButton(
+                                            onPressed: _refreshData,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFF34A853,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: const Text('Retry'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  // Use StreamBuilder for real-time updates
+                                  return StreamBuilder<
+                                    List<Map<String, dynamic>>
+                                  >(
+                                    stream:
+                                        _classReportController
+                                            .createRealTimeStudentsStream(),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                              ConnectionState.waiting &&
+                                          !snapshot.hasData) {
+                                        return const Center(
+                                          child: CircularProgressIndicator(),
+                                        );
+                                      }
+
+                                      if (snapshot.hasError) {
+                                        return Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              const Icon(
+                                                Icons.error_outline,
+                                                size: 48,
+                                                color: Colors.red,
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Text('Error: ${snapshot.error}'),
+                                            ],
+                                          ),
+                                        );
+                                      }
+
+                                      final studentScores = snapshot.data ?? [];
+                                      return _buildDynamicClassStandingTable(
+                                        studentScores,
+                                      );
+                                    },
+                                  );
+                                }),
+                              ),
+                              if (_isFiltering)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Colors.white.withOpacity(0.5),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF34A853),
+                                            ),
+                                      ),
                                     ),
                                   ),
-                                );
-                              }
-
-                              if (_classReportController
-                                  .errorMessage
-                                  .value
-                                  .isNotEmpty) {
-                                return Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline,
-                                        size: 64,
-                                        color: Colors.red[400],
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'Error: ${_classReportController.errorMessage.value}',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.red[600],
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      ElevatedButton(
-                                        onPressed: _refreshData,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFF34A853,
-                                          ),
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        child: const Text('Retry'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-
-                              final studentScores =
-                                  _classReportController.students;
-                              return _buildDynamicClassStandingTable(
-                                studentScores,
-                              );
-                            }),
+                                ),
+                            ],
                           ),
                         ),
                       ],

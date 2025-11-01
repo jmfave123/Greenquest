@@ -42,6 +42,9 @@ class SubmissionRoutingService {
         'activityType': activityInfo['type'],
         'routedAt': FieldValue.serverTimestamp(),
         'routingStatus': 'success',
+        // Add assigned semester if available
+        if (activityInfo['assignedSemester'] != null)
+          'assignedSemester': activityInfo['assignedSemester'],
       };
 
       // Determine the correct section based on student's class
@@ -128,6 +131,9 @@ class SubmissionRoutingService {
         'activityType': activityInfo['type'],
         'routedAt': FieldValue.serverTimestamp(),
         'routingStatus': 'success',
+        // Add assigned semester if available
+        if (activityInfo['assignedSemester'] != null)
+          'assignedSemester': activityInfo['assignedSemester'],
       };
 
       // Determine section strictly from student's profile, then map to
@@ -206,12 +212,17 @@ class SubmissionRoutingService {
                     .toList() ??
                 <String>[];
 
+            // Extract assignedSemester if it exists
+            final assignedSemester =
+                activityData['assignedSemester'] as Map<String, dynamic>?;
+
             return {
               'instructorId': instructorId,
               'instructorName': instructorData['name'] ?? 'Unknown Instructor',
               'title': activityData['title'],
               'type': activityData['type'],
               'selectedClasses': selectedClasses,
+              'assignedSemester': assignedSemester,
             };
           }
         } catch (e) {

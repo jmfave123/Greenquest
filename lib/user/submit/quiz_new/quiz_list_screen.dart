@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:greenquest/user/submit/quiz_new/quiz_controller.dart';
 import 'package:greenquest/user/submit/quiz_new/quiz_detail_screen.dart';
+import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 
 class QuizListScreen extends StatefulWidget {
   const QuizListScreen({super.key});
@@ -235,31 +236,23 @@ class _QuizListScreenState extends State<QuizListScreen> {
       backgroundColor: Colors.white,
       body:
           controller == null
-              ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF34A853),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Initializing...',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  ],
+              ? ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
                 ),
+                itemCount: 5,
+                itemBuilder: (context, i) => const SkeletonListItem(),
               )
               : Obx(() {
                 if (controller!.isLoading.value) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF34A853),
-                      ),
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
                     ),
+                    itemCount: 5,
+                    itemBuilder: (context, i) => const SkeletonListItem(),
                   );
                 }
 

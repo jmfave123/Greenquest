@@ -121,6 +121,58 @@ class QuizController extends GetxController {
     }
   }
 
+  /// Get instructor's assigned semester (preferably active one)
+  Future<Map<String, dynamic>?> _getInstructorSemester(
+    String instructorId,
+  ) async {
+    try {
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(instructorId).get();
+
+      if (!instructorDoc.exists) {
+        return null;
+      }
+
+      final instructorData = instructorDoc.data();
+      final assignedSemesters =
+          (instructorData?['assignedSemesters'] as List<dynamic>?) ?? [];
+
+      if (assignedSemesters.isEmpty) {
+        return null;
+      }
+
+      // Prefer active semester, otherwise get the most recent one
+      Map<String, dynamic>? activeSemester;
+      Map<String, dynamic>? mostRecentSemester;
+      Timestamp? mostRecentTimestamp;
+
+      for (var sem in assignedSemesters) {
+        final semesterData = sem as Map<String, dynamic>;
+        final isActive = semesterData['isActive'] ?? false;
+        final assignedAt = semesterData['assignedAt'];
+
+        if (isActive && activeSemester == null) {
+          activeSemester = semesterData;
+        }
+
+        // Track most recent by assignedAt timestamp
+        if (assignedAt is Timestamp) {
+          if (mostRecentTimestamp == null ||
+              assignedAt.compareTo(mostRecentTimestamp) > 0) {
+            mostRecentTimestamp = assignedAt;
+            mostRecentSemester = semesterData;
+          }
+        }
+      }
+
+      // Return active semester if found, otherwise most recent
+      return activeSemester ?? mostRecentSemester;
+    } catch (e) {
+      print('Error getting instructor semester: $e');
+      return null;
+    }
+  }
+
   // Create a new quiz for a specific instructor
   Future<void> createQuiz({
     required String instructorId,
@@ -150,6 +202,9 @@ class QuizController extends GetxController {
         throw Exception('At least one question is required');
       }
 
+      // Get instructor's assigned semester
+      final semester = await _getInstructorSemester(instructorId);
+
       final quizData = {
         'title': title.trim(),
         'instruction': instruction.trim(),
@@ -161,6 +216,8 @@ class QuizController extends GetxController {
         'createdAt': Timestamp.now(),
         'type': 'Quiz',
         'isActive': true,
+        // Add assigned semester data
+        if (semester != null) 'assignedSemester': semester,
       };
 
       // Add quiz to Firestore

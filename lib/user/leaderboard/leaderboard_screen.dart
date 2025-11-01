@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../shared/login/custom_drawer.dart';
 import 'leaderboard_controller.dart';
+import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -10,36 +11,19 @@ class LeaderboardScreen extends StatefulWidget {
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();
 }
 
-class _LeaderboardScreenState extends State<LeaderboardScreen>
-    with SingleTickerProviderStateMixin {
+class _LeaderboardScreenState extends State<LeaderboardScreen> {
   int selectedDrawerIndex = 3;
-  late TabController _tabController;
   LeaderboardController? leaderboardController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     leaderboardController = Get.put(LeaderboardController());
-
-    // Add listener to refresh data when tab changes
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        setState(() {}); // Trigger rebuild to update the displayed data
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final tabs = ['All', 'Quizzes', 'Activities'];
-    final selectedTab = tabs[_tabController.index];
+    final selectedTab = 'All';
     return Scaffold(
       drawer: CustomDrawer(
         selectedIndex: selectedDrawerIndex,
@@ -69,19 +53,63 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       backgroundColor: Colors.white,
       body:
           leaderboardController == null
-              ? const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF34A853)),
-                ),
+              ? Column(
+                children: [
+                  const SizedBox(height: 20),
+                  const SkeletonLeaderboardPodium(),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(32),
+                          topRight: Radius.circular(32),
+                        ),
+                        border: Border.fromBorderSide(
+                          BorderSide(color: Colors.black12),
+                        ),
+                      ),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        itemCount: 5,
+                        itemBuilder:
+                            (context, i) => const SkeletonLeaderboardItem(),
+                      ),
+                    ),
+                  ),
+                ],
               )
               : Obx(() {
                 if (leaderboardController!.isLoadingLeaderboard.value) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF34A853),
+                  return Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      const SkeletonLeaderboardPodium(),
+                      const SizedBox(height: 24),
+                      Expanded(
+                        child: Container(
+                          width: double.infinity,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(32),
+                              topRight: Radius.circular(32),
+                            ),
+                            border: Border.fromBorderSide(
+                              BorderSide(color: Colors.black12),
+                            ),
+                          ),
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            itemCount: 5,
+                            itemBuilder:
+                                (context, i) => const SkeletonLeaderboardItem(),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   );
                 }
 
@@ -93,36 +121,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
                 return Column(
                   children: [
-                    const SizedBox(height: 18),
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF7F8FA),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: TabBar(
-                          controller: _tabController,
-                          indicator: const UnderlineTabIndicator(
-                            borderSide: BorderSide(
-                              color: Color(0xFF34A853),
-                              width: 3,
-                            ),
-                          ),
-                          labelColor: const Color(0xFF34A853),
-                          unselectedLabelColor: Colors.black54,
-                          labelStyle: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          tabs: const [
-                            Tab(text: 'All'),
-                            Tab(text: 'Quizzes'),
-                            Tab(text: 'Activities'),
-                          ],
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 20),
                     // Top 3 Podium
                     _buildPodium(topThree),

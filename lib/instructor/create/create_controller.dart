@@ -77,6 +77,9 @@ class CreateController extends GetxController {
         throw Exception('User not authenticated');
       }
 
+      // Get instructor's assigned semester
+      final semester = await _getInstructorSemester(user.uid);
+
       final assignmentData = {
         'title': title,
         'instruction': instruction,
@@ -92,6 +95,8 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'Assignment',
+        // Add assigned semester data
+        if (semester != null) 'assignedSemester': semester,
       };
 
       // Save to user-specific subcollection: instructors/{userId}/assignments
@@ -175,6 +180,9 @@ class CreateController extends GetxController {
         throw Exception('User not authenticated');
       }
 
+      // Get instructor's assigned semester
+      final semester = await _getInstructorSemester(user.uid);
+
       final activityData = {
         'title': title,
         'instruction': instruction,
@@ -190,6 +198,8 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'Activity',
+        // Add assigned semester data
+        if (semester != null) 'assignedSemester': semester,
       };
 
       // Save to user-specific subcollection: instructors/{userId}/activities
@@ -273,6 +283,9 @@ class CreateController extends GetxController {
         throw Exception('User not authenticated');
       }
 
+      // Get instructor's assigned semester
+      final semester = await _getInstructorSemester(user.uid);
+
       final quizData = {
         'title': title,
         'instruction': instruction,
@@ -288,6 +301,8 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'Quiz',
+        // Add assigned semester data
+        if (semester != null) 'assignedSemester': semester,
       };
 
       // Save to user-specific subcollection: instructors/{userId}/quizzes
@@ -371,6 +386,9 @@ class CreateController extends GetxController {
         throw Exception('User not authenticated');
       }
 
+      // Get instructor's assigned semester
+      final semester = await _getInstructorSemester(user.uid);
+
       final pitData = {
         'title': title,
         'instruction': instruction,
@@ -386,6 +404,8 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'PIT',
+        // Add assigned semester data
+        if (semester != null) 'assignedSemester': semester,
       };
 
       // Save to user-specific subcollection: instructors/{userId}/pits
@@ -463,6 +483,9 @@ class CreateController extends GetxController {
         throw Exception('User not authenticated');
       }
 
+      // Get instructor's assigned semester
+      final semester = await _getInstructorSemester(user.uid);
+
       final materialData = {
         'title': title,
         'description': description,
@@ -474,6 +497,8 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'Material',
+        // Add assigned semester data
+        if (semester != null) 'assignedSemester': semester,
       };
 
       // Save to user-specific subcollection: instructors/{userId}/materials
@@ -1152,6 +1177,58 @@ class CreateController extends GetxController {
       return false;
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  /// Get instructor's assigned semester (preferably active one)
+  Future<Map<String, dynamic>?> _getInstructorSemester(
+    String instructorId,
+  ) async {
+    try {
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(instructorId).get();
+
+      if (!instructorDoc.exists) {
+        return null;
+      }
+
+      final instructorData = instructorDoc.data();
+      final assignedSemesters =
+          (instructorData?['assignedSemesters'] as List<dynamic>?) ?? [];
+
+      if (assignedSemesters.isEmpty) {
+        return null;
+      }
+
+      // Prefer active semester, otherwise get the most recent one
+      Map<String, dynamic>? activeSemester;
+      Map<String, dynamic>? mostRecentSemester;
+      Timestamp? mostRecentTimestamp;
+
+      for (var sem in assignedSemesters) {
+        final semesterData = sem as Map<String, dynamic>;
+        final isActive = semesterData['isActive'] ?? false;
+        final assignedAt = semesterData['assignedAt'];
+
+        if (isActive && activeSemester == null) {
+          activeSemester = semesterData;
+        }
+
+        // Track most recent by assignedAt timestamp
+        if (assignedAt is Timestamp) {
+          if (mostRecentTimestamp == null ||
+              assignedAt.compareTo(mostRecentTimestamp) > 0) {
+            mostRecentTimestamp = assignedAt;
+            mostRecentSemester = semesterData;
+          }
+        }
+      }
+
+      // Return active semester if found, otherwise most recent
+      return activeSemester ?? mostRecentSemester;
+    } catch (e) {
+      print('Error getting instructor semester: $e');
+      return null;
     }
   }
 

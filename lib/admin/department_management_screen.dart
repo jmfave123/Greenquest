@@ -1739,7 +1739,46 @@ class _DepartmentManagementScreenState
 
   Future<void> _performDeleteSemester(String semesterId) async {
     try {
+      // Get all instructors assigned to this semester
+      final assignedInstructorsSnapshot =
+          await _firestore
+              .collection('semesters')
+              .doc(semesterId)
+              .collection('instructors')
+              .get();
+
+      // Remove semester from each instructor's assignedSemesters array
+      for (var instructorDoc in assignedInstructorsSnapshot.docs) {
+        final instructorId = instructorDoc.id;
+        final instructorRef = _firestore
+            .collection('instructors')
+            .doc(instructorId);
+        final instructorSnapshot = await instructorRef.get();
+
+        if (instructorSnapshot.exists) {
+          final instructorData =
+              instructorSnapshot.data() as Map<String, dynamic>;
+          final assignedSemesters =
+              (instructorData['assignedSemesters'] as List<dynamic>?) ?? [];
+
+          // Remove this semester from the array
+          final updatedSemesters =
+              assignedSemesters
+                  .where((sem) => sem['semesterId'] != semesterId)
+                  .toList();
+
+          await instructorRef.update({
+            'assignedSemesters': updatedSemesters,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // Delete the semester document (this will cascade delete subcollections)
       await _firestore.collection('semesters').doc(semesterId).delete();
+
+      // Reload semesters to update the UI
+      _loadSemesters();
 
       Get.snackbar(
         'Success',
@@ -3372,7 +3411,19 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
   }
 
   Future<void> _saveInstructorAssignments(String semesterId) async {
-    // Remove all existing instructor assignments
+    // Get semester data for the array
+    // Note: Using Timestamp.now() instead of FieldValue.serverTimestamp()
+    // because serverTimestamp() is not supported inside arrays
+    final semesterData = {
+      'semesterId': semesterId,
+      'displayName': widget.semester['displayName'] ?? '',
+      'year': widget.semester['year'] ?? '',
+      'semester': widget.semester['semester'] ?? '',
+      'isActive': widget.semester['isActive'] ?? true,
+      'assignedAt': Timestamp.now(),
+    };
+
+    // Remove all existing instructor assignments from subcollection
     final existingInstructorsSnapshot =
         await widget.firestore
             .collection('semesters')
@@ -3380,18 +3431,88 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
             .collection('instructors')
             .get();
 
-    for (var doc in existingInstructorsSnapshot.docs) {
-      await doc.reference.delete();
+    // Get list of previously assigned instructors
+    final previouslyAssignedInstructors =
+        existingInstructorsSnapshot.docs.map((doc) => doc.id).toList();
+
+    // Remove semester from instructors who are no longer selected
+    for (var instructorId in previouslyAssignedInstructors) {
+      if (!_selectedInstructors.contains(instructorId)) {
+        // Remove from subcollection
+        await widget.firestore
+            .collection('semesters')
+            .doc(semesterId)
+            .collection('instructors')
+            .doc(instructorId)
+            .delete();
+
+        // Remove semester from instructor's assignedSemesters array
+        final instructorRef = widget.firestore
+            .collection('instructors')
+            .doc(instructorId);
+        final instructorDoc = await instructorRef.get();
+
+        if (instructorDoc.exists) {
+          final instructorData = instructorDoc.data() as Map<String, dynamic>;
+          final assignedSemesters =
+              (instructorData['assignedSemesters'] as List<dynamic>?) ?? [];
+
+          // Remove this semester from the array
+          final updatedSemesters =
+              assignedSemesters
+                  .where((sem) => sem['semesterId'] != semesterId)
+                  .toList();
+
+          await instructorRef.update({
+            'assignedSemesters': updatedSemesters,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
     }
 
     // Add new instructor assignments
     for (var instructorId in _selectedInstructors) {
+      // Add to semester subcollection
       await widget.firestore
           .collection('semesters')
           .doc(semesterId)
           .collection('instructors')
           .doc(instructorId)
           .set({'assignedAt': FieldValue.serverTimestamp()});
+
+      // Add semester to instructor's assignedSemesters array
+      final instructorRef = widget.firestore
+          .collection('instructors')
+          .doc(instructorId);
+      final instructorDoc = await instructorRef.get();
+
+      if (instructorDoc.exists) {
+        final instructorData = instructorDoc.data() as Map<String, dynamic>;
+        final assignedSemesters =
+            (instructorData['assignedSemesters'] as List<dynamic>?) ?? [];
+
+        // Check if semester already exists in array
+        final semesterExists = assignedSemesters.any(
+          (sem) => sem['semesterId'] == semesterId,
+        );
+
+        if (!semesterExists) {
+          // Add semester to array
+          assignedSemesters.add(semesterData);
+
+          await instructorRef.update({
+            'assignedSemesters': assignedSemesters,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      } else {
+        // If instructor document doesn't exist, create it with the semester array
+        await instructorRef.set({
+          'assignedSemesters': [semesterData],
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
     }
   }
 

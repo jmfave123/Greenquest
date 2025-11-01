@@ -52,6 +52,7 @@ dependencies:
   syncfusion_flutter_xlsio: ^25.1.35  # Excel export functionality
   flutter_launcher_icons: "^0.13.1" # Add this line
   syncfusion_flutter_datagrid: ^25.2.7
+  shimmer: ^3.0.0
   
 
 dev_dependencies:

@@ -80,14 +80,15 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       child: SfDataGrid(
         controller: _dataGridController,
         source: _dataSource,
+        frozenColumnsCount: 3, // Keep No., ID, Name always visible
         allowSorting: true,
         allowMultiColumnSorting: true,
         allowColumnsResizing: true,
         columnResizeMode: ColumnResizeMode.onResize,
         gridLinesVisibility: GridLinesVisibility.both,
         headerGridLinesVisibility: GridLinesVisibility.both,
-        headerRowHeight: 78,
-        rowHeight: 40,
+        headerRowHeight: 60,
+        rowHeight: 32,
         columnWidthMode: ColumnWidthMode.none,
         onCellTap: (DataGridCellTapDetails details) {
           // Handle cell tap for editing
@@ -142,7 +143,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
         GridColumn(
           columnName: 'cs_${item['id']}',
           label: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFFE3F2FD),
@@ -150,7 +151,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
             ),
             child: Text(
               item['title'],
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
               textAlign: TextAlign.center,
               softWrap: true,
               overflow: TextOverflow.visible,
@@ -166,7 +167,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'cs_total',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
@@ -174,7 +175,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Total Score (SRC)',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -185,7 +186,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'cs_percentage',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
@@ -193,7 +194,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'CPA',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -209,7 +210,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
         GridColumn(
           columnName: 'qp_${item['id']}',
           label: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFFE3F2FD),
@@ -217,7 +218,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
             ),
             child: Text(
               item['title'],
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
               textAlign: TextAlign.center,
               softWrap: true,
               overflow: TextOverflow.visible,
@@ -233,7 +234,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'qp_total',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
@@ -241,7 +242,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Total Score (SRQ)',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -252,7 +253,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'qp_percentage',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
@@ -260,7 +261,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'QA',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -276,7 +277,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
         GridColumn(
           columnName: 'me_${item['id']}',
           label: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFFFFE4E1),
@@ -284,7 +285,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
             ),
             child: Text(
               item['title'],
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
               textAlign: TextAlign.center,
               softWrap: true,
               overflow: TextOverflow.visible,
@@ -300,7 +301,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'me_percentage',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFFFE4E1),
@@ -308,7 +309,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'M',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -324,7 +325,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
         GridColumn(
           columnName: 'pit_${item['id']}',
           label: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFFFFF8DC),
@@ -332,7 +333,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
             ),
             child: Text(
               item['title'],
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
               textAlign: TextAlign.center,
               softWrap: true,
               overflow: TextOverflow.visible,
@@ -348,7 +349,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'pit_total',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFFFF8DC),
@@ -356,7 +357,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Total Score (PIT)',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -367,7 +368,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'pit_percentage',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFFFF8DC),
@@ -375,7 +376,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'PIT%',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -390,7 +391,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'mga',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFFFF8DC),
@@ -398,7 +399,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'MGA',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
           ),
         ),
@@ -407,7 +408,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'mid_lec_grade_point',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFFFF8DC),
@@ -415,7 +416,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Mid Lec Grade Poi',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
           ),
         ),
@@ -424,7 +425,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'mid_grade_point',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFFFF8DC),
@@ -432,7 +433,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Mid Grade Point',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
           ),
         ),
@@ -441,7 +442,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'midterm_grade',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFFF9800),
@@ -449,7 +450,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Midterm Grade',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
           ),
         ),
@@ -463,7 +464,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
         GridColumn(
           columnName: 'fcs_${item['id']}',
           label: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFFE3F2FD),
@@ -471,7 +472,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
             ),
             child: Text(
               item['title'],
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
               textAlign: TextAlign.center,
               softWrap: true,
               overflow: TextOverflow.visible,
@@ -487,7 +488,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'fcs_total',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
@@ -495,7 +496,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Total Score (SRC)',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -506,7 +507,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'fcs_percentage',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
@@ -514,7 +515,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'CPA',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -538,7 +539,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
             ),
             child: Text(
               item['title'],
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
               textAlign: TextAlign.center,
               softWrap: true,
               overflow: TextOverflow.visible,
@@ -554,7 +555,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
       GridColumn(
         columnName: 'fq_total',
         label: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(6),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
@@ -629,7 +630,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'F',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -677,7 +678,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Total Score (PIT)',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -719,7 +720,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'FGA',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
             textAlign: TextAlign.center,
           ),
         ),
@@ -736,7 +737,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Fin Lec Grade Poi',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
           ),
         ),
@@ -753,7 +754,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Fin Grade Point',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
           ),
         ),
@@ -770,7 +771,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           ),
           child: const Text(
             'Final Period Grade',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
           ),
         ),
@@ -930,7 +931,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getStudentInfoColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.centerLeft,
               decoration: BoxDecoration(
                 color: const Color(0xFFE3F2FD),
@@ -942,12 +943,12 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
                 children: const [
                   Text(
                     'Department of NATIONAL SERVICE TRAINING PROGRAM',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'Subject:  NSTP 101C',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ],
               ),
@@ -956,7 +957,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getGradedItemsColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: const Color(0xFFE3F2FD),
@@ -964,14 +965,14 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Midterm Grade',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
           ),
           StackedHeaderCell(
             columnNames: _getFinalGradedItemsColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: const Color(0xFFE3F2FD),
@@ -979,14 +980,14 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Final Grade',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
           ),
           StackedHeaderCell(
             columnNames: _getComputedFinalGradeColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: const Color(0xFF66BB6A),
@@ -994,7 +995,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Computed Final Grade',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
             ),
           ),
@@ -1006,7 +1007,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getGradedItemsColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1014,14 +1015,14 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Lecture 100%',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
               ),
             ),
           ),
           StackedHeaderCell(
             columnNames: _getFinalGradedItemsColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1029,7 +1030,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Lecture 100%',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
               ),
             ),
           ),
@@ -1055,7 +1056,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getClassStandingColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1063,7 +1064,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Class Standing Performance Items (10%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1072,7 +1073,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getQuizPrelimColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1080,7 +1081,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Quiz/Prelim Performance Item (40%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1089,7 +1090,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getMidtermExamColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1097,7 +1098,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Midterm Exam (30%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1106,7 +1107,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getPitColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1114,7 +1115,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Per Inno Task (20%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1123,7 +1124,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getLectureColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1131,7 +1132,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Lecture',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1140,7 +1141,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getFinalClassStandingColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1148,7 +1149,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Class Standing Performance Items (10%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1157,7 +1158,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getFinalQuizColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1165,7 +1166,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Quiz/Pre-final\nPerformance Item (40%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1174,7 +1175,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getFinalExamColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1182,7 +1183,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Final Exam (30%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1191,7 +1192,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getFinalPitColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1199,7 +1200,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Per Inno Task (20%)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1208,7 +1209,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
           StackedHeaderCell(
             columnNames: _getFinalLectureColumnNames(),
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Colors.yellow.shade200,
@@ -1216,7 +1217,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
               ),
               child: const Text(
                 'Lecture',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -2046,7 +2047,7 @@ class ClassRecordDataSource extends DataGridSource {
               child: Text(
                 dataGridCell.value.toString(),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: emphasize ? FontWeight.w600 : FontWeight.normal,
                   color: textColor,
                 ),

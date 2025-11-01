@@ -409,6 +409,280 @@ class ClassReportController extends GetxController {
     }
   }
 
+  /// Get real-time stream of students with grades
+  Stream<List<Map<String, dynamic>>> getStudentsStream() {
+    if (_classId == null) {
+      return Stream.value([]);
+    }
+
+    final User? user = _auth.currentUser;
+    if (user == null) {
+      return Stream.value([]);
+    }
+
+    // Get section code
+    return Stream.periodic(const Duration(milliseconds: 100)).asyncMap((
+      _,
+    ) async {
+      String sectionCode = '';
+
+      // Try to get sectionCode from sections collection
+      final sectionDoc =
+          await _firestore.collection('sections').doc(_classId).get();
+      if (sectionDoc.exists) {
+        sectionCode = sectionDoc.data()?['sectionCode'] ?? '';
+      } else {
+        // Try classes collection
+        final classDoc =
+            await _firestore
+                .collection('instructors')
+                .doc(user.uid)
+                .collection('classes')
+                .doc(_classId)
+                .get();
+        if (classDoc.exists) {
+          final sectionId = classDoc.data()?['sectionId'] ?? '';
+          if (sectionId.isNotEmpty) {
+            final sectionDocFromId =
+                await _firestore.collection('sections').doc(sectionId).get();
+            sectionCode = sectionDocFromId.data()?['sectionCode'] ?? '';
+          }
+        }
+      }
+
+      if (sectionCode.isEmpty) {
+        return <Map<String, dynamic>>[];
+      }
+
+      // Stream from students subcollection
+      final studentsSnapshot =
+          await _firestore
+              .collection('instructors')
+              .doc(user.uid)
+              .collection('students')
+              .where('selectedSectionCode', isEqualTo: sectionCode)
+              .where('enrollmentStatus', isEqualTo: 'approved')
+              .get();
+
+      final List<Map<String, dynamic>> studentList = [];
+
+      for (var doc in studentsSnapshot.docs) {
+        final data = doc.data();
+
+        // Fetch idNumber from users collection
+        String idNumber = '';
+        try {
+          final userDoc =
+              await _firestore.collection('users').doc(doc.id).get();
+          if (userDoc.exists) {
+            idNumber = userDoc.data()?['idNumber'] ?? '';
+          }
+        } catch (e) {
+          print('Error fetching idNumber: $e');
+        }
+
+        final student = {
+          'id': doc.id,
+          'studentId': data['studentId'] ?? doc.id,
+          'idNumber': idNumber,
+          'name': data['studentName'] ?? 'Unknown Student',
+          'email': data['email'] ?? '',
+          'enrollmentStatus': data['enrollmentStatus'] ?? 'approved',
+          'isActive': data['isActive'] ?? true,
+          'isOnline': data['isOnline'] ?? false,
+          'enrolledAt': data['enrolledAt'] ?? data['createdAt'],
+        };
+
+        // Load grades for this student
+        await _loadGradesForStudent(doc.id, student, user.uid, sectionCode);
+        studentList.add(student);
+      }
+
+      return studentList;
+    });
+  }
+
+  /// Create a real-time stream that combines students and grades
+  Stream<List<Map<String, dynamic>>> createRealTimeStudentsStream() {
+    if (_classId == null) {
+      return Stream.value([]);
+    }
+
+    final User? user = _auth.currentUser;
+    if (user == null) {
+      return Stream.value([]);
+    }
+
+    // First, get section code
+    return Stream.fromFuture(_getSectionCode()).asyncExpand((sectionCode) {
+      if (sectionCode.isEmpty) {
+        return Stream.value(<Map<String, dynamic>>[]);
+      }
+
+      // Stream students
+      final studentsStream =
+          _firestore
+              .collection('instructors')
+              .doc(user.uid)
+              .collection('students')
+              .where('selectedSectionCode', isEqualTo: sectionCode)
+              .where('enrollmentStatus', isEqualTo: 'approved')
+              .snapshots();
+
+      // Stream all submission collections for grade updates
+      final assignmentGradesStream =
+          _firestore
+              .collection('assignment_submissions')
+              .where('instructorId', isEqualTo: user.uid)
+              .where('sectionName', isEqualTo: sectionCode)
+              .snapshots();
+
+      final activityGradesStream =
+          _firestore
+              .collection('activity_submissions')
+              .where('instructorId', isEqualTo: user.uid)
+              .where('sectionName', isEqualTo: sectionCode)
+              .snapshots();
+
+      final quizGradesStream =
+          _firestore
+              .collection('quiz_submissions')
+              .where('instructorId', isEqualTo: user.uid)
+              .where('sectionName', isEqualTo: sectionCode)
+              .snapshots();
+
+      final pitGradesStream =
+          _firestore
+              .collection('submissions')
+              .where('instructorId', isEqualTo: user.uid)
+              .where('sectionName', isEqualTo: sectionCode)
+              .where('activityType', isEqualTo: 'pit')
+              .snapshots();
+
+      // Combine all streams using StreamController - any change triggers update
+      final StreamController<List<Map<String, dynamic>>> controller =
+          StreamController<List<Map<String, dynamic>>>.broadcast();
+
+      StreamSubscription? studentsSub;
+      StreamSubscription? assignmentSub;
+      StreamSubscription? activitySub;
+      StreamSubscription? quizSub;
+      StreamSubscription? pitSub;
+
+      Future<void> updateStudents() async {
+        final students = await _buildStudentsWithGrades(user.uid, sectionCode);
+        if (!controller.isClosed) {
+          controller.add(students);
+        }
+      }
+
+      // Listen to all streams and rebuild student list on any change
+      studentsSub = studentsStream.listen((_) => updateStudents());
+      assignmentSub = assignmentGradesStream.listen((_) => updateStudents());
+      activitySub = activityGradesStream.listen((_) => updateStudents());
+      quizSub = quizGradesStream.listen((_) => updateStudents());
+      pitSub = pitGradesStream.listen((_) => updateStudents());
+
+      // Initial load
+      updateStudents();
+
+      // Clean up subscriptions when stream is cancelled
+      controller.onCancel = () {
+        studentsSub?.cancel();
+        assignmentSub?.cancel();
+        activitySub?.cancel();
+        quizSub?.cancel();
+        pitSub?.cancel();
+      };
+
+      return controller.stream;
+    });
+  }
+
+  /// Helper to get section code
+  Future<String> _getSectionCode() async {
+    if (_classId == null) return '';
+
+    final User? user = _auth.currentUser;
+    if (user == null) return '';
+
+    // Try sections collection first
+    final sectionDoc =
+        await _firestore.collection('sections').doc(_classId).get();
+    if (sectionDoc.exists) {
+      return sectionDoc.data()?['sectionCode'] ?? '';
+    }
+
+    // Try classes collection
+    final classDoc =
+        await _firestore
+            .collection('instructors')
+            .doc(user.uid)
+            .collection('classes')
+            .doc(_classId)
+            .get();
+
+    if (classDoc.exists) {
+      final sectionId = classDoc.data()?['sectionId'] ?? '';
+      if (sectionId.isNotEmpty) {
+        final sectionDocFromId =
+            await _firestore.collection('sections').doc(sectionId).get();
+        return sectionDocFromId.data()?['sectionCode'] ?? '';
+      }
+    }
+
+    return '';
+  }
+
+  /// Build complete student list with grades
+  Future<List<Map<String, dynamic>>> _buildStudentsWithGrades(
+    String instructorId,
+    String sectionCode,
+  ) async {
+    final studentsSnapshot =
+        await _firestore
+            .collection('instructors')
+            .doc(instructorId)
+            .collection('students')
+            .where('selectedSectionCode', isEqualTo: sectionCode)
+            .where('enrollmentStatus', isEqualTo: 'approved')
+            .get();
+
+    final List<Map<String, dynamic>> studentList = [];
+
+    for (var doc in studentsSnapshot.docs) {
+      final data = doc.data();
+
+      String idNumber = '';
+      try {
+        final userDoc = await _firestore.collection('users').doc(doc.id).get();
+        if (userDoc.exists) {
+          idNumber = userDoc.data()?['idNumber'] ?? '';
+        }
+      } catch (e) {
+        print('Error fetching idNumber: $e');
+      }
+
+      final student = {
+        'id': doc.id,
+        'studentId': data['studentId'] ?? doc.id,
+        'idNumber': idNumber,
+        'name': data['studentName'] ?? 'Unknown Student',
+        'email': data['email'] ?? '',
+        'enrollmentStatus': data['enrollmentStatus'] ?? 'approved',
+        'isActive': data['isActive'] ?? true,
+        'isOnline': data['isOnline'] ?? false,
+        'enrolledAt': data['enrolledAt'] ?? data['createdAt'],
+      };
+
+      // Load all grades for this student
+      await _loadGradesForStudent(doc.id, student, instructorId, sectionCode);
+      studentList.add(student);
+    }
+
+    return studentList;
+  }
+
   /// Load students for a specific section code from instructor's students subcollection
   Future<void> loadStudentsBySectionCode(String sectionCode) async {
     try {

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:greenquest/user/submit/assignment/assignment_controller.dart';
 import 'package:greenquest/user/submit/assignment/assignment_detail_screen.dart';
+import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 
 class AssignmentListScreen extends StatefulWidget {
   const AssignmentListScreen({super.key});
@@ -244,31 +245,23 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
       backgroundColor: Colors.white,
       body:
           controller == null
-              ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF34A853),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Initializing...',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                  ],
+              ? ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
                 ),
+                itemCount: 5,
+                itemBuilder: (context, i) => const SkeletonListItem(),
               )
               : Obx(() {
                 if (controller == null || controller!.isLoading.value) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF34A853),
-                      ),
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
                     ),
+                    itemCount: 5,
+                    itemBuilder: (context, i) => const SkeletonListItem(),
                   );
                 }
 
