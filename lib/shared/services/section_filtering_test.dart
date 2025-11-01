@@ -177,7 +177,8 @@ class SectionFilteringTest {
       // Get some submissions
       final assignmentSubmissions =
           await _firestore
-              .collection('assignment_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'assignment')
               .where('instructorId', isEqualTo: instructorId)
               .limit(5)
               .get();

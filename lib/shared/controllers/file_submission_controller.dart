@@ -173,7 +173,8 @@ class FileSubmissionController extends GetxController {
 
       // Create submission data with student's actual enrolled section
       final submissionData = {
-        'assignmentId': assignmentId,
+        'activityType': 'assignment', // Unified activity type
+        'activityId': assignmentId, // Unified activity ID field
         'studentId': user.uid,
         'studentName':
             userData['fullName'] ?? user.displayName ?? 'Unknown Student',
@@ -194,9 +195,9 @@ class FileSubmissionController extends GetxController {
         if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
-      // Save to assignment_submissions collection
+      // Save to unified submissions collection
       final docRef = await _firestore
-          .collection('assignment_submissions')
+          .collection('submissions')
           .add(submissionData);
 
       log('✅ Assignment submission saved successfully');
@@ -283,7 +284,8 @@ class FileSubmissionController extends GetxController {
 
       // Create submission data with student's actual enrolled section
       final submissionData = {
-        'activityId': activityId,
+        'activityType': 'activity', // Unified activity type
+        'activityId': activityId, // Unified activity ID field
         'studentId': user.uid,
         'studentName':
             userData['fullName'] ?? user.displayName ?? 'Unknown Student',
@@ -304,9 +306,9 @@ class FileSubmissionController extends GetxController {
         if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
-      // Save to activity_submissions collection
+      // Save to unified submissions collection
       final docRef = await _firestore
-          .collection('activity_submissions')
+          .collection('submissions')
           .add(submissionData);
 
       log('✅ Activity submission saved successfully');
@@ -351,8 +353,9 @@ class FileSubmissionController extends GetxController {
 
       final query =
           await _firestore
-              .collection('assignment_submissions')
-              .where('assignmentId', isEqualTo: assignmentId)
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'assignment')
+              .where('activityId', isEqualTo: assignmentId)
               .where('studentId', isEqualTo: user.uid)
               .limit(1)
               .get();
@@ -376,7 +379,8 @@ class FileSubmissionController extends GetxController {
 
       final query =
           await _firestore
-              .collection('activity_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'activity')
               .where('activityId', isEqualTo: activityId)
               .where('studentId', isEqualTo: user.uid)
               .limit(1)
@@ -445,7 +449,8 @@ class FileSubmissionController extends GetxController {
 
       // Create submission data with student's actual enrolled section
       final submissionData = {
-        'quizId': quizId,
+        'activityType': 'quiz', // Unified activity type
+        'activityId': quizId, // Unified activity ID field
         'studentId': user.uid,
         'studentName':
             userData['fullName'] ?? user.displayName ?? 'Unknown Student',
@@ -466,9 +471,9 @@ class FileSubmissionController extends GetxController {
         if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
-      // Save to quiz_submissions collection
+      // Save to unified submissions collection
       final docRef = await _firestore
-          .collection('quiz_submissions')
+          .collection('submissions')
           .add(submissionData);
 
       log('✅ Quiz submission saved successfully');
@@ -511,8 +516,9 @@ class FileSubmissionController extends GetxController {
 
       final query =
           await _firestore
-              .collection('quiz_submissions')
-              .where('quizId', isEqualTo: quizId)
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'quiz')
+              .where('activityId', isEqualTo: quizId)
               .where('studentId', isEqualTo: user.uid)
               .limit(1)
               .get();
@@ -619,7 +625,8 @@ class FileSubmissionController extends GetxController {
 
       // Create submission data with student's actual enrolled section
       final submissionData = {
-        'pitId': pitId,
+        'activityType': 'pit', // Unified activity type
+        'activityId': pitId, // Unified activity ID field
         'studentId': user.uid,
         'studentName':
             userData['fullName'] ?? user.displayName ?? 'Unknown Student',
@@ -640,9 +647,9 @@ class FileSubmissionController extends GetxController {
         if (assignedSemester != null) 'assignedSemester': assignedSemester,
       };
 
-      // Save to pit_submissions collection
+      // Save to unified submissions collection
       final docRef = await _firestore
-          .collection('pit_submissions')
+          .collection('submissions')
           .add(submissionData);
 
       log('✅ PIT submission saved successfully');

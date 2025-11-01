@@ -293,4 +293,80 @@ class ProfileController extends GetxController {
     }
     return 'U';
   }
+
+  /// Update phone number
+  Future<void> updatePhoneNumber(String phoneNumber) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        Get.snackbar(
+          'Error',
+          'User not authenticated',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // Validate phone number
+      if (phoneNumber.length != 11) {
+        Get.snackbar(
+          'Validation Error',
+          'Phone number must be exactly 11 digits',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      if (!phoneNumber.startsWith('09')) {
+        Get.snackbar(
+          'Validation Error',
+          'Phone number must start with 09',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      if (!RegExp(r'^[0-9]+$').hasMatch(phoneNumber)) {
+        Get.snackbar(
+          'Validation Error',
+          'Phone number must contain only numbers',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // Update Firestore
+      await _firestore.collection('users').doc(user.uid).update({
+        'phoneNumber': phoneNumber,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update local value
+      userData['phoneNumber'] = phoneNumber;
+
+      Get.snackbar(
+        'Success',
+        'Phone number updated successfully',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to update phone number: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
 }

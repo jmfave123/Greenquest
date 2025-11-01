@@ -587,7 +587,8 @@ class ActivityController extends GetxController {
 
       final query =
           await _firestore
-              .collection('activity_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'activity')
               .where('activityId', isEqualTo: activityId)
               .where('studentId', isEqualTo: user.uid)
               .limit(1)

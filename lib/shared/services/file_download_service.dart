@@ -52,12 +52,17 @@ class FileDownloadService {
     } catch (e) {
       print('Error downloading file: $e');
       if (context != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to download file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to download file: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } catch (snackbarError) {
+          // Context may be invalid if screen was closed, ignore silently
+          print('Could not show error snackbar: $snackbarError');
+        }
       }
     }
   }
@@ -140,8 +145,8 @@ class FileDownloadService {
     }
   }
 
-  /// Show image preview dialog for web
-  static void _showImagePreviewDialog(
+  /// Show image preview dialog
+  static void showImagePreviewDialog(
     BuildContext context,
     String imageUrl,
     String fileName,
@@ -244,26 +249,66 @@ class FileDownloadService {
                       children: [
                         ElevatedButton.icon(
                           onPressed: () async {
+                            // Get the scaffold messenger before popping the dialog
+                            final messenger = ScaffoldMessenger.of(context);
+                            final dialogContext = context;
+
+                            // Close the dialog first
+                            Navigator.of(dialogContext).pop();
+
                             try {
-                              final uri = Uri.parse(imageUrl);
-                              await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              );
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Image download started'),
-                                  backgroundColor: Color(0xFF22C55E),
-                                ),
-                              );
+                              if (kIsWeb) {
+                                // For web, download directly
+                                await _triggerWebDownload(imageUrl, fileName);
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Image download started'),
+                                    backgroundColor: Color(0xFF22C55E),
+                                  ),
+                                );
+                              } else {
+                                // For mobile, save to gallery
+                                await _downloadImageToGallerySilent(
+                                  imageUrl,
+                                  fileName,
+                                );
+                                // Show success message
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Image saved to gallery successfully!',
+                                    ),
+                                    backgroundColor: Color(0xFF22C55E),
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                              }
                             } catch (e) {
-                              // Copy URL to clipboard as fallback
-                              Clipboard.setData(ClipboardData(text: imageUrl));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('URL copied to clipboard'),
-                                  backgroundColor: Colors.orange,
+                              String errorMessage = 'Failed to download image';
+                              if (e.toString().contains('Permission denied') ||
+                                  e.toString().contains(
+                                    'Photo access denied',
+                                  )) {
+                                errorMessage =
+                                    'Permission denied. Please allow photo access in settings.';
+                              } else {
+                                errorMessage =
+                                    'Failed to download image: ${e.toString()}';
+                              }
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(errorMessage),
+                                  backgroundColor: Colors.red,
+                                  action:
+                                      errorMessage.contains('Permission denied')
+                                          ? SnackBarAction(
+                                            label: 'Settings',
+                                            textColor: Colors.white,
+                                            onPressed: () async {
+                                              await openAppSettings();
+                                            },
+                                          )
+                                          : null,
                                 ),
                               );
                             }
@@ -416,6 +461,53 @@ class FileDownloadService {
     }
   }
 
+  /// Download image to gallery without showing snackbars (used when context is unavailable)
+  static Future<void> _downloadImageToGallerySilent(
+    String fileUrl,
+    String fileName,
+  ) async {
+    try {
+      // Check if gal has access to photos
+      bool hasAccess = await Gal.hasAccess();
+
+      if (!hasAccess) {
+        // Request access to photos
+        bool granted = await Gal.requestAccess();
+        if (!granted) {
+          print('Photo access denied');
+          throw Exception(
+            'Permission denied. Please allow photo access in settings.',
+          );
+        }
+      }
+
+      // Download image to temporary directory first
+      final tempDir = await getTemporaryDirectory();
+      final tempFilePath = '${tempDir.path}/$fileName';
+
+      // Download image to temp location
+      await _dio.download(fileUrl, tempFilePath);
+
+      // Save to gallery using gal
+      await Gal.putImage(tempFilePath, album: 'GreenQuest');
+
+      // Clean up temp file
+      try {
+        final tempFile = File(tempFilePath);
+        if (await tempFile.exists()) {
+          await tempFile.delete();
+        }
+      } catch (e) {
+        print('Could not delete temp file: $e');
+      }
+
+      print('Image saved to gallery successfully');
+    } catch (e) {
+      print('Error downloading image: $e');
+      rethrow;
+    }
+  }
+
   /// Download regular file (non-image)
   static Future<void> _downloadRegularFile(
     String fileUrl,
@@ -439,7 +531,17 @@ class FileDownloadService {
       } catch (e) {
         print('URL opening failed, showing manual dialog: $e');
         if (context != null) {
-          _showFileOpenDialog(context, fileUrl, fileName);
+          try {
+            _showFileOpenDialog(context, fileUrl, fileName);
+          } catch (dialogError) {
+            // Context may be invalid if screen was closed, fallback to URL
+            print('Could not show dialog: $dialogError');
+            try {
+              await openFileFromUrl(fileUrl);
+            } catch (urlError) {
+              print('All fallbacks failed: $urlError');
+            }
+          }
         }
         return;
       }
@@ -466,12 +568,17 @@ class FileDownloadService {
     }
 
     if (context != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('File opened successfully'),
-          backgroundColor: Color(0xFF22C55E),
-        ),
-      );
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('File opened successfully'),
+            backgroundColor: Color(0xFF22C55E),
+          ),
+        );
+      } catch (e) {
+        // Context may be invalid if screen was closed, ignore silently
+        print('Could not show success snackbar: $e');
+      }
     }
   }
 
@@ -573,7 +680,12 @@ class FileDownloadService {
       } catch (urlError) {
         print('URL opening also failed: $urlError');
         if (context != null) {
-          _showFileOpenDialog(context, fileUrl, fileName);
+          try {
+            _showFileOpenDialog(context, fileUrl, fileName);
+          } catch (dialogError) {
+            // Context may be invalid if screen was closed, ignore silently
+            print('Could not show file open dialog: $dialogError');
+          }
         }
       }
     }

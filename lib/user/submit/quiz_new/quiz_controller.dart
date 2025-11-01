@@ -315,8 +315,9 @@ class QuizController extends GetxController {
 
       final query =
           await _firestore
-              .collection('quiz_submissions')
-              .where('quizId', isEqualTo: quizId)
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'quiz')
+              .where('activityId', isEqualTo: quizId)
               .where('studentId', isEqualTo: user.uid)
               .limit(1)
               .get();

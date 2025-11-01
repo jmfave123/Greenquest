@@ -248,47 +248,15 @@ class LeaderboardController extends GetxController {
     try {
       int totalPoints = 0;
 
-      // Get assignment submissions
-      final assignmentSubmissions =
+      // Get all submissions from unified collection (single query)
+      final allSubmissions =
           await _firestore
-              .collection('assignment_submissions')
+              .collection('submissions')
               .where('studentId', isEqualTo: studentId)
               .where('instructorId', isEqualTo: instructorId)
               .get();
 
-      for (var doc in assignmentSubmissions.docs) {
-        final data = doc.data();
-        final grade = data['grade'];
-        if (grade != null && grade is num) {
-          totalPoints += grade.toInt();
-        }
-      }
-
-      // Get activity submissions
-      final activitySubmissions =
-          await _firestore
-              .collection('activity_submissions')
-              .where('studentId', isEqualTo: studentId)
-              .where('instructorId', isEqualTo: instructorId)
-              .get();
-
-      for (var doc in activitySubmissions.docs) {
-        final data = doc.data();
-        final grade = data['grade'];
-        if (grade != null && grade is num) {
-          totalPoints += grade.toInt();
-        }
-      }
-
-      // Get quiz submissions
-      final quizSubmissions =
-          await _firestore
-              .collection('quiz_submissions')
-              .where('studentId', isEqualTo: studentId)
-              .where('instructorId', isEqualTo: instructorId)
-              .get();
-
-      for (var doc in quizSubmissions.docs) {
+      for (var doc in allSubmissions.docs) {
         final data = doc.data();
         final grade = data['grade'];
         if (grade != null && grade is num) {
@@ -313,7 +281,8 @@ class LeaderboardController extends GetxController {
 
       final quizSubmissions =
           await _firestore
-              .collection('quiz_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'quiz')
               .where('studentId', isEqualTo: studentId)
               .where('instructorId', isEqualTo: instructorId)
               .get();
@@ -343,7 +312,8 @@ class LeaderboardController extends GetxController {
 
       final activitySubmissions =
           await _firestore
-              .collection('activity_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'activity')
               .where('studentId', isEqualTo: studentId)
               .where('instructorId', isEqualTo: instructorId)
               .get();

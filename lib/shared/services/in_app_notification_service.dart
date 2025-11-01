@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:developer' as dev;
+import 'notify_service.dart';
 
 /// Service for managing in-app notifications
 /// Supports individual, section-based, and broadcast notifications
@@ -43,9 +44,63 @@ class InAppNotificationService {
         'readBy': [], // Track who has read this notification
       };
 
-      await _firestore.collection('notifications').add(notificationData);
+      final notificationDoc = await _firestore
+          .collection('notifications')
+          .add(notificationData);
+      final notificationId = notificationDoc.id;
 
       dev.log('✅ Section notification created successfully');
+
+      // Send push notifications to students in target sections
+      try {
+        final playerIds = await OneSignalHelper.getPlayerIdsForSections(
+          sectionCodes: targetSections,
+          instructorId: instructorId,
+        );
+
+        if (playerIds.isNotEmpty) {
+          // Build notification heading and content
+          final heading = _getNotificationHeading(type, instructorName);
+          final content = title;
+
+          // Extract image URL from metadata for announcements
+          String? imageUrl;
+          if (type.toLowerCase() == 'announcement' &&
+              metadata != null &&
+              metadata.containsKey('imageUrl')) {
+            imageUrl = metadata['imageUrl']?.toString();
+            if (imageUrl != null && imageUrl.isNotEmpty) {
+              // Convert HTTP to HTTPS (required by OneSignal)
+              if (imageUrl.startsWith('http://')) {
+                imageUrl = imageUrl.replaceFirst('http://', 'https://');
+              }
+              dev.log('📷 Announcement image found: $imageUrl');
+            }
+          }
+
+          // Send batch push notification
+          await NotifServices.sendBatchNotification(
+            playerIds: playerIds,
+            heading: heading,
+            content: content,
+            bigPicture: imageUrl,
+            additionalData: {
+              'type': type,
+              'itemId': itemId,
+              'instructorId': instructorId,
+              'notificationId': notificationId,
+            },
+          );
+
+          dev.log('📱 Push notification sent to ${playerIds.length} students');
+        } else {
+          dev.log('⚠️ No Player IDs found for sections: $targetSections');
+        }
+      } catch (e) {
+        dev.log('❌ Error sending push notification: $e');
+        // Don't throw - in-app notification was already created
+      }
+
       return true;
     } catch (e) {
       dev.log('❌ Error creating section notification: $e');
@@ -84,9 +139,51 @@ class InAppNotificationService {
         'readBy': [],
       };
 
-      await _firestore.collection('notifications').add(notificationData);
+      final notificationDoc = await _firestore
+          .collection('notifications')
+          .add(notificationData);
+      final notificationId = notificationDoc.id;
 
       dev.log('✅ Individual notification created successfully');
+
+      // Send push notification to target users
+      try {
+        final List<String> playerIds = [];
+
+        for (String userId in targetUserIds) {
+          final playerId = await OneSignalHelper.getPlayerIdForUser(userId);
+          if (playerId != null && playerId.isNotEmpty) {
+            playerIds.add(playerId);
+          }
+        }
+
+        if (playerIds.isNotEmpty) {
+          // Build notification heading and content
+          final heading = _getNotificationHeading(type, instructorName);
+          final content = title;
+
+          // Send batch push notification
+          await NotifServices.sendBatchNotification(
+            playerIds: playerIds,
+            heading: heading,
+            content: content,
+            additionalData: {
+              'type': type,
+              'itemId': itemId,
+              'instructorId': instructorId,
+              'notificationId': notificationId,
+            },
+          );
+
+          dev.log('📱 Push notification sent to ${playerIds.length} users');
+        } else {
+          dev.log('⚠️ No Player IDs found for target users');
+        }
+      } catch (e) {
+        dev.log('❌ Error sending push notification: $e');
+        // Don't throw - in-app notification was already created
+      }
+
       return true;
     } catch (e) {
       dev.log('❌ Error creating individual notification: $e');
@@ -440,6 +537,32 @@ class InAppNotificationService {
     } catch (e) {
       dev.log('❌ Error getting unread count: $e');
       return 0;
+    }
+  }
+
+  // ============================================
+  // HELPER METHODS
+  // ============================================
+
+  /// Get notification heading based on type
+  static String _getNotificationHeading(String type, String instructorName) {
+    switch (type.toLowerCase()) {
+      case 'assignment':
+        return 'New Assignment from $instructorName';
+      case 'activity':
+        return 'New Activity from $instructorName';
+      case 'quiz':
+        return 'New Quiz from $instructorName';
+      case 'pit':
+        return 'New PIT from $instructorName';
+      case 'material':
+        return 'New Material from $instructorName';
+      case 'announcement':
+        return 'New Announcement from $instructorName';
+      case 'graded':
+        return 'Your work has been graded';
+      default:
+        return 'New Notification from $instructorName';
     }
   }
 }

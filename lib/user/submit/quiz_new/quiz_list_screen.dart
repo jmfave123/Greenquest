@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:greenquest/user/submit/quiz_new/quiz_controller.dart';
 import 'package:greenquest/user/submit/quiz_new/quiz_detail_screen.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
@@ -35,6 +36,52 @@ class _QuizListScreenState extends State<QuizListScreen> {
   void dispose() {
     // Don't delete the controller as it's permanent
     super.dispose();
+  }
+
+  /// Build real-time stream for quizzes
+  Stream<QuerySnapshot>? _buildQuizzesStream(String instructorId) {
+    if (controller == null || instructorId.isEmpty) return null;
+
+    final firestore = FirebaseFirestore.instance;
+
+    // Use asyncExpand to first get section code, then build the stream
+    return Stream.fromFuture(_getUserSectionCode()).asyncExpand((sectionCode) {
+      Query query = firestore
+          .collection('instructors')
+          .doc(instructorId)
+          .collection('quizzes')
+          .where('status', isEqualTo: 'active')
+          .orderBy('createdAt', descending: true);
+
+      if (sectionCode != null && sectionCode.isNotEmpty) {
+        query = query.where('selectedClasses', arrayContains: sectionCode);
+      }
+
+      return query.snapshots();
+    });
+  }
+
+  /// Get user's section code
+  Future<String?> _getUserSectionCode() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        return userData['selectedSectionCode']?.toString();
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting user section code: $e');
+      return null;
+    }
   }
 
   Widget _buildStatusBadge(String status) {
@@ -245,7 +292,41 @@ class _QuizListScreenState extends State<QuizListScreen> {
                 itemBuilder: (context, i) => const SkeletonListItem(),
               )
               : Obx(() {
-                if (controller!.isLoading.value) {
+                final instructorId = controller!.currentInstructorUid.value;
+
+                if (instructorId.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.quiz_outlined,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Please select an instructor first',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Go to Course Selection to choose your instructor',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _buildQuizzesStream(instructorId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -256,8 +337,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
                   );
                 }
 
-                // Show error message if there's an error
-                if (controller!.errorMessage.value.isNotEmpty) {
+                    if (snapshot.hasError) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -269,39 +349,19 @@ class _QuizListScreenState extends State<QuizListScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Error Loading Quizzes',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: Text(
-                            controller!.errorMessage.value,
-                            textAlign: TextAlign.center,
+                              'Error: ${snapshot.error}',
                             style: const TextStyle(
                               fontSize: 14,
                               color: Colors.grey,
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            controller!.clearError();
-                            controller!.refreshQuizzes();
-                          },
-                          child: const Text('Retry'),
+                              textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                   );
                 }
 
-                if (controller!.quizzes.isEmpty) {
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -312,22 +372,18 @@ class _QuizListScreenState extends State<QuizListScreen> {
                           color: Colors.grey,
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          controller!.currentInstructorUid.value.isNotEmpty
-                              ? 'No quizzes posted yet'
-                              : 'Please select an instructor first',
-                          style: const TextStyle(
+                            const Text(
+                              'No quizzes posted yet',
+                              style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          controller!.currentInstructorUid.value.isNotEmpty
-                              ? 'This instructor has not posted any quizzes yet'
-                              : 'Go to Course Selection to choose your instructor',
-                          style: const TextStyle(
+                            const Text(
+                              'This instructor has not posted any quizzes yet',
+                              style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey,
                           ),
@@ -337,14 +393,29 @@ class _QuizListScreenState extends State<QuizListScreen> {
                   );
                 }
 
+                    final quizzes =
+                        snapshot.data!.docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final instructorName =
+                              controller!.currentInstructorName.value.isNotEmpty
+                                  ? controller!.currentInstructorName.value
+                                  : data['instructorName']?.toString() ??
+                                      'Unknown Instructor';
+                          return {
+                            'id': doc.id,
+                            ...data,
+                            'instructorName': instructorName,
+                          };
+                        }).toList();
+
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 16,
                   ),
-                  itemCount: controller!.quizzes.length,
+                      itemCount: quizzes.length,
                   itemBuilder: (context, i) {
-                    final quiz = controller!.quizzes[i];
+                        final quiz = quizzes[i];
 
                     // Validate quiz data before navigation
                     if (quiz.isEmpty) {
@@ -366,8 +437,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
 
                     return GestureDetector(
                       onTap: () {
-                        // Double-check quiz is valid before navigation
-                        if (quiz.isNotEmpty) {
+                            if (quiz.isNotEmpty && controller != null) {
                           controller!.setSelectedQuiz(quiz);
                           Navigator.push(
                             context,
@@ -384,7 +454,9 @@ class _QuizListScreenState extends State<QuizListScreen> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.05),
@@ -411,7 +483,8 @@ class _QuizListScreenState extends State<QuizListScreen> {
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     '${quiz['instructorName']} posted new quiz: ${quiz['title']}',
@@ -445,6 +518,8 @@ class _QuizListScreenState extends State<QuizListScreen> {
                           ],
                         ),
                       ),
+                        );
+                      },
                     );
                   },
                 );

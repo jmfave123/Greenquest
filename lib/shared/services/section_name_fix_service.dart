@@ -75,7 +75,7 @@ class SectionNameFixService {
       }
 
       await _firestore
-          .collection('assignment_submissions')
+          .collection('submissions')
           .doc(submissionId)
           .update(updateData);
 
@@ -96,7 +96,8 @@ class SectionNameFixService {
 
       final querySnapshot =
           await _firestore
-              .collection('assignment_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'assignment')
               .where('studentId', isEqualTo: studentId)
               .orderBy('submittedAt', descending: true)
               .get();

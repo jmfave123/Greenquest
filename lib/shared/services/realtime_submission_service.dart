@@ -41,10 +41,11 @@ class RealtimeSubmissionService {
       '🔄 Initializing real-time listeners for instructor: $currentInstructorId',
     );
 
-    // Set up assignment submissions listener
+    // Set up assignment submissions listener (unified collection)
     _assignmentSubscription = _firestore
-        .collection('assignment_submissions')
+        .collection('submissions')
         .where('instructorId', isEqualTo: currentInstructorId)
+        .where('activityType', isEqualTo: 'assignment')
         .snapshots()
         .listen(
           (QuerySnapshot snapshot) {
@@ -55,10 +56,11 @@ class RealtimeSubmissionService {
           },
         );
 
-    // Set up activity submissions listener
+    // Set up activity submissions listener (unified collection)
     _activitySubscription = _firestore
-        .collection('activity_submissions')
+        .collection('submissions')
         .where('instructorId', isEqualTo: currentInstructorId)
+        .where('activityType', isEqualTo: 'activity')
         .snapshots()
         .listen(
           (QuerySnapshot snapshot) {
@@ -69,10 +71,11 @@ class RealtimeSubmissionService {
           },
         );
 
-    // Set up quiz submissions listener
+    // Set up quiz submissions listener (unified collection)
     _quizSubscription = _firestore
-        .collection('quiz_submissions')
+        .collection('submissions')
         .where('instructorId', isEqualTo: currentInstructorId)
+        .where('activityType', isEqualTo: 'quiz')
         .snapshots()
         .listen(
           (QuerySnapshot snapshot) {
@@ -83,7 +86,7 @@ class RealtimeSubmissionService {
           },
         );
 
-    // Set up PIT submissions listener
+    // Set up PIT submissions listener (unified collection)
     _pitSubscription = _firestore
         .collection('submissions')
         .where('instructorId', isEqualTo: currentInstructorId)
@@ -208,32 +211,16 @@ class RealtimeSubmissionService {
     String instructorId, {
     String? sectionId,
   }) {
-    String collectionName = _getCollectionName(submissionType);
     Query query = _firestore
-        .collection(collectionName)
-        .where('instructorId', isEqualTo: instructorId);
+        .collection('submissions')
+        .where('instructorId', isEqualTo: instructorId)
+        .where('activityType', isEqualTo: submissionType.toLowerCase());
 
     if (sectionId != null && sectionId.isNotEmpty) {
       query = query.where('sectionId', isEqualTo: sectionId);
     }
 
     return query.orderBy('submittedAt', descending: true).snapshots();
-  }
-
-  /// Get collection name for submission type
-  static String _getCollectionName(String submissionType) {
-    switch (submissionType.toLowerCase()) {
-      case 'assignment':
-        return 'assignment_submissions';
-      case 'activity':
-        return 'activity_submissions';
-      case 'quiz':
-        return 'quiz_submissions';
-      case 'pit':
-        return 'submissions';
-      default:
-        return 'activity_submissions';
-    }
   }
 
   /// Clean up all subscriptions

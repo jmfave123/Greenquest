@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../shared/services/submission_routing_service.dart';
 import '../../shared/services/realtime_submission_service.dart';
+import '../../shared/services/in_app_notification_service.dart';
 
 class SubmissionsController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -123,10 +124,11 @@ class SubmissionsController extends GetxController {
         return;
       }
 
-      // Load all submissions for this assignment first
+      // Load all submissions for this assignment first (unified collection)
       Query query = _firestore
-          .collection('assignment_submissions')
-          .where('assignmentId', isEqualTo: assignmentId)
+          .collection('submissions')
+          .where('activityType', isEqualTo: 'assignment')
+          .where('activityId', isEqualTo: assignmentId)
           .where('instructorId', isEqualTo: user.uid);
 
       print('  - Executing query...');
@@ -191,10 +193,11 @@ class SubmissionsController extends GetxController {
         return;
       }
 
-      // Load all submissions for this quiz first
+      // Load all submissions for this quiz first (unified collection)
       Query query = _firestore
-          .collection('quiz_submissions')
-          .where('quizId', isEqualTo: quizId)
+          .collection('submissions')
+          .where('activityType', isEqualTo: 'quiz')
+          .where('activityId', isEqualTo: quizId)
           .where('instructorId', isEqualTo: user.uid);
 
       QuerySnapshot querySnapshot;
@@ -269,9 +272,10 @@ class SubmissionsController extends GetxController {
         return;
       }
 
-      // Load all submissions for this activity first
+      // Load all submissions for this activity first (unified collection)
       Query query = _firestore
-          .collection('activity_submissions')
+          .collection('submissions')
+          .where('activityType', isEqualTo: 'activity')
           .where('activityId', isEqualTo: activityId)
           .where('instructorId', isEqualTo: user.uid);
 
@@ -354,63 +358,23 @@ class SubmissionsController extends GetxController {
 
       List<Map<String, dynamic>> allSubmissions = [];
 
-      // Load assignment submissions for instructor
-      Query assignmentQuery = _firestore
-          .collection('assignment_submissions')
-          .where('instructorId', isEqualTo: currentInstructorId);
-
-      final assignmentDocs = await assignmentQuery.get();
-      print('📝 Found ${assignmentDocs.docs.length} assignment submissions');
-
-      for (var doc in assignmentDocs.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        print(
-          '📝 Assignment submission: ${data['studentName']} - sectionId: ${data['sectionId']} - sectionName: ${data['sectionName']}',
-        );
-        allSubmissions.add({'id': doc.id, 'type': 'assignment', ...data});
-      }
-
-      // Load activity submissions for instructor
-      Query activityQuery = _firestore
-          .collection('activity_submissions')
-          .where('instructorId', isEqualTo: currentInstructorId);
-
-      final activityDocs = await activityQuery.get();
-      print('📝 Found ${activityDocs.docs.length} activity submissions');
-
-      for (var doc in activityDocs.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        print(
-          '📝 Activity submission: ${data['studentName']} - sectionId: ${data['sectionId']} - sectionName: ${data['sectionName']}',
-        );
-        allSubmissions.add({'id': doc.id, 'type': 'activity', ...data});
-      }
-
-      // Load quiz submissions for instructor
-      Query quizQuery = _firestore
-          .collection('quiz_submissions')
-          .where('instructorId', isEqualTo: currentInstructorId);
-
-      final quizDocs = await quizQuery.get();
-      print('📝 Found ${quizDocs.docs.length} quiz submissions');
-
-      for (var doc in quizDocs.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        allSubmissions.add({'id': doc.id, 'type': 'quiz', ...data});
-      }
-
-      // Load PIT submissions for instructor
-      Query pitQuery = _firestore
+      // Load all submissions for instructor from unified collection
+      Query allSubmissionsQuery = _firestore
           .collection('submissions')
-          .where('instructorId', isEqualTo: currentInstructorId)
-          .where('activityType', isEqualTo: 'pit');
+          .where('instructorId', isEqualTo: currentInstructorId);
 
-      final pitDocs = await pitQuery.get();
-      print('📝 Found ${pitDocs.docs.length} PIT submissions');
+      final allDocs = await allSubmissionsQuery.get();
+      print('📝 Found ${allDocs.docs.length} total submissions');
 
-      for (var doc in pitDocs.docs) {
+      for (var doc in allDocs.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        allSubmissions.add({'id': doc.id, 'type': 'pit', ...data});
+        final activityType = data['activityType'] ?? 'activity';
+        final type = activityType; // 'assignment', 'activity', 'quiz', or 'pit'
+
+        print(
+          '📝 ${type.toUpperCase()} submission: ${data['studentName']} - sectionId: ${data['sectionId']} - sectionName: ${data['sectionName']}',
+        );
+        allSubmissions.add({'id': doc.id, 'type': type, ...data});
       }
 
       // Filter submissions by section using the helper method
@@ -454,30 +418,12 @@ class SubmissionsController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return 0;
 
-      String collectionName;
-      String idFieldName;
-
-      switch (itemType.toLowerCase()) {
-        case 'assignment':
-          collectionName = 'assignment_submissions';
-          idFieldName = 'assignmentId';
-          break;
-        case 'activity':
-          collectionName = 'activity_submissions';
-          idFieldName = 'activityId';
-          break;
-        case 'quiz':
-          collectionName = 'quiz_submissions';
-          idFieldName = 'quizId';
-          break;
-        default:
-          return 0;
-      }
-
+      // Use unified submissions collection
       Query query = _firestore
-          .collection(collectionName)
+          .collection('submissions')
           .where('instructorId', isEqualTo: user.uid)
-          .where(idFieldName, isEqualTo: itemId);
+          .where('activityType', isEqualTo: itemType.toLowerCase())
+          .where('activityId', isEqualTo: itemId);
 
       if (sectionId != null && sectionId.isNotEmpty) {
         query = query.where('sectionId', isEqualTo: sectionId);
@@ -501,30 +447,12 @@ class SubmissionsController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return {'total': 0, 'submitted': 0, 'graded': 0};
 
-      String collectionName;
-      String idFieldName;
-
-      switch (itemType.toLowerCase()) {
-        case 'assignment':
-          collectionName = 'assignment_submissions';
-          idFieldName = 'assignmentId';
-          break;
-        case 'activity':
-          collectionName = 'activity_submissions';
-          idFieldName = 'activityId';
-          break;
-        case 'quiz':
-          collectionName = 'quiz_submissions';
-          idFieldName = 'quizId';
-          break;
-        default:
-          return {'total': 0, 'submitted': 0, 'graded': 0};
-      }
-
+      // Use unified submissions collection
       Query query = _firestore
-          .collection(collectionName)
+          .collection('submissions')
           .where('instructorId', isEqualTo: user.uid)
-          .where(idFieldName, isEqualTo: itemId);
+          .where('activityType', isEqualTo: itemType.toLowerCase())
+          .where('activityId', isEqualTo: itemId);
 
       if (sectionId != null && sectionId.isNotEmpty) {
         query = query.where('sectionId', isEqualTo: sectionId);
@@ -661,8 +589,9 @@ class SubmissionsController extends GetxController {
       switch (category.toLowerCase()) {
         case 'activities':
           final activityQuery = _firestore
-              .collection('activity_submissions')
+              .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
+              .where('activityType', isEqualTo: 'activity')
               .orderBy('submittedAt', descending: true);
 
           final activityDocs = await activityQuery.get();
@@ -678,8 +607,9 @@ class SubmissionsController extends GetxController {
 
         case 'assignments':
           final assignmentQuery = _firestore
-              .collection('assignment_submissions')
+              .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
+              .where('activityType', isEqualTo: 'assignment')
               .orderBy('submittedAt', descending: true);
 
           final assignmentDocs = await assignmentQuery.get();
@@ -695,8 +625,9 @@ class SubmissionsController extends GetxController {
 
         case 'quizzes':
           final quizQuery = _firestore
-              .collection('quiz_submissions')
+              .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
+              .where('activityType', isEqualTo: 'quiz')
               .orderBy('submittedAt', descending: true);
 
           final quizDocs = await quizQuery.get();
@@ -767,23 +698,24 @@ class SubmissionsController extends GetxController {
         throw Exception('Score cannot be negative');
       }
 
-      String collection;
-      switch (submissionType.toLowerCase()) {
-        case 'assignment':
-          collection = 'assignment_submissions';
-          break;
-        case 'activity':
-          collection = 'activity_submissions';
-          break;
-        case 'quiz':
-          collection = 'quiz_submissions';
-          break;
-        default:
-          collection = 'assignment_submissions';
+      // Get the submission document to extract student info and activity title
+      final submissionDoc =
+          await _firestore.collection('submissions').doc(submissionId).get();
+
+      if (!submissionDoc.exists) {
+        throw Exception('Submission not found');
       }
 
-      // Update the document in Firestore
-      await _firestore.collection(collection).doc(submissionId).update({
+      final submissionData = submissionDoc.data() as Map<String, dynamic>;
+      final studentId = submissionData['studentId'] as String?;
+      final activityTitle =
+          submissionData['activityTitle'] as String? ?? 'Your submission';
+      final activityType =
+          submissionData['activityType'] as String? ?? submissionType;
+      final activityId = submissionData['activityId'] as String?;
+
+      // Update the document in unified submissions collection
+      await _firestore.collection('submissions').doc(submissionId).update({
         'grade': score,
         'feedback': feedback ?? '',
         'status': 'graded',
@@ -801,6 +733,71 @@ class SubmissionsController extends GetxController {
         submissions[index]['gradedBy'] = user.uid;
         submissions.refresh();
         updateStats();
+      }
+
+      // Send notification to student
+      if (studentId != null && activityId != null) {
+        // Map activity type to readable name
+        String activityTypeName = activityType.toLowerCase();
+        switch (activityTypeName) {
+          case 'assignment':
+            activityTypeName = 'Assignment';
+            break;
+          case 'activity':
+            activityTypeName = 'Activity';
+            break;
+          case 'quiz':
+            activityTypeName = 'Quiz';
+            break;
+          case 'pit':
+            activityTypeName = 'PIT';
+            break;
+          default:
+            activityTypeName = 'Submission';
+        }
+
+        // Create clear notification message
+        String title = 'Submission Graded';
+        String description =
+            '$activityTypeName "$activityTitle" has been graded. '
+            'Your score: ${score.toStringAsFixed(2)}';
+
+        if (feedback != null &&
+            feedback.isNotEmpty &&
+            feedback.trim().isNotEmpty) {
+          description += '\n\nFeedback: $feedback';
+        }
+
+        // Get instructor name
+        final instructorNameValue =
+            instructorName.value.isNotEmpty
+                ? instructorName.value
+                : user.displayName ??
+                    submissionData['instructorName'] as String? ??
+                    'Your instructor';
+
+        // Send individual notification to student
+        await InAppNotificationService.createIndividualNotification(
+          type: 'graded',
+          instructorId: user.uid,
+          instructorName: instructorNameValue,
+          itemId: activityId,
+          title: title,
+          targetUserIds: [studentId],
+          description: description,
+          metadata: {
+            'submissionId': submissionId,
+            'activityType': activityType,
+            'activityTitle': activityTitle,
+            'score': score,
+            'maxPoints': maxPoints ?? 0,
+            if (feedback != null && feedback.trim().isNotEmpty)
+              'feedback': feedback,
+            'gradedAt': DateTime.now().toIso8601String(),
+          },
+        );
+
+        print('✅ Notification sent to student: $studentId');
       }
 
       Get.snackbar(
@@ -833,33 +830,16 @@ class SubmissionsController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      // First get the submission to find the assignment/activity/quiz ID
-      String collection;
-      switch (submissionType.toLowerCase()) {
-        case 'assignment':
-          collection = 'assignment_submissions';
-          break;
-        case 'activity':
-          collection = 'activity_submissions';
-          break;
-        case 'quiz':
-          collection = 'quiz_submissions';
-          break;
-        default:
-          collection = 'assignment_submissions';
-      }
-
+      // Get the submission from unified collection to find the activity ID
       final submissionDoc =
-          await _firestore.collection(collection).doc(submissionId).get();
+          await _firestore.collection('submissions').doc(submissionId).get();
       if (!submissionDoc.exists) return null;
 
       final submissionData = submissionDoc.data()!;
-      final assignmentId =
-          submissionData['assignmentId'] ??
-          submissionData['activityId'] ??
-          submissionData['quizId'];
+      final activityId =
+          submissionData['activityId']; // Unified activity ID field
 
-      if (assignmentId == null) return null;
+      if (activityId == null) return null;
 
       // Get the assignment/activity/quiz document to find the points
       String sourceCollection;
@@ -873,6 +853,9 @@ class SubmissionsController extends GetxController {
         case 'quiz':
           sourceCollection = 'quizzes';
           break;
+        case 'pit':
+          sourceCollection = 'pits';
+          break;
         default:
           sourceCollection = 'assignments';
       }
@@ -882,7 +865,7 @@ class SubmissionsController extends GetxController {
               .collection('instructors')
               .doc(user.uid)
               .collection(sourceCollection)
-              .doc(assignmentId)
+              .doc(activityId)
               .get();
 
       if (assignmentDoc.exists) {
@@ -1214,35 +1197,17 @@ class SubmissionsController extends GetxController {
   }
 
   // Get submission collection name based on item type
+  // NOTE: Now all submissions use unified 'submissions' collection
+  @Deprecated('Use unified submissions collection directly')
   String _getSubmissionCollectionName(String itemType) {
-    switch (itemType.toLowerCase()) {
-      case 'assignment':
-        return 'assignment_submissions';
-      case 'activity':
-        return 'activity_submissions';
-      case 'quiz':
-        return 'quiz_submissions';
-      case 'pit':
-        return 'submissions';
-      default:
-        return 'activity_submissions';
-    }
+    return 'submissions'; // Unified collection for all submission types
   }
 
   // Get activity ID field name based on item type
+  // NOTE: Now all submissions use unified 'activityId' field
+  @Deprecated('Use unified activityId field directly')
   String _getActivityIdField(String itemType) {
-    switch (itemType.toLowerCase()) {
-      case 'assignment':
-        return 'assignmentId';
-      case 'activity':
-        return 'activityId';
-      case 'quiz':
-        return 'quizId';
-      case 'pit':
-        return 'activityId';
-      default:
-        return 'activityId';
-    }
+    return 'activityId'; // Unified activity ID field for all submission types
   }
 
   // Set up real-time listener for all instructor submissions

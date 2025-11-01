@@ -290,8 +290,9 @@ class PitController extends GetxController {
 
       final query =
           await _firestore
-              .collection('pit_submissions')
-              .where('pitId', isEqualTo: pitId)
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'pit')
+              .where('activityId', isEqualTo: pitId)
               .where('studentId', isEqualTo: user.uid)
               .limit(1)
               .get();

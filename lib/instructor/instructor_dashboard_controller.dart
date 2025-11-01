@@ -312,47 +312,15 @@ class InstructorController extends GetxController {
     try {
       int totalPoints = 0;
 
-      // Get assignment submissions
-      final assignmentSubmissions =
+      // Get all submissions from unified collection (single query)
+      final allSubmissions =
           await FirebaseFirestore.instance
-              .collection('assignment_submissions')
+              .collection('submissions')
               .where('studentId', isEqualTo: studentId)
               .where('instructorId', isEqualTo: instructorId)
               .get();
 
-      for (var doc in assignmentSubmissions.docs) {
-        final data = doc.data();
-        final grade = data['grade'];
-        if (grade != null && grade is num) {
-          totalPoints += grade.toInt();
-        }
-      }
-
-      // Get activity submissions
-      final activitySubmissions =
-          await FirebaseFirestore.instance
-              .collection('activity_submissions')
-              .where('studentId', isEqualTo: studentId)
-              .where('instructorId', isEqualTo: instructorId)
-              .get();
-
-      for (var doc in activitySubmissions.docs) {
-        final data = doc.data();
-        final grade = data['grade'];
-        if (grade != null && grade is num) {
-          totalPoints += grade.toInt();
-        }
-      }
-
-      // Get quiz submissions
-      final quizSubmissions =
-          await FirebaseFirestore.instance
-              .collection('quiz_submissions')
-              .where('studentId', isEqualTo: studentId)
-              .where('instructorId', isEqualTo: instructorId)
-              .get();
-
-      for (var doc in quizSubmissions.docs) {
+      for (var doc in allSubmissions.docs) {
         final data = doc.data();
         final grade = data['grade'];
         if (grade != null && grade is num) {
@@ -377,7 +345,8 @@ class InstructorController extends GetxController {
 
       final assignmentSubmissions =
           await FirebaseFirestore.instance
-              .collection('assignment_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'assignment')
               .where('studentId', isEqualTo: studentId)
               .where('instructorId', isEqualTo: instructorId)
               .get();
@@ -407,7 +376,8 @@ class InstructorController extends GetxController {
 
       final activitySubmissions =
           await FirebaseFirestore.instance
-              .collection('activity_submissions')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'activity')
               .where('studentId', isEqualTo: studentId)
               .where('instructorId', isEqualTo: instructorId)
               .get();

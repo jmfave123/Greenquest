@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import '../../shared/services/online_status_service.dart';
+import '../../shared/services/notify_service.dart';
 
 class AuthController extends GetxController {
   final _auth = FirebaseAuth.instance;
@@ -104,6 +105,29 @@ class AuthController extends GetxController {
 
       // Set user as online after successful login
       await OnlineStatusService().setOnline();
+
+      // Register OneSignal tags for student
+      try {
+        // Get user document to fetch section code and instructor ID
+        final userDoc =
+            await _firestore.collection('users').doc(refreshedUser.uid).get();
+        if (userDoc.exists) {
+          final userData = userDoc.data();
+          final sectionCode = userData?['selectedSectionCode']?.toString();
+          final instructorId = userData?['selectedInstructorId']?.toString();
+
+          await OneSignalHelper.registerStudentTags(
+            sectionCode: sectionCode,
+            instructorId: instructorId,
+          );
+        } else {
+          // User document doesn't exist yet, register basic tags
+          await OneSignalHelper.registerStudentTags();
+        }
+      } catch (e) {
+        log('Error registering OneSignal tags: $e');
+        // Continue login even if OneSignal fails
+      }
 
       return {
         'success': true,

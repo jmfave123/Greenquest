@@ -97,6 +97,106 @@ class UserAnnouncementController extends GetxController {
     }
   }
 
+  // Get user's section code
+  Future<String?> _getUserSectionCode() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final sectionCode = userData['selectedSectionCode']?.toString();
+        log('📚 Student section code: $sectionCode');
+        return sectionCode;
+      }
+      return null;
+    } catch (e) {
+      log('❌ Error getting user section code: $e');
+      return null;
+    }
+  }
+
+  // Get real-time stream of announcements for selected instructor
+  Stream<List<Map<String, dynamic>>> getAnnouncementsStream(
+    String instructorId,
+  ) {
+    if (instructorId.isEmpty) {
+      return Stream.value([]);
+    }
+
+    try {
+      return _firestore
+          .collection('instructors')
+          .doc(instructorId)
+          .collection('announcements')
+          .snapshots()
+          .asyncMap((snapshot) async {
+            // Get user's section code for filtering
+            final userSectionCode = await _getUserSectionCode();
+
+            List<Map<String, dynamic>> announcementList =
+                snapshot.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return {
+                    'id': doc.id,
+                    'title': data['title'] ?? '',
+                    'content': data['content'] ?? '',
+                    'date': _formatDate(data['createdAt']),
+                    'views': data['views'] ?? 0,
+                    'pinned': data['pinned'] ?? false,
+                    'urgent': data['urgent'] ?? false,
+                    'createdAt': data['createdAt'],
+                    'instructorName':
+                        data['instructorName'] ?? 'Unknown Instructor',
+                    'instructorProfileUrl': data['instructorProfileUrl'] ?? '',
+                    'imageUrl': data['imageUrl'] ?? '',
+                    'selectedClasses': data['selectedClasses'] ?? [],
+                  };
+                }).toList();
+
+            // Filter announcements by section if user has a section code
+            if (userSectionCode != null && userSectionCode.isNotEmpty) {
+              log('🔍 Filtering announcements for section: $userSectionCode');
+              announcementList =
+                  announcementList.where((announcement) {
+                    final selectedClasses = List<String>.from(
+                      announcement['selectedClasses'] ?? [],
+                    );
+
+                    // If announcement has no selected classes (legacy), show it to all
+                    if (selectedClasses.isEmpty) {
+                      return true;
+                    }
+
+                    // Check if user's section is in the selected classes
+                    return selectedClasses.contains(userSectionCode);
+                  }).toList();
+            }
+
+            // Sort announcements manually
+            announcementList.sort((a, b) {
+              // First sort by pinned status
+              if (a['pinned'] != b['pinned']) {
+                return (b['pinned'] as bool) ? 1 : -1;
+              }
+              // Then sort by creation date
+              if (a['createdAt'] != null && b['createdAt'] != null) {
+                DateTime dateA = (a['createdAt'] as Timestamp).toDate();
+                DateTime dateB = (b['createdAt'] as Timestamp).toDate();
+                return dateB.compareTo(dateA);
+              }
+              return 0;
+            });
+
+            return announcementList;
+          });
+    } catch (e) {
+      log('Error creating announcements stream: $e');
+      return Stream.value([]);
+    }
+  }
+
   // Load announcements from the selected instructor
   Future<void> loadAnnouncements(String instructorId) async {
     try {
@@ -108,6 +208,9 @@ class UserAnnouncementController extends GetxController {
       }
 
       log('Loading announcements for instructor: $instructorId');
+
+      // Get user's section code for filtering
+      final userSectionCode = await _getUserSectionCode();
 
       // Try to get announcements with ordering, fallback to simple query if ordering fails
       QuerySnapshot snapshot;
@@ -144,8 +247,50 @@ class UserAnnouncementController extends GetxController {
               'urgent': data['urgent'] ?? false,
               'createdAt': data['createdAt'],
               'instructorName': data['instructorName'] ?? 'Unknown Instructor',
+              'instructorProfileUrl': data['instructorProfileUrl'] ?? '',
+              'imageUrl': data['imageUrl'] ?? '',
+              'selectedClasses':
+                  data['selectedClasses'] ?? [], // Include selected classes
             };
           }).toList();
+
+      // Filter announcements by section if user has a section code
+      if (userSectionCode != null && userSectionCode.isNotEmpty) {
+        log('🔍 Filtering announcements for section: $userSectionCode');
+        announcementList =
+            announcementList.where((announcement) {
+              final selectedClasses = List<String>.from(
+                announcement['selectedClasses'] ?? [],
+              );
+
+              // If announcement has no selected classes (legacy), show it to all
+              if (selectedClasses.isEmpty) {
+                log(
+                  '✅ Announcement "${announcement['title']}" has no section filter, showing to all',
+                );
+                return true;
+              }
+
+              // Check if user's section is in the selected classes
+              final isMatch = selectedClasses.contains(userSectionCode);
+              if (isMatch) {
+                log(
+                  '✅ Announcement "${announcement['title']}" matches section $userSectionCode',
+                );
+              } else {
+                log(
+                  '❌ Skipping announcement "${announcement['title']}" - not for section $userSectionCode (targets: $selectedClasses)',
+                );
+              }
+              return isMatch;
+            }).toList();
+
+        log(
+          '📊 Filtered announcements: ${announcementList.length} out of ${snapshot.docs.length} match section $userSectionCode',
+        );
+      } else {
+        log('⚠️ No section code found for user, showing all announcements');
+      }
 
       // Sort announcements manually if needed
       announcementList.sort((a, b) {

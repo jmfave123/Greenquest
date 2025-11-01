@@ -53,14 +53,13 @@ class StudentSubmissionController extends GetxController {
 
       log('📚 Loading submission data for $activityType: $activityId');
 
-      final collection = _getCollectionName(activityType);
-
-      // Query for the student's submission
+      // Query unified submissions collection
       final query =
           await _firestore
-              .collection(collection)
+              .collection('submissions')
               .where('studentId', isEqualTo: user.uid)
-              .where('${activityType}Id', isEqualTo: activityId)
+              .where('activityType', isEqualTo: activityType.toLowerCase())
+              .where('activityId', isEqualTo: activityId)
               .limit(1)
               .get();
 
@@ -99,16 +98,15 @@ class StudentSubmissionController extends GetxController {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    final collection = _getCollectionName(activityType);
-
     // Cancel existing stream
     _submissionStream?.cancel();
 
-    // Create new stream
+    // Create new stream from unified submissions collection
     _submissionStream = _firestore
-        .collection(collection)
+        .collection('submissions')
         .where('studentId', isEqualTo: user.uid)
-        .where('${activityType}Id', isEqualTo: activityId)
+        .where('activityType', isEqualTo: activityType.toLowerCase())
+        .where('activityId', isEqualTo: activityId)
         .limit(1)
         .snapshots()
         .listen(
@@ -164,17 +162,10 @@ class StudentSubmissionController extends GetxController {
     }
   }
 
-  // Get collection name based on activity type
+  // Get collection name based on activity type (deprecated - kept for backwards compatibility)
+  @Deprecated('Use unified submissions collection directly')
   String _getCollectionName(String activityType) {
-    switch (activityType.toLowerCase()) {
-      case 'assignment':
-        return 'assignment_submissions';
-      case 'quiz':
-        return 'quiz_submissions';
-      case 'activity':
-      default:
-        return 'activity_submissions';
-    }
+    return 'submissions'; // Unified collection for all submission types
   }
 
   // Get status color for UI

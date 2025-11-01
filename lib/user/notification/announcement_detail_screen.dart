@@ -53,203 +53,241 @@ class AnnouncementDetailScreen extends StatelessWidget {
       ),
       backgroundColor: const Color(0xFFF7F8FA),
       body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF34A853)),
-          );
-        }
-
-        if (controller.announcements.isEmpty) {
+        if (!controller.hasValidInstructor) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.announcement_outlined,
-                  size: 64,
-                  color: Colors.grey,
-                ),
+                const Icon(Icons.person_off, size: 64, color: Colors.grey),
                 const SizedBox(height: 16),
                 const Text(
-                  'No Announcements Yet',
+                  'No Instructor Selected',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.grey,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Check back later for updates',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: controller.forceReload,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                  child: const Text(
-                    'Refresh',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Debug Info:\n'
-                  'Instructor: ${controller.selectedInstructorName.value}\n'
-                  'ID: ${controller.selectedInstructorId.value}\n'
-                  'Announcements Count: ${controller.announcements.length}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
               ],
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          itemCount: controller.announcements.length,
-          itemBuilder: (context, i) {
-            final a = controller.announcements[i];
-            Color? accent;
-            Widget? leading;
-            Widget? trailing;
-
-            if (a['urgent']) {
-              accent = const Color(0xFFFFE5E5);
-              leading = const Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.redAccent,
-              );
-              trailing = Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'Urgent',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              );
-            } else if (a['pinned']) {
-              accent = const Color(0xFFE8F5E8);
-              leading = const Icon(Icons.push_pin, color: Color(0xFF34A853));
-            } else {
-              accent = const Color(0xFFE3F0FF);
-              leading = const Icon(
-                Icons.announcement,
-                color: Color(0xFF2886D7),
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: controller.getAnnouncementsStream(
+            controller.selectedInstructorId.value,
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF34A853)),
               );
             }
-            return GestureDetector(
-              onTap: () => controller.updateViews(a['id']),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                      offset: Offset(0, 2),
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
+              );
+            }
+
+            final announcements = snapshot.data ?? [];
+
+            if (announcements.isEmpty) {
+              return Center(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(
+                    const Icon(
+                      Icons.announcement_outlined,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No Announcements Yet',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Check back later for updates',
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              itemCount: announcements.length,
+              itemBuilder: (context, i) {
+                final a = announcements[i];
+                Color? accent;
+                Widget? leading;
+                Widget? trailing;
+
+                if (a['urgent']) {
+                  accent = const Color(0xFFFFE5E5);
+                  leading = const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.redAccent,
+                  );
+                  trailing = Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Urgent',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                } else if (a['pinned']) {
+                  accent = const Color(0xFFE8F5E8);
+                  leading = const Icon(
+                    Icons.push_pin,
+                    color: Color(0xFF34A853),
+                  );
+                } else {
+                  accent = const Color(0xFFE3F0FF);
+                  leading = const Icon(
+                    Icons.announcement,
+                    color: Color(0xFF2886D7),
+                  );
+                }
+                return GestureDetector(
+                  onTap: () => controller.updateViews(a['id']),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: accent,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: leading,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: leading,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      a['title'],
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color:
-                                            a['pinned']
-                                                ? const Color(0xFF34A853)
-                                                : Colors.black,
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          a['title'],
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color:
+                                                a['pinned']
+                                                    ? const Color(0xFF34A853)
+                                                    : Colors.black,
+                                          ),
+                                        ),
                                       ),
+                                      if (trailing != null) ...[
+                                        const SizedBox(width: 8),
+                                        trailing,
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    a['content'],
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black87,
                                     ),
                                   ),
-                                  if (trailing != null) ...[
-                                    const SizedBox(width: 8),
-                                    trailing,
-                                  ],
                                 ],
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                a['content'],
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.black87,
-                                ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              a['date'],
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 16),
+                            const Icon(
+                              Icons.visibility,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${a['views']} views',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.calendar_today,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          a['date'],
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        const Icon(
-                          Icons.visibility,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${a['views']} views',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         );

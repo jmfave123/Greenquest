@@ -710,8 +710,9 @@ class AssignmentController extends GetxController {
 
       final query =
           await _firestore
-              .collection('assignment_submissions')
-              .where('assignmentId', isEqualTo: assignmentId)
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'assignment')
+              .where('activityId', isEqualTo: assignmentId)
               .where('studentId', isEqualTo: user.uid)
               .limit(1)
               .get();

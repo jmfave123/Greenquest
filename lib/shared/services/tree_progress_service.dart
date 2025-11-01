@@ -107,83 +107,34 @@ class TreeProgressService {
         );
       }
 
-      // Create streams for all submission collections
-      final assignmentStream =
-          _firestore
-              .collection('assignment_submissions')
-              .where('studentId', isEqualTo: userId)
-              .where('instructorId', isEqualTo: instructorId)
-              .where('sectionName', isEqualTo: sectionCode)
-              .snapshots();
-
-      final activityStream =
-          _firestore
-              .collection('activity_submissions')
-              .where('studentId', isEqualTo: userId)
-              .where('instructorId', isEqualTo: instructorId)
-              .where('sectionName', isEqualTo: sectionCode)
-              .snapshots();
-
-      final quizStream =
-          _firestore
-              .collection('quiz_submissions')
-              .where('studentId', isEqualTo: userId)
-              .where('instructorId', isEqualTo: instructorId)
-              .where('sectionName', isEqualTo: sectionCode)
-              .snapshots();
-
-      final pitStream =
+      // Create unified stream for all submission types
+      final allSubmissionsStream =
           _firestore
               .collection('submissions')
               .where('studentId', isEqualTo: userId)
               .where('instructorId', isEqualTo: instructorId)
               .where('sectionName', isEqualTo: sectionCode)
-              .where('activityType', isEqualTo: 'pit')
               .snapshots();
 
       // Combine all streams using StreamController
       final controller = StreamController<ProgressResult>();
-      StreamSubscription? assignmentSub;
-      StreamSubscription? activitySub;
-      StreamSubscription? quizSub;
-      StreamSubscription? pitSub;
+      StreamSubscription? allSubmissionsSub;
 
       // Emit initial value
       _calculateProgressForContext(userId, instructorId, sectionCode)
           .then((result) => controller.add(result))
           .catchError((e) => print('Error calculating initial progress: $e'));
 
-      // Listen to all submission streams
-      assignmentSub = assignmentStream.listen(
+      // Listen to unified submissions stream
+      allSubmissionsSub = allSubmissionsStream.listen(
         (_) =>
             _recalculateProgress(controller, userId, instructorId, sectionCode),
-        onError: (e) => print('Assignment stream error: $e'),
-      );
-
-      activitySub = activityStream.listen(
-        (_) =>
-            _recalculateProgress(controller, userId, instructorId, sectionCode),
-        onError: (e) => print('Activity stream error: $e'),
-      );
-
-      quizSub = quizStream.listen(
-        (_) =>
-            _recalculateProgress(controller, userId, instructorId, sectionCode),
-        onError: (e) => print('Quiz stream error: $e'),
-      );
-
-      pitSub = pitStream.listen(
-        (_) =>
-            _recalculateProgress(controller, userId, instructorId, sectionCode),
-        onError: (e) => print('PIT stream error: $e'),
+        onError: (e) => print('Submissions stream error: $e'),
       );
 
       // Clean up subscriptions when stream is cancelled
       controller.onCancel = () {
-        assignmentSub?.cancel();
-        activitySub?.cancel();
-        quizSub?.cancel();
-        pitSub?.cancel();
+        allSubmissionsSub?.cancel();
       };
 
       return controller.stream.distinct((prev, next) {
@@ -597,7 +548,7 @@ class TreeProgressService {
     }
   }
 
-  /// Fetch student's submissions with grades
+  /// Fetch student's submissions with grades from unified collection
   Future<Map<String, double>> _fetchStudentGrades(
     String studentId,
     String instructorId,
@@ -606,46 +557,45 @@ class TreeProgressService {
     final grades = <String, double>{};
 
     try {
-      // Fetch assignment submissions
-      await _fetchGradesFromCollection(
-        studentId,
-        instructorId,
-        sectionCode,
-        'assignment_submissions',
-        'assignmentId',
-        grades,
-      );
+      // Fetch all submissions from unified collection (single query)
+      Query<Map<String, dynamic>> query = _firestore
+          .collection('submissions')
+          .where('studentId', isEqualTo: studentId)
+          .where('instructorId', isEqualTo: instructorId)
+          .where('sectionName', isEqualTo: sectionCode);
 
-      // Fetch activity submissions
-      await _fetchGradesFromCollection(
-        studentId,
-        instructorId,
-        sectionCode,
-        'activity_submissions',
-        'activityId',
-        grades,
-      );
+      final snapshot = await query.get();
 
-      // Fetch quiz submissions
-      await _fetchGradesFromCollection(
-        studentId,
-        instructorId,
-        sectionCode,
-        'quiz_submissions',
-        'quizId',
-        grades,
-      );
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data == null) continue;
 
-      // Fetch PIT submissions
-      await _fetchGradesFromCollection(
-        studentId,
-        instructorId,
-        sectionCode,
-        'submissions',
-        'activityId',
-        grades,
-        activityType: 'pit',
-      );
+        final activityType = data['activityType'] as String?;
+        final activityId = data['activityId'] as String?;
+        final grade = data['grade'];
+
+        if (activityType != null && activityId != null && grade != null) {
+          // Get item details based on activityType
+          final itemDetails = await _getItemDetailsByActivityType(
+            activityId,
+            activityType,
+            instructorId,
+          );
+          if (itemDetails != null) {
+            final title = itemDetails['title'] as String?;
+            if (title != null) {
+              final key = _createGradeKey(title, activityId);
+              final gradeValue =
+                  (grade is num)
+                      ? grade.toDouble()
+                      : double.tryParse(grade.toString()) ?? 0.0;
+              if (gradeValue > 0) {
+                grades[key] = gradeValue;
+              }
+            }
+          }
+        }
+      }
     } catch (e) {
       print('❌ Error fetching student grades: $e');
     }
@@ -653,7 +603,8 @@ class TreeProgressService {
     return grades;
   }
 
-  /// Fetch grades from a submission collection and match to items
+  /// Fetch grades from a submission collection and match to items (legacy method - kept for backwards compatibility)
+  @Deprecated('Use _fetchStudentGrades which uses unified collection')
   Future<void> _fetchGradesFromCollection(
     String studentId,
     String instructorId,
@@ -663,13 +614,29 @@ class TreeProgressService {
     Map<String, double> grades, {
     String? activityType,
   }) async {
+    // This method is deprecated but kept for backwards compatibility
+    // It now uses the unified submissions collection
     try {
       Query<Map<String, dynamic>> query = _firestore
-          .collection(collection)
+          .collection('submissions')
           .where('studentId', isEqualTo: studentId)
           .where('instructorId', isEqualTo: instructorId)
           .where('sectionName', isEqualTo: sectionCode);
 
+      // Map collection to activityType if not provided
+      if (activityType == null) {
+        if (collection == 'assignment_submissions') {
+          activityType = 'assignment';
+        } else if (collection == 'activity_submissions') {
+          activityType = 'activity';
+        } else if (collection == 'quiz_submissions') {
+          activityType = 'quiz';
+        } else if (collection == 'submissions') {
+          activityType = 'pit';
+        }
+      }
+
+      // Add activityType filter
       if (activityType != null) {
         query = query.where('activityType', isEqualTo: activityType);
       }
@@ -679,20 +646,20 @@ class TreeProgressService {
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>?;
         if (data == null) continue;
-        final itemId = data[idField] as String?;
+        final activityId = data['activityId'] as String?; // Unified activity ID
         final grade = data['grade'];
 
-        if (itemId != null && grade != null) {
+        if (activityId != null && grade != null && activityType != null) {
           // Get item details to create the key
-          final itemDetails = await _getItemDetails(
-            itemId,
-            collection,
+          final itemDetails = await _getItemDetailsByActivityType(
+            activityId,
+            activityType,
             instructorId,
           );
           if (itemDetails != null) {
             final title = itemDetails['title'] as String?;
             if (title != null) {
-              final key = _createGradeKey(title, itemId);
+              final key = _createGradeKey(title, activityId);
               final gradeValue =
                   (grade is num)
                       ? grade.toDouble()
@@ -709,32 +676,37 @@ class TreeProgressService {
     }
   }
 
-  /// Get item details to construct the grade key
-  Future<Map<String, dynamic>?> _getItemDetails(
+  /// Get item details to construct the grade key (using activityType)
+  Future<Map<String, dynamic>?> _getItemDetailsByActivityType(
     String itemId,
-    String collection,
+    String activityType,
     String instructorId,
   ) async {
     try {
-      // Map collection to item type
-      String itemType = '';
-      if (collection == 'assignment_submissions') {
-        itemType = 'assignments';
-      } else if (collection == 'activity_submissions') {
-        itemType = 'activities';
-      } else if (collection == 'quiz_submissions') {
-        itemType = 'quizzes';
-      } else if (collection == 'submissions') {
-        itemType = 'pits';
+      // Map activityType to item collection type
+      String itemCollection = '';
+      switch (activityType.toLowerCase()) {
+        case 'assignment':
+          itemCollection = 'assignments';
+          break;
+        case 'activity':
+          itemCollection = 'activities';
+          break;
+        case 'quiz':
+          itemCollection = 'quizzes';
+          break;
+        case 'pit':
+          itemCollection = 'pits';
+          break;
+        default:
+          return null;
       }
-
-      if (itemType.isEmpty) return null;
 
       final doc =
           await _firestore
               .collection('instructors')
               .doc(instructorId)
-              .collection(itemType)
+              .collection(itemCollection)
               .doc(itemId)
               .get();
 
@@ -742,9 +714,33 @@ class TreeProgressService {
         return doc.data();
       }
     } catch (e) {
-      print('❌ Error getting item details for $itemId: $e');
+      print('❌ Error getting item details for $itemId ($activityType): $e');
     }
     return null;
+  }
+
+  /// Get item details to construct the grade key (legacy method - kept for backwards compatibility)
+  @Deprecated('Use _getItemDetailsByActivityType instead')
+  Future<Map<String, dynamic>?> _getItemDetails(
+    String itemId,
+    String collection,
+    String instructorId,
+  ) async {
+    // Map collection to activityType for backwards compatibility
+    String activityType = '';
+    if (collection == 'assignment_submissions') {
+      activityType = 'assignment';
+    } else if (collection == 'activity_submissions') {
+      activityType = 'activity';
+    } else if (collection == 'quiz_submissions') {
+      activityType = 'quiz';
+    } else if (collection == 'submissions') {
+      activityType = 'pit';
+    }
+
+    if (activityType.isEmpty) return null;
+
+    return _getItemDetailsByActivityType(itemId, activityType, instructorId);
   }
 
   /// Create the grade key based on title and ID (matches class record logic)

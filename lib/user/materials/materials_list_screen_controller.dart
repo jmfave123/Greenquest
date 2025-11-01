@@ -848,4 +848,138 @@ class MaterialsListScreenController extends GetxController {
       print('❌ Error loading all materials: $e');
     }
   }
+
+  /// Get real-time stream of materials for current instructor
+  Stream<List<Map<String, dynamic>>> getMaterialsStream() {
+    try {
+      if (currentInstructorUid.value.isNotEmpty) {
+        // Stream materials for specific instructor
+        return _firestore
+            .collection('instructors')
+            .doc(currentInstructorUid.value)
+            .collection('materials')
+            .orderBy('createdAt', descending: true)
+            .snapshots()
+            .asyncMap((snapshot) async {
+              final instructorName = currentInstructorName.value;
+              final sectionCode = userSectionCode.value;
+
+              final filteredMaterials = <Map<String, dynamic>>[];
+
+              for (var materialDoc in snapshot.docs) {
+                final materialData = materialDoc.data();
+                final selectedClasses = List<String>.from(
+                  materialData['selectedClasses'] ?? [],
+                );
+
+                // Apply section filtering if user has a section code
+                bool shouldInclude = true;
+                if (sectionCode.isNotEmpty) {
+                  shouldInclude = selectedClasses.contains(sectionCode);
+                }
+
+                if (shouldInclude) {
+                  final materialMap = <String, dynamic>{
+                    'id': materialDoc.id,
+                    'title': materialData['title']?.toString() ?? 'No Title',
+                    'description':
+                        materialData['description']?.toString() ??
+                        'No description available',
+                    'selectedClasses': selectedClasses,
+                    'attachments': materialData['attachments'] ?? [],
+                    'instructorId': currentInstructorUid.value,
+                    'instructorName': instructorName,
+                    'createdAt': _formatDate(materialData['createdAt']),
+                    'updatedAt': _formatDate(materialData['updatedAt']),
+                    'status': materialData['status']?.toString() ?? 'active',
+                    'type': materialData['type']?.toString() ?? 'Material',
+                  };
+
+                  if (materialMap['title'] != null &&
+                      materialMap['title'] != 'No Title') {
+                    filteredMaterials.add(materialMap);
+                  }
+                }
+              }
+
+              return filteredMaterials;
+            });
+      } else {
+        // Stream all materials from all instructors
+        return _firestore
+            .collectionGroup('materials')
+            .orderBy('createdAt', descending: true)
+            .snapshots()
+            .asyncMap((snapshot) async {
+              final sectionCode = userSectionCode.value;
+              final allMaterials = <Map<String, dynamic>>[];
+
+              for (var materialDoc in snapshot.docs) {
+                final materialData = materialDoc.data();
+                final selectedClasses = List<String>.from(
+                  materialData['selectedClasses'] ?? [],
+                );
+
+                // Get instructor ID from path
+                final pathParts = materialDoc.reference.path.split('/');
+                final instructorId = pathParts.length > 1 ? pathParts[1] : '';
+
+                // Get instructor name
+                String instructorName = 'Unknown Instructor';
+                if (instructorId.isNotEmpty) {
+                  try {
+                    final instructorDoc =
+                        await _firestore
+                            .collection('instructors')
+                            .doc(instructorId)
+                            .get();
+                    if (instructorDoc.exists) {
+                      final instructorData = instructorDoc.data() ?? {};
+                      instructorName =
+                          instructorData['name']?.toString() ??
+                          'Unknown Instructor';
+                    }
+                  } catch (e) {
+                    print('Error loading instructor name: $e');
+                  }
+                }
+
+                // Apply section filtering if user has a section code
+                bool shouldInclude = true;
+                if (sectionCode.isNotEmpty) {
+                  shouldInclude = selectedClasses.contains(sectionCode);
+                }
+
+                if (shouldInclude) {
+                  final materialMap = <String, dynamic>{
+                    'id': materialDoc.id,
+                    'title': materialData['title']?.toString() ?? 'No Title',
+                    'description':
+                        materialData['description']?.toString() ??
+                        'No description available',
+                    'selectedClasses': selectedClasses,
+                    'attachments': materialData['attachments'] ?? [],
+                    'instructorId': instructorId,
+                    'instructorName': instructorName,
+                    'createdAt': _formatDate(materialData['createdAt']),
+                    'updatedAt': _formatDate(materialData['updatedAt']),
+                    'status': materialData['status']?.toString() ?? 'active',
+                    'type': materialData['type']?.toString() ?? 'Material',
+                  };
+
+                  if (materialMap['title'] != null &&
+                      materialMap['title'] != 'No Title') {
+                    allMaterials.add(materialMap);
+                  }
+                }
+              }
+
+              return allMaterials;
+            });
+      }
+    } catch (e) {
+      print('❌ Error creating materials stream: $e');
+      return Stream.value([]);
+    }
+  }
 }

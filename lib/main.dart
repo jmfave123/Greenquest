@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:greenquest/instructor/message/message_list_screen.dart';
 import 'package:greenquest/instructor/report/class_report_screen.dart';
 import 'package:greenquest/instructor/report/report_screen.dart';
@@ -44,6 +45,19 @@ void main() async {
   await Future.delayed(const Duration(milliseconds: 100));
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize OneSignal only on mobile platforms (not web)
+  if (!kIsWeb) {
+    try {
+      OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+      OneSignal.initialize("679023d3-f6ec-425a-8370-8828fbdac926");
+      OneSignal.Notifications.requestPermission(false);
+      print('✅ OneSignal initialized (mobile only)');
+    } catch (e) {
+      print('⚠️ OneSignal initialization error (non-critical): $e');
+      // Don't throw - allow app to continue even if OneSignal fails
+    }
+  }
 
   // Initialize online status service
   OnlineStatusService().initialize();

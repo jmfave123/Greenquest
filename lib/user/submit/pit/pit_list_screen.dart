@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:greenquest/user/submit/pit/pit_detail_screen.dart';
 import 'pit_controller.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
@@ -35,6 +36,51 @@ class _PitListScreenState extends State<PitListScreen> {
   void dispose() {
     // Don't delete the controller as it's permanent
     super.dispose();
+  }
+
+  /// Build real-time stream for PITs
+  Stream<QuerySnapshot>? _buildPitsStream(String instructorId) {
+    if (controller == null || instructorId.isEmpty) return null;
+
+    final firestore = FirebaseFirestore.instance;
+
+    // Use asyncExpand to first get section code, then build the stream
+    return Stream.fromFuture(_getUserSectionCode()).asyncExpand((sectionCode) {
+      Query query = firestore
+          .collection('instructors')
+          .doc(instructorId)
+          .collection('pits')
+          .orderBy('createdAt', descending: true);
+
+      if (sectionCode != null && sectionCode.isNotEmpty) {
+        query = query.where('selectedClasses', arrayContains: sectionCode);
+      }
+
+      return query.snapshots();
+    });
+  }
+
+  /// Get user's section code
+  Future<String?> _getUserSectionCode() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        return userData['selectedSectionCode']?.toString();
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting user section code: $e');
+      return null;
+    }
   }
 
   Widget _buildStatusBadge(String status) {
@@ -229,63 +275,9 @@ class _PitListScreenState extends State<PitListScreen> {
                 itemBuilder: (context, i) => const SkeletonListItem(),
               )
               : Obx(() {
-                if (controller!.isLoading.value) {
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                    itemCount: 5,
-                    itemBuilder: (context, i) => const SkeletonListItem(),
-                  );
-                }
+                final instructorId = controller!.currentInstructorUid.value;
 
-                // Show error message if there's an error
-                if (controller!.errorMessage.value.isNotEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error Loading PITs',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: Text(
-                            controller!.errorMessage.value,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            controller!.clearError();
-                            controller!.refreshPits();
-                          },
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (controller!.pits.isEmpty) {
+                if (instructorId.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -296,138 +288,220 @@ class _PitListScreenState extends State<PitListScreen> {
                           color: Colors.grey,
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          controller!.currentInstructorUid.value.isNotEmpty
-                              ? 'No PITs posted yet'
-                              : 'Please select an instructor first',
-                          style: const TextStyle(
+                        const Text(
+                          'Please select an instructor first',
+                          style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          controller!.currentInstructorUid.value.isNotEmpty
-                              ? 'This instructor has not posted any PITs yet'
-                              : 'Go to Course Selection to choose your instructor',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
+                        const Text(
+                          'Go to Course Selection to choose your instructor',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                       ],
                     ),
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
-                  itemCount: controller!.pits.length,
-                  itemBuilder: (context, i) {
-                    final pit = controller!.pits[i];
-
-                    // Validate pit data before navigation
-                    if (pit.isEmpty) {
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _buildPitsStream(instructorId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
                         ),
-                        child: const Center(
-                          child: Text(
-                            'Invalid PIT',
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                        itemCount: 5,
+                        itemBuilder: (context, i) => const SkeletonListItem(),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Error: ${snapshot.error}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       );
                     }
 
-                    return GestureDetector(
-                      onTap: () {
-                        // Double-check pit is valid before navigation
-                        if (pit.isNotEmpty) {
-                          controller!.setSelectedPit(pit);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PitDetailScreen(pit: pit),
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.engineering_outlined,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No PITs posted yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'This instructor has not posted any PITs yet',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final pits =
+                        snapshot.data!.docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final instructorName =
+                              controller!.currentInstructorName.value.isNotEmpty
+                                  ? controller!.currentInstructorName.value
+                                  : data['instructorName']?.toString() ??
+                                      'Unknown Instructor';
+                          return {
+                            'id': doc.id,
+                            ...data,
+                            'instructorName': instructorName,
+                          };
+                        }).toList();
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      itemCount: pits.length,
+                      itemBuilder: (context, i) {
+                        final pit = pits[i];
+
+                        // Validate pit data before navigation
+                        if (pit.isEmpty) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'Invalid PIT',
+                                style: TextStyle(color: Colors.grey),
+                              ),
                             ),
                           );
                         }
+
+                        return GestureDetector(
+                          onTap: () {
+                            if (pit.isNotEmpty && controller != null) {
+                              controller!.setSelectedPit(pit);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PitDetailScreen(pit: pit),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF34A853),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.engineering,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${pit['instructorName']} posted new PIT: ${pit['title']}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 15,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _formatDisplayDate(pit['createdAt']),
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                // Status Badge
+                                Obx(() {
+                                  final pitId = pit['id']?.toString();
+                                  final status =
+                                      controller?.submissionStatus[pitId] ??
+                                      'not_submitted';
+                                  return _buildStatusBadge(status);
+                                }),
+                              ],
+                            ),
+                          ),
+                        );
                       },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF34A853),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.engineering,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${pit['instructorName']} posted new PIT: ${pit['title']}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 15,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _formatDisplayDate(pit['createdAt']),
-                                    style: const TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // Status Badge
-                            Obx(() {
-                              final pitId = pit['id']?.toString();
-                              final status =
-                                  controller?.submissionStatus[pitId] ??
-                                  'not_submitted';
-                              return _buildStatusBadge(status);
-                            }),
-                          ],
-                        ),
-                      ),
                     );
                   },
                 );

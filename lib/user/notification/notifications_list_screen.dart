@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../submit/assignment/assignment_detail_screen.dart';
 import '../submit/activity/activity_detail_screen.dart';
 import '../submit/quiz_new/quiz_detail_screen.dart';
 import '../submit/pit/pit_detail_screen.dart';
 import '../materials/materials_detail_screen.dart';
 import 'notification_controller.dart';
+import 'announcement_controller.dart';
+import '../../shared/services/in_app_notification_service.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 
 class NotificationsListScreen extends StatefulWidget {
   const NotificationsListScreen({super.key});
@@ -94,6 +98,46 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     }
   }
 
+  /// Format material date to match the format used in materials list
+  String _formatMaterialDate(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown Date';
+
+    try {
+      DateTime date;
+      if (timestamp is Timestamp) {
+        date = timestamp.toDate();
+      } else if (timestamp is DateTime) {
+        date = timestamp;
+      } else if (timestamp is String) {
+        date = DateTime.parse(timestamp);
+      } else {
+        return 'Unknown Date';
+      }
+
+      // Format as "January 1, 2025" to match the UI design
+      const months = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+
+      final month = months[date.month - 1];
+      return '$month ${date.day}, ${date.year}';
+    } catch (e) {
+      print('Error formatting material date: $e');
+      return 'Unknown Date';
+    }
+  }
+
   Future<void> _markNotificationAsRead(
     Map<String, dynamic> notification,
   ) async {
@@ -122,10 +166,30 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     );
 
     try {
-      final itemId = notification['itemId']?.toString();
+      // For graded notifications, extract activity type from metadata
+      String notificationType = type.toLowerCase();
+      String? itemId = notification['itemId']?.toString();
       final instructorId = notification['instructorId']?.toString();
+      final metadata = notification['metadata'] as Map<String, dynamic>?;
 
-      if (itemId == null || instructorId == null) {
+      // If it's a graded notification, use the activityType from metadata
+      if (notificationType == 'graded' && metadata != null) {
+        final activityType = metadata['activityType']?.toString() ?? '';
+        if (activityType.isNotEmpty) {
+          notificationType = activityType.toLowerCase();
+        }
+        // Use itemId from notification (which should be activityId)
+        // or fallback to metadata if needed
+        if (itemId == null || itemId.isEmpty) {
+          // itemId should already be set from the notification, but just in case
+          itemId = metadata['activityId']?.toString();
+        }
+      }
+
+      if (itemId == null ||
+          itemId.isEmpty ||
+          instructorId == null ||
+          instructorId.isEmpty) {
         Get.back(); // Close loading dialog
         Get.snackbar(
           'Error',
@@ -139,7 +203,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
       // Fetch the specific document
       DocumentSnapshot doc;
-      switch (type.toLowerCase()) {
+      switch (notificationType) {
         case 'assignment':
           doc =
               await FirebaseFirestore.instance
@@ -185,6 +249,15 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                   .doc(itemId)
                   .get();
           break;
+        case 'announcement':
+          doc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .collection('announcements')
+                  .doc(itemId)
+                  .get();
+          break;
         default:
           Get.back(); // Close loading dialog
           Get.snackbar(
@@ -211,10 +284,39 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
       }
 
       // Navigate to the specific detail screen
+      // This will show the student their graded submission with score and feedback
       final data = doc.data() as Map<String, dynamic>;
       data['id'] = doc.id; // Add document ID to the data
 
-      switch (type.toLowerCase()) {
+      // For materials, we need to format the data properly
+      if (notificationType == 'material') {
+        // Fetch instructor name
+        try {
+          final instructorDoc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .get();
+
+          if (instructorDoc.exists) {
+            final instructorData = instructorDoc.data() as Map<String, dynamic>;
+            data['instructorName'] =
+                instructorData['name']?.toString() ?? 'Unknown Instructor';
+          } else {
+            data['instructorName'] = 'Unknown Instructor';
+          }
+        } catch (e) {
+          print('Error fetching instructor name: $e');
+          data['instructorName'] = 'Unknown Instructor';
+        }
+
+        // Format the createdAt timestamp
+        if (data['createdAt'] != null) {
+          data['createdAt'] = _formatMaterialDate(data['createdAt']);
+        }
+      }
+
+      switch (notificationType) {
         case 'assignment':
           Get.to(() => AssignmentDetailScreen(assignment: data));
           break;
@@ -230,6 +332,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         case 'material':
           Get.to(() => MaterialsDetailScreen(material: data));
           break;
+        case 'announcement':
+          // Show announcement dialog and update views
+          _showAnnouncementDialogFromNotification(data, instructorId);
+          break;
       }
     } catch (e) {
       Get.back(); // Close loading dialog
@@ -243,49 +349,547 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     }
   }
 
+  // Show announcement dialog from notification click
+  void _showAnnouncementDialogFromNotification(
+    Map<String, dynamic> announcementData,
+    String instructorId,
+  ) async {
+    // Update views for the announcement
+    try {
+      final announcementId = announcementData['id']?.toString();
+      if (announcementId != null && announcementId.isNotEmpty) {
+        // Get or create announcement controller to update views
+        UserAnnouncementController? announcementController;
+        try {
+          announcementController = Get.find<UserAnnouncementController>();
+        } catch (e) {
+          // Controller not found, create it temporarily just to update views
+          announcementController = Get.put(UserAnnouncementController());
+        }
+
+        if (announcementController != null) {
+          // Update the instructor ID in controller if needed
+          announcementController.selectedInstructorId.value = instructorId;
+          // Update views
+          await announcementController.updateViews(announcementId);
+        }
+      }
+    } catch (e) {
+      print('Error updating announcement views: $e');
+    }
+
+    // Show the announcement dialog
+    _showAnnouncementDialogInNotifications(announcementData);
+  }
+
+  // Show announcement dialog (extracted from announcement_screen_wrapper)
+  void _showAnnouncementDialogInNotifications(
+    Map<String, dynamic> announcement,
+  ) {
+    final title = announcement['title'] ?? 'No Title';
+    final content = announcement['content'] ?? 'No content available';
+    final timestamp = announcement['createdAt'] ?? announcement['timestamp'];
+    final instructorName = announcement['instructorName'] ?? 'Instructor';
+    final instructorProfileUrl = announcement['instructorProfileUrl'] ?? '';
+    final imageUrl = announcement['imageUrl'] ?? '';
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.9,
+              maxWidth: 600,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with gradient
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 16, 20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF34A853), Color(0xFF2E7D32)],
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.25),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.campaign_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (timestamp != null) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.access_time_rounded,
+                                    size: 14,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _formatTimestamp(timestamp),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Main content area
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Instructor info card
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF34A853,
+                                  ).withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF34A853,
+                                    ).withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    _buildInstructorAvatar(
+                                      instructorProfileUrl,
+                                      instructorName,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            instructorName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                              color: Color(0xFF34A853),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.person_outline_rounded,
+                                                size: 14,
+                                                color: Colors.grey[600],
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Instructor',
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              // Content section
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 4,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF34A853),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Announcement',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.grey[200]!,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  content,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    height: 1.7,
+                                    color: Colors.black87,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                              // Announcement image (if available) - At bottom
+                              if (imageUrl.isNotEmpty) ...[
+                                const SizedBox(height: 24),
+                                Container(
+                                  width: double.infinity,
+                                  height: 220,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: Image.network(
+                                          imageUrl,
+                                          width: double.infinity,
+                                          height: 220,
+                                          fit: BoxFit.cover,
+                                          loadingBuilder: (
+                                            context,
+                                            child,
+                                            loadingProgress,
+                                          ) {
+                                            if (loadingProgress == null)
+                                              return child;
+                                            return Container(
+                                              color: Colors.grey[100],
+                                              child: Center(
+                                                child: CircularProgressIndicator(
+                                                  value:
+                                                      loadingProgress
+                                                                  .expectedTotalBytes !=
+                                                              null
+                                                          ? loadingProgress
+                                                                  .cumulativeBytesLoaded /
+                                                              loadingProgress
+                                                                  .expectedTotalBytes!
+                                                          : null,
+                                                  color: const Color(
+                                                    0xFF34A853,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          errorBuilder: (
+                                            context,
+                                            error,
+                                            stackTrace,
+                                          ) {
+                                            return Container(
+                                              color: Colors.grey[200],
+                                              child: const Center(
+                                                child: Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .broken_image_outlined,
+                                                      size: 56,
+                                                      color: Colors.grey,
+                                                    ),
+                                                    SizedBox(height: 12),
+                                                    Text(
+                                                      'Failed to load image',
+                                                      style: TextStyle(
+                                                        color: Colors.grey,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        // Bottom button
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: const BorderRadius.only(
+                              bottomLeft: Radius.circular(24),
+                              bottomRight: Radius.circular(24),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Flexible(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  icon: const Icon(
+                                    Icons.check_circle_outline,
+                                    size: 18,
+                                  ),
+                                  label: const Text(
+                                    'Mark as Read',
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF34A853),
+                                    side: const BorderSide(
+                                      color: Color(0xFF34A853),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Build instructor avatar
+  Widget _buildInstructorAvatar(String profileUrl, String instructorName) {
+    if (profileUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          profileUrl,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildInitialsAvatar(instructorName);
+          },
+        ),
+      );
+    }
+    return _buildInitialsAvatar(instructorName);
+  }
+
+  // Build initials avatar
+  Widget _buildInitialsAvatar(String name) {
+    final initials =
+        name.isNotEmpty
+            ? name.split(' ').map((e) => e[0]).take(2).join().toUpperCase()
+            : 'I';
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: const Color(0xFF34A853),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Obx(
-          () => Row(
-            children: [
-              const Text(
+        title: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: InAppNotificationService.getStudentNotificationsStream(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Text(
                 'Notifications',
                 style: TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
                 ),
-              ),
-              if (controller.unreadCount.value > 0) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF34A853),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${controller.unreadCount.value}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+              );
+            }
+
+            final notifications = snapshot.data ?? [];
+            final user = FirebaseAuth.instance.currentUser;
+            final userId = user?.uid ?? '';
+            int unreadCount = 0;
+
+            for (var notification in notifications) {
+              final readBy = List<String>.from(notification['readBy'] ?? []);
+              if (!readBy.contains(userId)) {
+                unreadCount++;
+              }
+            }
+
+            return Row(
+              children: [
+                const Text(
+                  'Notifications',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (unreadCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF34A853),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
+            );
+          },
         ),
         centerTitle: true,
         actions: [
@@ -296,21 +900,43 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         ],
       ),
       backgroundColor: Colors.white,
-      body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF34A853)),
-            ),
-          );
-        }
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: InAppNotificationService.getStudentNotificationsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: 6,
+              itemBuilder: (context, index) => const SkeletonListItem(),
+            );
+          }
 
-        if (controller.notifications.isEmpty) {
-          return _buildEmptyState();
-        }
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading notifications: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
 
-        return _buildNotificationsList();
-      }),
+          final notifications = snapshot.data ?? [];
+
+          if (notifications.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          return _buildNotificationsList(notifications);
+        },
+      ),
     );
   }
 
@@ -357,179 +983,181 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     );
   }
 
-  Widget _buildNotificationsList() {
-    return Obx(
-      () => ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: controller.notifications.length,
-        itemBuilder: (context, index) {
-          final notification = controller.notifications[index];
-          final type = notification['type']?.toString() ?? 'activity';
-          final title = notification['title']?.toString() ?? 'New notification';
-          final description = notification['description']?.toString() ?? '';
-          final instructorName =
-              notification['instructorName']?.toString() ?? '';
-          final isRead = notification['isRead'] ?? false;
-          final timestamp = notification['createdAt'];
-          final color = _getNotificationColor(type);
-          final icon = _getNotificationIcon(type);
+  Widget _buildNotificationsList(List<Map<String, dynamic>> notifications) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid ?? '';
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: isRead ? Colors.grey[50] : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isRead ? Colors.grey[200]! : color.withOpacity(0.3),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: notifications.length,
+      itemBuilder: (context, index) {
+        final notification = notifications[index];
+        final type = notification['type']?.toString() ?? 'activity';
+        final title = notification['title']?.toString() ?? 'New notification';
+        final description = notification['description']?.toString() ?? '';
+        final instructorName = notification['instructorName']?.toString() ?? '';
+        // Check if notification is read by checking readBy array
+        final readBy = List<String>.from(notification['readBy'] ?? []);
+        final isRead = userId.isNotEmpty && readBy.contains(userId);
+        final timestamp = notification['createdAt'];
+        final color = _getNotificationColor(type);
+        final icon = _getNotificationIcon(type);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: isRead ? Colors.grey[50] : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isRead ? Colors.grey[200]! : color.withOpacity(0.3),
+              width: 1,
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => _navigateToRelatedScreen(type, notification),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Icon container
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(icon, color: color, size: 24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _navigateToRelatedScreen(type, notification),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon container
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 12),
-                      // Content area
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Title and unread indicator
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    title,
-                                    style: TextStyle(
-                                      fontWeight:
-                                          isRead
-                                              ? FontWeight.w600
-                                              : FontWeight.bold,
-                                      fontSize: 15,
-                                      color:
-                                          isRead
-                                              ? Colors.grey[700]
-                                              : Colors.black87,
-                                      height: 1.2,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                      child: Icon(icon, color: color, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    // Content area
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Title and unread indicator
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontWeight:
+                                        isRead
+                                            ? FontWeight.w600
+                                            : FontWeight.bold,
+                                    fontSize: 15,
+                                    color:
+                                        isRead
+                                            ? Colors.grey[700]
+                                            : Colors.black87,
+                                    height: 1.2,
                                   ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(width: 8),
-                                if (!isRead)
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF34A853),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            // Description
-                            if (description.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                description,
-                                style: TextStyle(
-                                  color:
-                                      isRead
-                                          ? Colors.grey[600]
-                                          : Colors.grey[700],
-                                  fontSize: 13,
-                                  height: 1.3,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ],
-                            const SizedBox(height: 8),
-                            // Footer info
-                            Wrap(
-                              children: [
-                                if (instructorName.isNotEmpty) ...[
-                                  Text(
-                                    'From: $instructorName',
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '•',
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                Flexible(
-                                  child: Text(
-                                    _formatTimestamp(timestamp),
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                              const SizedBox(width: 8),
+                              if (!isRead)
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF34A853),
+                                    shape: BoxShape.circle,
                                   ),
                                 ),
-                              ],
+                            ],
+                          ),
+                          // Description
+                          if (description.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              description,
+                              style: TextStyle(
+                                color:
+                                    isRead
+                                        ? Colors.grey[600]
+                                        : Colors.grey[700],
+                                fontSize: 13,
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
-                        ),
+                          const SizedBox(height: 8),
+                          // Footer info
+                          Wrap(
+                            children: [
+                              if (instructorName.isNotEmpty) ...[
+                                Text(
+                                  'From: $instructorName',
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '•',
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  _formatTimestamp(timestamp),
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      // Navigation indicator
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: isRead ? Colors.grey[400] : color,
-                        ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Navigation indicator
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ],
-                  ),
+                      child: Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: isRead ? Colors.grey[400] : color,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

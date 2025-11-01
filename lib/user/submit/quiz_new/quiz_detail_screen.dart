@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:greenquest/user/submit/assignment/assignment_controller.dart';
 import 'package:greenquest/shared/services/file_upload_service.dart';
+import 'package:greenquest/shared/services/file_download_service.dart';
+import 'package:greenquest/shared/utils/file_type_utils.dart';
 import 'package:greenquest/user/submit/student_submission_controller.dart';
 import 'package:greenquest/user/submit/file_picker_screen.dart';
 import 'package:greenquest/shared/controllers/file_submission_controller.dart';
@@ -206,6 +208,11 @@ class _QuizDetailScreenState extends State<QuizDetailScreen>
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
+        title: const Text(
+          'Submission Details',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
       ),
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
@@ -666,19 +673,80 @@ class _QuizDetailScreenState extends State<QuizDetailScreen>
                                         const SizedBox(width: 10),
                                         if (fileData['url'] != null)
                                           IconButton(
-                                            onPressed: () {
-                                              Get.snackbar(
-                                                'File Link',
-                                                'File: ${fileData['name']}',
-                                                snackPosition:
-                                                    SnackPosition.TOP,
-                                              );
+                                            onPressed: () async {
+                                              final fileUrl =
+                                                  fileData['url']?.toString() ??
+                                                  '';
+                                              final fileName =
+                                                  fileData['name']
+                                                      ?.toString() ??
+                                                  'file';
+                                              String fileType =
+                                                  fileData['type']
+                                                      ?.toString() ??
+                                                  '';
+
+                                              if (fileUrl.isEmpty) {
+                                                Get.snackbar(
+                                                  'Error',
+                                                  'File URL not available',
+                                                  snackPosition:
+                                                      SnackPosition.TOP,
+                                                  backgroundColor: Colors.red,
+                                                  colorText: Colors.white,
+                                                );
+                                                return;
+                                              }
+
+                                              // If type is missing or 'unknown', extract from filename
+                                              if (fileType.isEmpty ||
+                                                  fileType == 'unknown') {
+                                                final fileNameParts = fileName
+                                                    .split('.');
+                                                if (fileNameParts.length > 1) {
+                                                  fileType =
+                                                      fileNameParts.last
+                                                          .toLowerCase();
+                                                }
+                                              }
+
+                                              try {
+                                                // Check if file is an image
+                                                if (FileTypeUtils.isImageFile(
+                                                  fileType,
+                                                )) {
+                                                  // Show image preview dialog instead of downloading
+                                                  FileDownloadService.showImagePreviewDialog(
+                                                    context,
+                                                    fileUrl,
+                                                    fileName,
+                                                  );
+                                                } else {
+                                                  // Use FileDownloadService to handle non-image file opening
+                                                  await FileDownloadService.handleFileAction(
+                                                    fileUrl: fileUrl,
+                                                    fileName: fileName,
+                                                    fileType: fileType,
+                                                    context: context,
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                Get.snackbar(
+                                                  'Error',
+                                                  'Failed to open file: ${e.toString()}',
+                                                  snackPosition:
+                                                      SnackPosition.TOP,
+                                                  backgroundColor: Colors.red,
+                                                  colorText: Colors.white,
+                                                );
+                                              }
                                             },
                                             icon: const Icon(
                                               Icons.open_in_new,
                                               color: Colors.blue,
                                               size: 20,
                                             ),
+                                            tooltip: 'Open file',
                                           ),
                                       ],
                                     ),

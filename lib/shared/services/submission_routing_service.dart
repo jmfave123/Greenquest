@@ -35,11 +35,13 @@ class SubmissionRoutingService {
       // Update submission data with correct routing information
       final routedSubmissionData = {
         ...submissionData,
-        'activityId': activityId,
+        'activityId': activityId, // Unified activity ID field
+        'activityType':
+            submissionType
+                .toLowerCase(), // Unified activity type ('assignment', 'activity', 'quiz', 'pit')
         'instructorId': activityInfo['instructorId'],
         'instructorName': activityInfo['instructorName'],
         'activityTitle': activityInfo['title'],
-        'activityType': activityInfo['type'],
         'routedAt': FieldValue.serverTimestamp(),
         'routingStatus': 'success',
         // Add assigned semester if available
@@ -61,16 +63,19 @@ class SubmissionRoutingService {
         );
       }
 
-      // Save the routed submission
-      final collectionName = _getSubmissionCollectionName(submissionType);
+      // Save the routed submission to unified submissions collection
+      // Add activityType to submission data
+      routedSubmissionData['activityType'] = submissionType.toLowerCase();
+
       final docRef = await _firestore
-          .collection(collectionName)
+          .collection('submissions')
           .add(routedSubmissionData);
 
       dev.log(
-        '✅ Submission routed successfully to collection: $collectionName',
+        '✅ Submission routed successfully to unified submissions collection',
       );
       dev.log('✅ Submission ID: ${docRef.id}');
+      dev.log('✅ Activity Type: ${submissionType.toLowerCase()}');
 
       // Trigger real-time update for instructor
       await _notifyInstructorOfNewSubmission(
@@ -124,11 +129,13 @@ class SubmissionRoutingService {
       // Base routed payload
       final routedSubmissionData = {
         ...submissionData,
-        'activityId': activityId,
+        'activityId': activityId, // Unified activity ID field
+        'activityType':
+            submissionType
+                .toLowerCase(), // Unified activity type ('assignment', 'activity', 'quiz', 'pit')
         'instructorId': activityInfo['instructorId'],
         'instructorName': activityInfo['instructorName'],
         'activityTitle': activityInfo['title'],
-        'activityType': activityInfo['type'],
         'routedAt': FieldValue.serverTimestamp(),
         'routingStatus': 'success',
         // Add assigned semester if available
@@ -149,9 +156,12 @@ class SubmissionRoutingService {
         dev.log('📍 Routed by student section: ${sectionInfo['sectionName']}');
       }
 
-      final collectionName = _getSubmissionCollectionName(submissionType);
+      // Save to unified submissions collection
+      // Add activityType to submission data
+      routedSubmissionData['activityType'] = submissionType.toLowerCase();
+
       final docRef = await _firestore
-          .collection(collectionName)
+          .collection('submissions')
           .add(routedSubmissionData);
 
       await _notifyInstructorOfNewSubmission(
@@ -494,19 +504,11 @@ class SubmissionRoutingService {
   }
 
   /// Gets the appropriate collection name for submission type
+  /// NOTE: Now all submissions use unified 'submissions' collection
+  /// This method is kept for backwards compatibility but always returns 'submissions'
+  @Deprecated('Use unified submissions collection directly')
   static String _getSubmissionCollectionName(String submissionType) {
-    switch (submissionType.toLowerCase()) {
-      case 'assignment':
-        return 'assignment_submissions';
-      case 'activity':
-        return 'activity_submissions';
-      case 'quiz':
-        return 'quiz_submissions';
-      case 'pit':
-        return 'submissions';
-      default:
-        return 'activity_submissions';
-    }
+    return 'submissions'; // Unified collection for all submission types
   }
 
   /// Gets the appropriate collection name for activity type
@@ -531,11 +533,10 @@ class SubmissionRoutingService {
     String activityId,
     String submissionType,
   ) {
-    final collectionName = _getSubmissionCollectionName(submissionType);
-
     return _firestore
-        .collection(collectionName)
+        .collection('submissions')
         .where('instructorId', isEqualTo: instructorId)
+        .where('activityType', isEqualTo: submissionType.toLowerCase())
         .where('activityId', isEqualTo: activityId)
         .orderBy('submittedAt', descending: true)
         .snapshots();

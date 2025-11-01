@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'dart:convert';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
@@ -203,6 +204,258 @@ class InstructorAnnouncementScreen extends StatelessWidget {
                                                   ),
                                             ),
                                           ),
+                                          const SizedBox(height: 15),
+                                          // Section selection
+                                          const Text(
+                                            'Target Sections',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Obx(() {
+                                            if (controller
+                                                .isLoadingSections
+                                                .value) {
+                                              return Container(
+                                                padding: const EdgeInsets.all(
+                                                  16,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  border: Border.all(
+                                                    color: Colors.grey[300]!,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Center(
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        color: Color(
+                                                          0xFF34A853,
+                                                        ),
+                                                      ),
+                                                ),
+                                              );
+                                            }
+
+                                            return Container(
+                                              decoration: BoxDecoration(
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFF34A853,
+                                                  ),
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: ExpansionTile(
+                                                title: Obx(
+                                                  () => Text(
+                                                    controller
+                                                        .getSelectedSectionsText(),
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      color: Colors.black,
+                                                    ),
+                                                  ),
+                                                ),
+                                                trailing: const Icon(
+                                                  Icons.arrow_drop_down,
+                                                  color: Color(0xFF34A853),
+                                                ),
+                                                backgroundColor:
+                                                    Colors.transparent,
+                                                collapsedBackgroundColor:
+                                                    Colors.transparent,
+                                                children:
+                                                    controller
+                                                            .availableSections
+                                                            .isEmpty
+                                                        ? [
+                                                          const Padding(
+                                                            padding:
+                                                                EdgeInsets.all(
+                                                                  16,
+                                                                ),
+                                                            child: Text(
+                                                              'No sections available',
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                color:
+                                                                    Colors.grey,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ]
+                                                        : controller.availableSections.map((
+                                                          section,
+                                                        ) {
+                                                          return Obx(() {
+                                                            final isSelected =
+                                                                controller
+                                                                    .selectedClasses[section] ??
+                                                                false;
+                                                            return CheckboxListTile(
+                                                              title: Text(
+                                                                section,
+                                                              ),
+                                                              value: isSelected,
+                                                              onChanged: (
+                                                                value,
+                                                              ) {
+                                                                controller
+                                                                    .toggleSectionSelection(
+                                                                      section,
+                                                                    );
+                                                              },
+                                                              activeColor:
+                                                                  const Color(
+                                                                    0xFF34A853,
+                                                                  ),
+                                                              controlAffinity:
+                                                                  ListTileControlAffinity
+                                                                      .leading,
+                                                              contentPadding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        16,
+                                                                    vertical: 4,
+                                                                  ),
+                                                            );
+                                                          });
+                                                        }).toList(),
+                                              ),
+                                            );
+                                          }),
+                                          const SizedBox(height: 15),
+                                          // Image upload section
+                                          const Text(
+                                            'Image (Optional)',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Obx(() {
+                                            final previewUrl =
+                                                controller.previewImageUrl;
+                                            if (previewUrl != null &&
+                                                previewUrl.isNotEmpty) {
+                                              // Show selected/existing image preview
+                                              return Container(
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: Colors.grey[300]!,
+                                                  ),
+                                                ),
+                                                child: Stack(
+                                                  children: [
+                                                    ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      child: Center(
+                                                        child:
+                                                            previewUrl
+                                                                    .startsWith(
+                                                                      'data:',
+                                                                    )
+                                                                ? Image.memory(
+                                                                  base64Decode(
+                                                                    previewUrl
+                                                                        .split(
+                                                                          ',',
+                                                                        )[1],
+                                                                  ),
+                                                                  height: 250,
+                                                                  fit:
+                                                                      BoxFit
+                                                                          .contain,
+                                                                )
+                                                                : Image.network(
+                                                                  previewUrl,
+                                                                  height: 250,
+                                                                  fit:
+                                                                      BoxFit
+                                                                          .contain,
+                                                                  errorBuilder: (
+                                                                    context,
+                                                                    error,
+                                                                    stackTrace,
+                                                                  ) {
+                                                                    return Container(
+                                                                      height:
+                                                                          250,
+                                                                      color:
+                                                                          Colors
+                                                                              .grey[200],
+                                                                      child: const Center(
+                                                                        child: Icon(
+                                                                          Icons
+                                                                              .broken_image,
+                                                                          size:
+                                                                              48,
+                                                                        ),
+                                                                      ),
+                                                                    );
+                                                                  },
+                                                                ),
+                                                      ),
+                                                    ),
+                                                    Positioned(
+                                                      top: 8,
+                                                      right: 8,
+                                                      child: IconButton(
+                                                        icon: const Icon(
+                                                          Icons.close,
+                                                          color: Colors.white,
+                                                        ),
+                                                        style:
+                                                            IconButton.styleFrom(
+                                                              backgroundColor:
+                                                                  Colors
+                                                                      .black54,
+                                                            ),
+                                                        onPressed:
+                                                            controller
+                                                                .removeImage,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            } else {
+                                              // Show upload button
+                                              return OutlinedButton.icon(
+                                                onPressed: controller.pickImage,
+                                                icon: const Icon(
+                                                  Icons.image_outlined,
+                                                ),
+                                                label: const Text(
+                                                  'Select Image',
+                                                ),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: const Color(
+                                                    0xFF34A853,
+                                                  ),
+                                                  side: const BorderSide(
+                                                    color: Color(0xFF34A853),
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 12,
+                                                      ),
+                                                ),
+                                              );
+                                            }
+                                          }),
                                           const SizedBox(height: 15),
                                           Row(
                                             children: [

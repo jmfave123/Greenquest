@@ -529,34 +529,12 @@ class ClassReportController extends GetxController {
               .where('enrollmentStatus', isEqualTo: 'approved')
               .snapshots();
 
-      // Stream all submission collections for grade updates
-      final assignmentGradesStream =
-          _firestore
-              .collection('assignment_submissions')
-              .where('instructorId', isEqualTo: user.uid)
-              .where('sectionName', isEqualTo: sectionCode)
-              .snapshots();
-
-      final activityGradesStream =
-          _firestore
-              .collection('activity_submissions')
-              .where('instructorId', isEqualTo: user.uid)
-              .where('sectionName', isEqualTo: sectionCode)
-              .snapshots();
-
-      final quizGradesStream =
-          _firestore
-              .collection('quiz_submissions')
-              .where('instructorId', isEqualTo: user.uid)
-              .where('sectionName', isEqualTo: sectionCode)
-              .snapshots();
-
-      final pitGradesStream =
+      // Stream unified submissions collection for grade updates (single stream)
+      final allGradesStream =
           _firestore
               .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
               .where('sectionName', isEqualTo: sectionCode)
-              .where('activityType', isEqualTo: 'pit')
               .snapshots();
 
       // Combine all streams using StreamController - any change triggers update
@@ -564,10 +542,7 @@ class ClassReportController extends GetxController {
           StreamController<List<Map<String, dynamic>>>.broadcast();
 
       StreamSubscription? studentsSub;
-      StreamSubscription? assignmentSub;
-      StreamSubscription? activitySub;
-      StreamSubscription? quizSub;
-      StreamSubscription? pitSub;
+      StreamSubscription? allGradesSub;
 
       Future<void> updateStudents() async {
         final students = await _buildStudentsWithGrades(user.uid, sectionCode);
@@ -576,12 +551,9 @@ class ClassReportController extends GetxController {
         }
       }
 
-      // Listen to all streams and rebuild student list on any change
+      // Listen to students and unified submissions streams
       studentsSub = studentsStream.listen((_) => updateStudents());
-      assignmentSub = assignmentGradesStream.listen((_) => updateStudents());
-      activitySub = activityGradesStream.listen((_) => updateStudents());
-      quizSub = quizGradesStream.listen((_) => updateStudents());
-      pitSub = pitGradesStream.listen((_) => updateStudents());
+      allGradesSub = allGradesStream.listen((_) => updateStudents());
 
       // Initial load
       updateStudents();
@@ -589,10 +561,7 @@ class ClassReportController extends GetxController {
       // Clean up subscriptions when stream is cancelled
       controller.onCancel = () {
         studentsSub?.cancel();
-        assignmentSub?.cancel();
-        activitySub?.cancel();
-        quizSub?.cancel();
-        pitSub?.cancel();
+        allGradesSub?.cancel();
       };
 
       return controller.stream;
@@ -788,7 +757,7 @@ class ClassReportController extends GetxController {
     }
   }
 
-  /// Load grades for a specific student from all submission collections
+  /// Load grades for a specific student from unified submissions collection
   Future<void> _loadGradesForStudent(
     String studentId,
     Map<String, dynamic> student,
@@ -796,52 +765,46 @@ class ClassReportController extends GetxController {
     String sectionCode,
   ) async {
     try {
-      // Load assignment grades
-      await _loadGradesFromCollection(
-        studentId,
-        student,
-        'assignment_submissions',
-        'assignmentId',
-        instructorId,
-        sectionCode,
-      );
+      // Load all grades from unified submissions collection (single query)
+      Query query = _firestore
+          .collection('submissions')
+          .where('studentId', isEqualTo: studentId)
+          .where('instructorId', isEqualTo: instructorId)
+          .where('sectionName', isEqualTo: sectionCode);
 
-      // Load activity grades
-      await _loadGradesFromCollection(
-        studentId,
-        student,
-        'activity_submissions',
-        'activityId',
-        instructorId,
-        sectionCode,
-      );
+      final snapshot = await query.get();
 
-      // Load quiz grades
-      await _loadGradesFromCollection(
-        studentId,
-        student,
-        'quiz_submissions',
-        'quizId',
-        instructorId,
-        sectionCode,
-      );
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data == null) continue;
 
-      // Load PIT grades
-      await _loadGradesFromCollection(
-        studentId,
-        student,
-        'submissions',
-        'activityId',
-        instructorId,
-        sectionCode,
-        activityType: 'pit',
-      );
+        final activityType = data['activityType'] as String?;
+        final activityId = data['activityId'] as String?;
+        final grade = data['grade'];
+
+        if (activityType != null && activityId != null && grade != null) {
+          // Get item details based on activityType
+          final itemDetails = await _getItemDetailsByActivityType(
+            activityId,
+            activityType,
+          );
+          if (itemDetails != null) {
+            final title = itemDetails['title'] as String?;
+            if (title != null) {
+              final key = _createGradeKey(title, activityId);
+              student[key] = grade.toString();
+              print('  ✅ Loaded grade for $key ($activityType): $grade');
+            }
+          }
+        }
+      }
     } catch (e) {
       print('❌ Error loading grades for student $studentId: $e');
     }
   }
 
-  /// Load grades from a specific submission collection
+  /// Load grades from a specific submission collection (legacy method - kept for backwards compatibility)
+  @Deprecated('Use _loadGradesForStudent which uses unified collection')
   Future<void> _loadGradesFromCollection(
     String studentId,
     Map<String, dynamic> student,
@@ -851,14 +814,29 @@ class ClassReportController extends GetxController {
     String sectionCode, {
     String? activityType,
   }) async {
+    // This method is deprecated but kept for backwards compatibility
+    // It now uses the unified submissions collection
     try {
       Query query = _firestore
-          .collection(collection)
+          .collection('submissions')
           .where('studentId', isEqualTo: studentId)
           .where('instructorId', isEqualTo: instructorId)
           .where('sectionName', isEqualTo: sectionCode);
 
-      // Add activityType filter if provided (for PIT submissions)
+      // Map collection to activityType if not provided
+      if (activityType == null) {
+        if (collection == 'assignment_submissions') {
+          activityType = 'assignment';
+        } else if (collection == 'activity_submissions') {
+          activityType = 'activity';
+        } else if (collection == 'quiz_submissions') {
+          activityType = 'quiz';
+        } else if (collection == 'submissions') {
+          activityType = 'pit';
+        }
+      }
+
+      // Add activityType filter
       if (activityType != null) {
         query = query.where('activityType', isEqualTo: activityType);
       }
@@ -869,16 +847,19 @@ class ClassReportController extends GetxController {
         final data = doc.data() as Map<String, dynamic>?;
         if (data == null) continue;
 
-        final itemId = data[idField] as String?;
+        final activityId = data['activityId'] as String?; // Unified activity ID
         final grade = data['grade'];
 
-        if (itemId != null && grade != null) {
+        if (activityId != null && grade != null && activityType != null) {
           // Get item details to create the key
-          final itemDetails = await _getItemDetails(itemId, collection);
+          final itemDetails = await _getItemDetailsByActivityType(
+            activityId,
+            activityType,
+          );
           if (itemDetails != null) {
             final title = itemDetails['title'] as String?;
             if (title != null) {
-              final key = _createGradeKey(title, itemId);
+              final key = _createGradeKey(title, activityId);
               student[key] = grade.toString();
               print('  ✅ Loaded grade for $key: $grade');
             }
@@ -890,34 +871,39 @@ class ClassReportController extends GetxController {
     }
   }
 
-  /// Get item details to construct the grade key
-  Future<Map<String, dynamic>?> _getItemDetails(
+  /// Get item details to construct the grade key (using activityType)
+  Future<Map<String, dynamic>?> _getItemDetailsByActivityType(
     String itemId,
-    String collection,
+    String activityType,
   ) async {
     try {
       final User? user = _auth.currentUser;
       if (user == null) return null;
 
-      // Map collection to item type
-      String itemType = '';
-      if (collection == 'assignment_submissions') {
-        itemType = 'assignments';
-      } else if (collection == 'activity_submissions') {
-        itemType = 'activities';
-      } else if (collection == 'quiz_submissions') {
-        itemType = 'quizzes';
-      } else if (collection == 'submissions') {
-        itemType = 'pits';
+      // Map activityType to item collection type
+      String itemCollection = '';
+      switch (activityType.toLowerCase()) {
+        case 'assignment':
+          itemCollection = 'assignments';
+          break;
+        case 'activity':
+          itemCollection = 'activities';
+          break;
+        case 'quiz':
+          itemCollection = 'quizzes';
+          break;
+        case 'pit':
+          itemCollection = 'pits';
+          break;
+        default:
+          return null;
       }
-
-      if (itemType.isEmpty) return null;
 
       final doc =
           await _firestore
               .collection('instructors')
               .doc(user.uid)
-              .collection(itemType)
+              .collection(itemCollection)
               .doc(itemId)
               .get();
 
@@ -925,9 +911,32 @@ class ClassReportController extends GetxController {
         return doc.data();
       }
     } catch (e) {
-      print('❌ Error getting item details for $itemId: $e');
+      print('❌ Error getting item details for $itemId ($activityType): $e');
     }
     return null;
+  }
+
+  /// Get item details to construct the grade key (legacy method - kept for backwards compatibility)
+  @Deprecated('Use _getItemDetailsByActivityType instead')
+  Future<Map<String, dynamic>?> _getItemDetails(
+    String itemId,
+    String collection,
+  ) async {
+    // Map collection to activityType for backwards compatibility
+    String activityType = '';
+    if (collection == 'assignment_submissions') {
+      activityType = 'assignment';
+    } else if (collection == 'activity_submissions') {
+      activityType = 'activity';
+    } else if (collection == 'quiz_submissions') {
+      activityType = 'quiz';
+    } else if (collection == 'submissions') {
+      activityType = 'pit';
+    }
+
+    if (activityType.isEmpty) return null;
+
+    return _getItemDetailsByActivityType(itemId, activityType);
   }
 
   /// Create the grade key based on title and ID (matches table logic)

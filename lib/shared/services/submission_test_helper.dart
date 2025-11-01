@@ -19,7 +19,8 @@ class SubmissionTestHelper {
 
       // Create a test submission
       final submissionData = {
-        'activityId': activityId,
+        'activityType': 'activity', // Unified activity type
+        'activityId': activityId, // Unified activity ID field
         'instructorId': instructorId,
         'studentId': studentId,
         'studentName': studentName,
@@ -28,7 +29,6 @@ class SubmissionTestHelper {
         'sectionId': sectionId,
         'sectionName': 'BSIT-4D',
         'activityTitle': 'Test Activity',
-        'activityType': 'Activity',
         'files': ['test_file.pdf'],
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'submitted',
@@ -39,8 +39,8 @@ class SubmissionTestHelper {
         'routingStatus': 'success',
       };
 
-      // Submit to the activity_submissions collection
-      await _firestore.collection('activity_submissions').add(submissionData);
+      // Submit to unified submissions collection
+      await _firestore.collection('submissions').add(submissionData);
 
       print('✅ Test activity submission created successfully');
       print('📋 Activity ID: $activityId');
@@ -65,7 +65,8 @@ class SubmissionTestHelper {
 
       // Create a test submission
       final submissionData = {
-        'assignmentId': assignmentId,
+        'activityType': 'assignment', // Unified activity type
+        'activityId': assignmentId, // Unified activity ID field
         'instructorId': instructorId,
         'studentId': studentId,
         'studentName': studentName,
@@ -74,7 +75,6 @@ class SubmissionTestHelper {
         'sectionId': sectionId,
         'sectionName': 'BSIT-4D',
         'activityTitle': 'Test Assignment',
-        'activityType': 'Assignment',
         'files': [
           {
             'name': 'assignment.pdf',
@@ -92,8 +92,8 @@ class SubmissionTestHelper {
         'routingStatus': 'success',
       };
 
-      // Submit to the assignment_submissions collection
-      await _firestore.collection('assignment_submissions').add(submissionData);
+      // Submit to unified submissions collection
+      await _firestore.collection('submissions').add(submissionData);
 
       print('✅ Test assignment submission created successfully');
       print('📋 Assignment ID: $assignmentId');
@@ -118,7 +118,8 @@ class SubmissionTestHelper {
 
       // Create a test submission
       final submissionData = {
-        'quizId': quizId,
+        'activityType': 'quiz', // Unified activity type
+        'activityId': quizId, // Unified activity ID field
         'instructorId': instructorId,
         'studentId': studentId,
         'studentName': studentName,
@@ -127,7 +128,6 @@ class SubmissionTestHelper {
         'sectionId': sectionId,
         'sectionName': 'BSIT-4D',
         'activityTitle': 'Test Quiz',
-        'activityType': 'Quiz',
         'answers': {
           'question1': 'Answer A',
           'question2': 'Answer B',
@@ -142,8 +142,8 @@ class SubmissionTestHelper {
         'routingStatus': 'success',
       };
 
-      // Submit to the quiz_submissions collection
-      await _firestore.collection('quiz_submissions').add(submissionData);
+      // Submit to unified submissions collection
+      await _firestore.collection('submissions').add(submissionData);
 
       print('✅ Test quiz submission created successfully');
       print('📋 Quiz ID: $quizId');
