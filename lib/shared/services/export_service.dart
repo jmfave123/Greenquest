@@ -17,8 +17,9 @@ class ExportService {
     // Split the name into parts
     final parts = name.trim().split(' ');
 
-    if (parts.length < 2)
+    if (parts.length < 2) {
       return name.toUpperCase(); // If only one word, return as uppercase
+    }
 
     // Last part is the last name, everything else is first/middle name
     final lastName = parts.last;

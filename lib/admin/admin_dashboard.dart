@@ -2387,7 +2387,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         classData.containsKey('startTime') &&
         classData.containsKey('endTime')) {
       final dayAbbr = _getDayAbbreviation(classData['day']?.toString() ?? '');
-      return '${dayAbbr} ${classData['startTime']} - ${classData['endTime']}';
+      return '$dayAbbr ${classData['startTime']} - ${classData['endTime']}';
     }
 
     // If no schedule data found

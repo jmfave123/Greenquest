@@ -112,7 +112,62 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
     });
   }
 
-  void _addAssignment() {
+  // Check if a section is already assigned to another instructor
+  Future<Map<String, dynamic>?> _checkSectionDuplicate(
+    String? sectionId,
+    String sectionCode,
+  ) async {
+    try {
+      // Query all instructors
+      final instructorsSnapshot =
+          await _firestore.collection('instructors').get();
+
+      // Check each instructor's assignments (excluding current instructor)
+      for (var instructorDoc in instructorsSnapshot.docs) {
+        // Skip the current instructor
+        if (instructorDoc.id == widget.instructorId) {
+          continue;
+        }
+
+        final instructorData = instructorDoc.data();
+        final assignments = instructorData['assignments'] as List<dynamic>?;
+
+        if (assignments != null && assignments.isNotEmpty) {
+          // Check if any assignment has the same sectionId or sectionCode
+          for (var assignment in assignments) {
+            if (assignment is Map<String, dynamic>) {
+              final assignedSectionId = assignment['sectionId']?.toString();
+              final assignedSectionCode = assignment['sectionCode']?.toString();
+
+              // Check if section matches by ID or Code
+              if ((sectionId != null &&
+                      assignedSectionId != null &&
+                      assignedSectionId == sectionId) ||
+                  (assignedSectionCode != null &&
+                      assignedSectionCode == sectionCode)) {
+                // Found duplicate - return instructor info
+                return {
+                  'instructorId': instructorDoc.id,
+                  'instructorName':
+                      instructorData['name']?.toString() ??
+                      'Unknown Instructor',
+                  'sectionCode': sectionCode,
+                };
+              }
+            }
+          }
+        }
+      }
+
+      // No duplicate found
+      return null;
+    } catch (e) {
+      print('Error checking section duplicate: $e');
+      return null;
+    }
+  }
+
+  Future<void> _addAssignment() async {
     print('============ ADD ASSIGNMENT ============');
     print('Selected Department ID: $selectedDepartmentId');
     print('Selected Section ID: $selectedSectionId');
@@ -136,53 +191,76 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         'sectionCode': section['sectionCode'],
       };
 
-      // Check if assignment already exists
-      print('Checking for duplicates...');
+      // Check if assignment already exists in current instructor's list
+      print('Checking for duplicates in current instructor...');
       print('Current assignments:');
       for (var i = 0; i < selectedAssignments.length; i++) {
         var a = selectedAssignments[i];
         print('  [$i] Dept: ${a['departmentId']}, Section: ${a['sectionId']}');
       }
 
-      final exists = selectedAssignments.any(
+      final existsInCurrentList = selectedAssignments.any(
         (a) =>
             a['departmentId'] == selectedDepartmentId &&
             a['sectionId'] == selectedSectionId,
       );
 
-      print('Attempting to add assignment: $assignment');
-      print('Assignment exists: $exists');
-      print('Current selectedAssignments count: ${selectedAssignments.length}');
-
-      if (!exists) {
-        setState(() {
-          selectedAssignments.add(assignment);
-          selectedDepartmentId = null;
-          selectedSectionId = null;
-          sections = [];
-        });
-        print('✓ Assignment added! New count: ${selectedAssignments.length}');
-        print('New selectedAssignments: $selectedAssignments');
-
-        // Show success message
-        Get.snackbar(
-          'Success',
-          'Assignment added successfully! Click Save to confirm.',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 2),
-        );
-      } else {
-        print('✗ Assignment already exists - blocked');
+      if (existsInCurrentList) {
+        print('✗ Assignment already exists in current list - blocked');
         Get.snackbar(
           'Warning',
-          'This assignment already exists',
+          'This assignment already exists in your list',
           snackPosition: SnackPosition.TOP,
           backgroundColor: Colors.orange,
           colorText: Colors.white,
         );
+        print('========================================');
+        return;
       }
+
+      // Check if section is already assigned to another instructor
+      print('Checking if section is assigned to another instructor...');
+      final sectionCodeString = section['sectionCode']?.toString() ?? '';
+      final duplicateCheck = await _checkSectionDuplicate(
+        selectedSectionId,
+        sectionCodeString,
+      );
+
+      if (duplicateCheck != null) {
+        print('✗ Section already assigned to another instructor - blocked');
+        print('  Assigned to: ${duplicateCheck['instructorName']}');
+        Get.snackbar(
+          'Cannot Assign',
+          'Section ${duplicateCheck['sectionCode']} is already assigned to ${duplicateCheck['instructorName']}. Each section can only be assigned to one instructor.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 4),
+          icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+        );
+        print('========================================');
+        return;
+      }
+
+      // All checks passed - add assignment
+      setState(() {
+        selectedAssignments.add(assignment);
+        selectedDepartmentId = null;
+        selectedSectionId = null;
+        sections = [];
+      });
+      print('✓ Assignment added! New count: ${selectedAssignments.length}');
+      print('New selectedAssignments: $selectedAssignments');
+
+      // Show success message
+      Get.snackbar(
+        'Success',
+        'Assignment added successfully! Click Save to confirm.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
     } else {
       print('✗ Cannot add: Department or Section not selected');
       print('  Department ID: $selectedDepartmentId');
@@ -359,6 +437,42 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         }
         return; // Stop - do not save
       }
+
+      // Validate that no section is assigned to another instructor
+      print('Validating assignments against other instructors...');
+      for (var assignment in selectedAssignments) {
+        final sectionId = assignment['sectionId']?.toString();
+        final sectionCode = assignment['sectionCode']?.toString();
+
+        if (sectionId != null && sectionCode != null) {
+          final duplicateCheck = await _checkSectionDuplicate(
+            sectionId,
+            sectionCode,
+          );
+
+          if (duplicateCheck != null) {
+            print(
+              '✗ VALIDATION FAILED: Section ${sectionCode} already assigned to ${duplicateCheck['instructorName']}',
+            );
+            if (mounted) {
+              Get.snackbar(
+                'Cannot Save',
+                'Section ${sectionCode} is already assigned to ${duplicateCheck['instructorName']}. Each section can only be assigned to one instructor. Please remove this assignment and try again.',
+                snackPosition: SnackPosition.TOP,
+                backgroundColor: Colors.red,
+                colorText: Colors.white,
+                duration: const Duration(seconds: 5),
+                icon: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.white,
+                ),
+              );
+            }
+            return; // Stop - do not save
+          }
+        }
+      }
+      print('✓ All assignments validated - no duplicates found');
 
       print('Validation passed. Updating Firestore...');
       print('Saving ${selectedAssignments.length} assignment(s)');
