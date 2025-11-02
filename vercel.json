@@ -2,7 +2,6 @@
   "buildCommand": "bash build.sh",
   "outputDirectory": "build/web",
   "framework": null,
-  "installCommand": "flutter pub get",
   "rewrites": [
     {
       "source": "/(.*)",
