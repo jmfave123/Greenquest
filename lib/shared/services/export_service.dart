@@ -751,6 +751,26 @@ class ExportService {
         computedRange.cellStyle.backColor = '#FFFFFF';
       }
 
+      // Center all content in row 9 (first student row)
+      if (students.isNotEmpty) {
+        final row9 = startRow + 1; // First student row
+        final totalCols = _totalColumnCount(
+          classStandingItems,
+          quizPrelimItems,
+          midtermExamItems,
+          pitItems,
+          finalClassStandingItems,
+          finalQuizItems,
+          finalExamItems,
+          finalPitItems,
+        );
+        final row9Range = sheet.getRangeByName(
+          'A$row9:${_getColumnLetter(totalCols)}$row9',
+        );
+        row9Range.cellStyle.hAlign = HAlignType.center;
+        row9Range.cellStyle.vAlign = VAlignType.center;
+      }
+
       _autoFitColumns(sheet);
       await _saveAndOpenFile(workbook, '${sectionName}_ClassRecord');
     } catch (e) {
@@ -1069,41 +1089,50 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('');
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('');
 
+    // Track column positions for vertical rotation
+    int csItemsStartCol = col;
     for (var item in classStandingItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int csItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRC)');
     int cpaMidCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('CPA');
 
+    int qpItemsStartCol = col;
     for (var item in quizPrelimItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int qpItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRQ)');
     int qaMidCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('QA');
 
+    int meItemsStartCol = col;
     for (var item in midtermExamItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int meItemsEndCol = col;
     int mCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('M');
 
+    int pitItemsStartCol = col;
     for (var item in pitItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int pitItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (PIT)');
@@ -1125,41 +1154,49 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Midterm Grade');
 
+    int fcsItemsStartCol = col;
     for (var item in finalClassStandingItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int fcsItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRC)');
     int cpaFinalCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('CPA');
 
+    int fqItemsStartCol = col;
     for (var item in finalQuizItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int fqItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (SRQ)');
     int qaFinalCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('QA');
 
+    int feItemsStartCol = col;
     for (var item in finalExamItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int feItemsEndCol = col;
     int fCol = col;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('F');
 
+    int fpitItemsStartCol = col;
     for (var item in finalPitItems) {
       sheet
           .getRangeByName('${_getColumnLetter(col++)}$row')
           .setText(item['title'] ?? '');
     }
+    int fpitItemsEndCol = col;
     sheet
         .getRangeByName('${_getColumnLetter(col++)}$row')
         .setText('Total Score (PIT)');
@@ -1286,6 +1323,347 @@ class ExportService {
     // to look like normal cells after removing labels.
     final infoHeaderRange = sheet.getRangeByName('A$row:C$row');
     infoHeaderRange.cellStyle.backColor = '#FFFFFF';
+
+    // Apply vertical text rotation (90 degrees) to item columns and related columns
+    // This makes them read from bottom to top, like in the image
+
+    // Midterm item columns
+    if (csItemsEndCol > csItemsStartCol) {
+      for (int i = csItemsStartCol; i < csItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation =
+            90; // 90 degrees rotation (vertical, reading bottom to top)
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // CPA, Total Score columns for midterm
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaMidCol - 1)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaMidCol - 1)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaMidCol - 1)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaMidCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaMidCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaMidCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    if (qpItemsEndCol > qpItemsStartCol) {
+      for (int i = qpItemsStartCol; i < qpItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation = 90;
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // QA, Total Score columns for midterm
+    sheet
+        .getRangeByName('${_getColumnLetter(qaMidCol - 1)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaMidCol - 1)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaMidCol - 1)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaMidCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet.getRangeByName('${_getColumnLetter(qaMidCol)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(qaMidCol)}$row').cellStyle.vAlign =
+        VAlignType.center;
+
+    if (meItemsEndCol > meItemsStartCol) {
+      for (int i = meItemsStartCol; i < meItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation = 90;
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // M column
+    sheet.getRangeByName('${_getColumnLetter(mCol)}$row').cellStyle.rotation =
+        90;
+    sheet.getRangeByName('${_getColumnLetter(mCol)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(mCol)}$row').cellStyle.vAlign =
+        VAlignType.center;
+
+    if (pitItemsEndCol > pitItemsStartCol) {
+      for (int i = pitItemsStartCol; i < pitItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation = 90;
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // PIT%, Total Score columns for midterm
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentMidCol - 1)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentMidCol - 1)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentMidCol - 1)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    // MGA column
+    sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.rotation =
+        90;
+    sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.vAlign =
+        VAlignType.center;
+
+    // Final item columns
+    if (fcsItemsEndCol > fcsItemsStartCol) {
+      for (int i = fcsItemsStartCol; i < fcsItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation = 90;
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // CPA, Total Score columns for final
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaFinalCol - 1)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaFinalCol - 1)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaFinalCol - 1)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    if (fqItemsEndCol > fqItemsStartCol) {
+      for (int i = fqItemsStartCol; i < fqItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation = 90;
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // QA, Total Score columns for final
+    sheet
+        .getRangeByName('${_getColumnLetter(qaFinalCol - 1)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaFinalCol - 1)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaFinalCol - 1)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaFinalCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaFinalCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(qaFinalCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    if (feItemsEndCol > feItemsStartCol) {
+      for (int i = feItemsStartCol; i < feItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation = 90;
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // F column
+    sheet.getRangeByName('${_getColumnLetter(fCol)}$row').cellStyle.rotation =
+        90;
+    sheet.getRangeByName('${_getColumnLetter(fCol)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(fCol)}$row').cellStyle.vAlign =
+        VAlignType.center;
+
+    if (fpitItemsEndCol > fpitItemsStartCol) {
+      for (int i = fpitItemsStartCol; i < fpitItemsEndCol; i++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+        cell.cellStyle.rotation = 90;
+        cell.cellStyle.hAlign = HAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.center;
+      }
+    }
+    // PIT%, Total Score columns for final
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentFinalCol - 1)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentFinalCol - 1)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentFinalCol - 1)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    // FGA column
+    sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.rotation =
+        90;
+    sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.hAlign =
+        HAlignType.center;
+    sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.vAlign =
+        VAlignType.center;
+
+    // Mid Lec Grade Point, Mid Grade Point, Midterm Grade columns
+    sheet
+        .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    sheet
+        .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    sheet
+        .getRangeByName('${_getColumnLetter(midtermGradeCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(midtermGradeCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(midtermGradeCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    // Fin Lec Grade Point, Fin Grade Point, Final Period Grade columns
+    sheet
+        .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    sheet
+        .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    sheet
+        .getRangeByName('${_getColumnLetter(finalPeriodGradeCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${_getColumnLetter(finalPeriodGradeCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${_getColumnLetter(finalPeriodGradeCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.center;
+
+    // Center all content in row 7
+    final row7Range = sheet.getRangeByName(
+      'A$row:${_getColumnLetter(totalColumns)}$row',
+    );
+    row7Range.cellStyle.hAlign = HAlignType.center;
+    row7Range.cellStyle.vAlign = VAlignType.center;
   }
 
   void _writeMaxPointsRow(
@@ -1539,6 +1917,14 @@ class ExportService {
         .getRangeByName('${_getColumnLetter(finalPeriodGradeMaxCol)}$row')
         .cellStyle
         .backColor = '#FFC000';
+
+    // Center all content in row 8 (max points row)
+    final totalColumns = col - 1;
+    final row8Range = sheet.getRangeByName(
+      'A$row:${_getColumnLetter(totalColumns)}$row',
+    );
+    row8Range.cellStyle.hAlign = HAlignType.center;
+    row8Range.cellStyle.vAlign = VAlignType.center;
   }
 
   // Helpers used by the full export (mirror grid logic)

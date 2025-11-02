@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/message_model.dart';
+import '../utils/file_type_utils.dart';
 
 class MessageService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -136,40 +137,134 @@ class MessageService {
         .snapshots()
         .asyncMap((studentsSnapshot) async {
           final students = <Map<String, dynamic>>[];
-          final studentData = <String, Map<String, dynamic>>{};
+          final conversationData = <String, Map<String, dynamic>>{};
 
-          // First, get all message data for these students
-          final messagesSnapshot =
+          // Get all messages where instructor is involved (bidirectional)
+          // Get messages sent by instructor to students
+          final sentMessagesSnapshot =
+              await _firestore
+                  .collection('messages')
+                  .where('senderId', isEqualTo: user.uid)
+                  .where('senderType', isEqualTo: 'instructor')
+                  .get();
+
+          // Get messages received by instructor from students
+          final receivedMessagesSnapshot =
               await _firestore
                   .collection('messages')
                   .where('receiverId', isEqualTo: user.uid)
                   .where('senderType', isEqualTo: 'student')
                   .get();
 
-          // Collect message data for each student
-          for (var doc in messagesSnapshot.docs) {
+          // Process sent messages (from instructor)
+          for (var doc in sentMessagesSnapshot.docs) {
             final data = doc.data();
-            final senderId = data['senderId'] as String;
+            final receiverId = data['receiverId'] as String;
 
-            // Store latest message data
-            if (!studentData.containsKey(senderId)) {
-              studentData[senderId] = {
-                'lastMessage': data['content'],
+            // Store latest message data per conversation
+            if (!conversationData.containsKey(receiverId)) {
+              conversationData[receiverId] = {
+                'lastMessage': _formatMessagePreview(
+                  data,
+                  'You', // Use "You" when instructor sends message
+                  true, // isFromInstructor
+                ),
                 'timestamp': data['timestamp'],
-                'isRead': data['isRead'],
+                'isRead': true, // Messages sent by instructor are always "read"
                 'hasMessages': true,
+                'senderType': 'instructor',
+                'senderName': 'You',
               };
             } else {
-              final existing = studentData[senderId]!;
+              final existing = conversationData[receiverId]!;
               if ((data['timestamp'] as Timestamp).compareTo(
                     existing['timestamp'],
                   ) >
                   0) {
-                studentData[senderId] = {
-                  'lastMessage': data['content'],
+                conversationData[receiverId] = {
+                  'lastMessage': _formatMessagePreview(
+                    data,
+                    'You', // Use "You" when instructor sends message
+                    true, // isFromInstructor
+                  ),
                   'timestamp': data['timestamp'],
-                  'isRead': data['isRead'],
+                  'isRead': true,
                   'hasMessages': true,
+                  'senderType': 'instructor',
+                  'senderName': 'You',
+                };
+              }
+            }
+          }
+
+          // Process received messages (from students)
+          for (var doc in receivedMessagesSnapshot.docs) {
+            final data = doc.data();
+            final senderId = data['senderId'] as String;
+
+            // Store latest message data per conversation
+            if (!conversationData.containsKey(senderId)) {
+              // Get student name for message preview
+              String studentName = 'Student';
+              try {
+                final studentDoc =
+                    await _firestore.collection('users').doc(senderId).get();
+                if (studentDoc.exists) {
+                  final studentData = studentDoc.data();
+                  studentName =
+                      studentData?['name'] ??
+                      studentData?['studentName'] ??
+                      'Student';
+                }
+              } catch (e) {
+                print('Error fetching student name: $e');
+              }
+
+              conversationData[senderId] = {
+                'lastMessage': _formatMessagePreview(
+                  data,
+                  studentName,
+                  false, // isFromInstructor
+                ),
+                'timestamp': data['timestamp'],
+                'isRead': data['isRead'] ?? false,
+                'hasMessages': true,
+                'senderType': 'student',
+                'senderName': studentName,
+              };
+            } else {
+              final existing = conversationData[senderId]!;
+              if ((data['timestamp'] as Timestamp).compareTo(
+                    existing['timestamp'],
+                  ) >
+                  0) {
+                // Get student name for message preview
+                String studentName = 'Student';
+                try {
+                  final studentDoc =
+                      await _firestore.collection('users').doc(senderId).get();
+                  if (studentDoc.exists) {
+                    final studentData = studentDoc.data();
+                    studentName =
+                        studentData?['name'] ??
+                        studentData?['studentName'] ??
+                        'Student';
+                  }
+                } catch (e) {
+                  print('Error fetching student name: $e');
+                }
+
+                conversationData[senderId] = {
+                  'lastMessage': _formatMessagePreview(
+                    data,
+                    studentName,
+                    false, // isFromInstructor
+                  ),
+                  'timestamp': data['timestamp'],
+                  'isRead': data['isRead'] ?? false,
+                  'hasMessages': true,
+                  'senderType': 'student',
+                  'senderName': studentName,
                 };
               }
             }
@@ -180,8 +275,8 @@ class MessageService {
             final studentId = doc.id;
             final studentDocData = doc.data();
 
-            // Get message data if student has sent messages
-            final messageInfo = studentData[studentId];
+            // Get conversation data if student has messages
+            final conversationInfo = conversationData[studentId];
 
             // Fetch profile image from users collection
             String profileImageUrl = '';
@@ -190,10 +285,21 @@ class MessageService {
                   await _firestore.collection('users').doc(studentId).get();
               if (userDoc.exists) {
                 final userData = userDoc.data() as Map<String, dynamic>;
-                profileImageUrl = userData['profileImage'] ?? '';
+                profileImageUrl =
+                    userData['profileImage'] ??
+                    userData['profileImageUrl'] ??
+                    userData['profileUrl'] ??
+                    '';
               }
             } catch (e) {
               print('Error fetching profile image for student $studentId: $e');
+            }
+
+            // Calculate unread count (only messages from student that are unread)
+            int unreadCount = 0;
+            if (conversationInfo != null &&
+                conversationInfo['senderType'] == 'student') {
+              unreadCount = (conversationInfo['isRead'] == false) ? 1 : 0;
             }
 
             students.add({
@@ -201,13 +307,14 @@ class MessageService {
               'name': studentDocData['studentName'] ?? 'Unknown Student',
               'email': studentDocData['email'] ?? '',
               'image': profileImageUrl,
-              'lastMessage': messageInfo?['lastMessage'] ?? 'No messages yet',
-              'timestamp': messageInfo?['timestamp'] ?? Timestamp.now(),
-              'hasMessages': messageInfo?['hasMessages'] ?? false,
+              'lastMessage':
+                  conversationInfo?['lastMessage'] ?? 'No messages yet',
+              'timestamp': conversationInfo?['timestamp'] ?? Timestamp.now(),
+              'hasMessages': conversationInfo?['hasMessages'] ?? false,
               'online': studentDocData['isOnline'] ?? false,
               'status':
                   studentDocData['isOnline'] == true ? 'Online' : 'Offline',
-              'unreadCount': 0, // Will be calculated
+              'unreadCount': unreadCount,
             });
           }
 
@@ -229,6 +336,69 @@ class MessageService {
 
           return students;
         });
+  }
+
+  /// Get first name from full name
+  static String _getFirstName(String fullName) {
+    if (fullName.isEmpty) return 'Student';
+    final nameParts = fullName.trim().split(' ');
+    return nameParts.first;
+  }
+
+  /// Format message preview text based on message type
+  /// Returns formatted string like "You: imissyou" or "john sent a photo" or "Message text"
+  static String _formatMessagePreview(
+    Map<String, dynamic> messageData,
+    String senderName,
+    bool isFromInstructor,
+  ) {
+    final messageType = messageData['messageType'] ?? 'text';
+    final content = messageData['content']?.toString() ?? '';
+
+    // If it's a file attachment
+    if (messageType == 'file' && messageData['fileAttachment'] != null) {
+      final fileAttachment =
+          messageData['fileAttachment'] as Map<String, dynamic>;
+      final fileType =
+          (fileAttachment['fileType'] ?? '').toString().toLowerCase();
+
+      // Check if it's an image
+      if (FileTypeUtils.isImageFile(fileType)) {
+        if (isFromInstructor) {
+          return 'You sent a photo';
+        } else {
+          // Use first name only for student
+          final firstName = _getFirstName(senderName);
+          return '$firstName sent a photo';
+        }
+      } else {
+        if (isFromInstructor) {
+          return 'You sent an attachment';
+        } else {
+          // Use first name only for student
+          final firstName = _getFirstName(senderName);
+          return '$firstName sent an attachment';
+        }
+      }
+    }
+
+    // For text messages
+    if (content.isEmpty || content == 'Sent a file') {
+      if (isFromInstructor) {
+        return 'You sent a message';
+      } else {
+        // For students, just return empty or generic (but this shouldn't happen for text)
+        return 'Sent a message';
+      }
+    }
+
+    // For text messages: add "You: " prefix if from instructor, otherwise just show content
+    if (isFromInstructor) {
+      return 'You: $content';
+    } else {
+      // Just show the student's message content without name prefix
+      return content;
+    }
   }
 
   /// Mark messages as read
