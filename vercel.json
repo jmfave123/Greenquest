@@ -1,33 +1,14 @@
 {
-  "version": 2,
   "buildCommand": "bash build.sh",
   "outputDirectory": "build/web",
   "framework": null,
   "installCommand": "flutter pub get",
-  "builds": [
+  "rewrites": [
     {
-      "src": "build.sh",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build/web"
-      }
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/build/web/$1"
-    }
-  ],
-  "build": {
-    "env": {
-      "NODE_VERSION": "18.x"
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
