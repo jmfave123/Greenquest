@@ -53,7 +53,8 @@ dependencies:
   flutter_launcher_icons: "^0.13.1" # Add this line
   syncfusion_flutter_datagrid: ^25.2.7
   shimmer: ^3.0.0
-  onesignal_flutter: ^5.3.3  
+  onesignal_flutter: ^5.3.3 
+  flutter_dotenv: ^6.0.0 
 
 dev_dependencies:
   flutter_test:
@@ -85,6 +86,7 @@ flutter:
     - assets/instructor/icons/
     - assets/icons/
     - assets/images/
+    - .env
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

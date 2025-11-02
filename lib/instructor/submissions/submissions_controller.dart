@@ -64,28 +64,61 @@ class SubmissionsController extends GetxController {
     super.onClose();
   }
 
-  /// Load instructor name and profile using FirebaseAuth user.uid
+  /// Load instructor name and profile using email query (same pattern as login flow)
   Future<void> loadInstructor() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
+      if (user == null || user.email == null) {
         instructorName.value = 'No user logged in';
         return;
       }
 
-      final doc =
+      // Reload user to ensure token is fresh (same as login flow)
+      try {
+        await user.reload();
+      } catch (e) {
+        // If reload fails, user might still be valid
+      }
+
+      final refreshedUser = FirebaseAuth.instance.currentUser;
+      if (refreshedUser == null || refreshedUser.email == null) {
+        instructorName.value = 'User session expired';
+        return;
+      }
+
+      // Query instructor by email (same pattern as login flow for reliability)
+      final instructorQuery =
           await FirebaseFirestore.instance
               .collection('instructors')
-              .doc(user.uid)
+              .where('email', isEqualTo: refreshedUser.email)
+              .limit(1)
               .get();
 
-      if (doc.exists) {
-        instructorName.value = doc['name'] ?? 'Unknown Instructor';
-        // Try profileUrl first, then fall back to profileImageUrl
+      if (instructorQuery.docs.isNotEmpty) {
+        final instructorData = instructorQuery.docs.first.data();
+        instructorName.value = instructorData['name'] ?? 'Unknown Instructor';
+        // Safely access profileUrl - handles cases where field doesn't exist
         profileImageUrl.value =
-            doc['profileUrl'] ?? doc['profileImageUrl'] ?? '';
+            instructorData['profileUrl'] ??
+            instructorData['profileImageUrl'] ??
+            '';
       } else {
-        instructorName.value = 'Instructor not found';
+        // Fallback: Try by UID if email query fails
+        final doc =
+            await FirebaseFirestore.instance
+                .collection('instructors')
+                .doc(refreshedUser.uid)
+                .get();
+
+        if (doc.exists) {
+          final data = doc.data() ?? {};
+          instructorName.value = data['name'] ?? 'Unknown Instructor';
+          // Safely access profileUrl - use data map to avoid errors
+          profileImageUrl.value =
+              data['profileUrl'] ?? data['profileImageUrl'] ?? '';
+        } else {
+          instructorName.value = 'Instructor not found';
+        }
       }
     } catch (e) {
       instructorName.value = 'Error loading name';

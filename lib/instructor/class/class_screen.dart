@@ -27,6 +27,8 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   InstructorNavigationItem _selectedItem =
       InstructorNavigationItem.classManagement;
   bool _showCreateClassDialog = false;
+  bool _showEditClassDialog = false;
+  Map<String, dynamic>? _editingClassData;
   bool _showArchivedClasses = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -35,7 +37,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   final TextEditingController _roomController = TextEditingController();
 
   // Multiple schedules support
-  final List<Map<String, dynamic>> _schedules = [];
+  List<Map<String, dynamic>> _schedules = [];
   final TextEditingController _tempStartTimeController =
       TextEditingController();
   final TextEditingController _tempEndTimeController = TextEditingController();
@@ -74,6 +76,53 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   void _hideCreateClassDialog() {
     setState(() {
       _showCreateClassDialog = false;
+      // Clear form fields
+      _classNameController.clear();
+      _roomController.clear();
+      _selectedSectionId = null;
+      _schedules.clear();
+      _tempSelectedDay = null;
+      _tempStartTimeController.clear();
+      _tempEndTimeController.clear();
+      _tempRoomController.clear();
+    });
+  }
+
+  void _openEditClassDialog(Map<String, dynamic> classData) {
+    setState(() {
+      _editingClassData = classData;
+      _showEditClassDialog = true;
+
+      // Populate form fields with existing class data
+      _selectedSectionId = classData['sectionId'];
+
+      // Load schedules
+      if (classData.containsKey('schedules') &&
+          classData['schedules'] is List) {
+        _schedules = List<Map<String, dynamic>>.from(classData['schedules']);
+      } else {
+        // Fallback to old format
+        _schedules = [
+          {
+            'day': classData['day'] ?? '',
+            'startTime': classData['startTime'] ?? '',
+            'endTime': classData['endTime'] ?? '',
+            'room': classData['room'] ?? '',
+          },
+        ];
+      }
+
+      // Set room controller (use first schedule's room)
+      if (_schedules.isNotEmpty) {
+        _roomController.text = _schedules[0]['room'] ?? '';
+      }
+    });
+  }
+
+  void _hideEditClassDialog() {
+    setState(() {
+      _showEditClassDialog = false;
+      _editingClassData = null;
       // Clear form fields
       _classNameController.clear();
       _roomController.clear();
@@ -180,6 +229,66 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
     );
 
     _hideCreateClassDialog();
+  }
+
+  void _updateClass() {
+    if (_editingClassData == null) return;
+
+    if (_availableSections.isEmpty) {
+      Get.snackbar(
+        "Error",
+        "No sections are assigned to you. Please contact admin.",
+      );
+      return;
+    }
+
+    // Check if section is selected
+    if (_selectedSectionId == null) {
+      Get.snackbar("Error", "Please select a section!");
+      return;
+    }
+
+    // Check if at least one schedule is added
+    if (_schedules.isEmpty) {
+      Get.snackbar("Error", "Please add at least one schedule!");
+      return;
+    }
+
+    // Get course information from selected section
+    final selectedSection = _availableSections.firstWhere(
+      (section) => section['id'] == _selectedSectionId,
+      orElse: () => {},
+    );
+
+    final sectionCode = selectedSection['sectionCode'] ?? "";
+    final courseCode = selectedSection['courseCode'] ?? "";
+
+    // Convert schedules to ClassSchedule objects
+    final classSchedules =
+        _schedules
+            .map(
+              (schedule) => ClassSchedule(
+                day: schedule['day'],
+                startTime: schedule['startTime'],
+                endTime: schedule['endTime'],
+                room: schedule['room'],
+              ),
+            )
+            .toList();
+
+    _classController.updateClass(
+      classId: _editingClassData!['id'],
+      section: sectionCode,
+      course: courseCode,
+      room:
+          _schedules.isNotEmpty
+              ? _schedules[0]['room']
+              : '', // Use first schedule's room for backward compatibility
+      schedules: classSchedules,
+      sectionId: _selectedSectionId,
+    );
+
+    _hideEditClassDialog();
   }
 
   void _showDeleteConfirmation(Map<String, dynamic> classData) {
@@ -1299,6 +1408,577 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                 ),
               ),
             ),
+          // Edit Class Dialog
+          if (_showEditClassDialog)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: Center(
+                child: Container(
+                  width:
+                      MediaQuery.of(context).size.width < 768
+                          ? MediaQuery.of(context).size.width * 0.9
+                          : 500,
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.85,
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal:
+                        MediaQuery.of(context).size.width < 768 ? 20 : 30,
+                    vertical: MediaQuery.of(context).size.width < 768 ? 16 : 20,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Edit Class',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Scrollable content
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Section Dropdown
+                              Container(
+                                height: 50,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF34A853,
+                                  ).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: DropdownButton<String>(
+                                  borderRadius: BorderRadius.circular(15),
+                                  value: _selectedSectionId,
+                                  hint:
+                                      _isLoadingSections
+                                          ? const Text(
+                                            'Loading sections...',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          )
+                                          : _availableSections.isEmpty
+                                          ? const Text(
+                                            'No sections assigned',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          )
+                                          : const Text(
+                                            'Select Section',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          ),
+                                  isExpanded: true,
+                                  underline: Container(),
+                                  items:
+                                      _availableSections.map<
+                                        DropdownMenuItem<String>
+                                      >((section) {
+                                        return DropdownMenuItem<String>(
+                                          value: section['id'],
+                                          child: Text(
+                                            '${section['courseCode']} ${section['sectionCode']} - ${section['courseName']}',
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontSize: 14,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        );
+                                      }).toList(),
+                                  onChanged: (String? newValue) {
+                                    setState(() {
+                                      _selectedSectionId = newValue;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Schedules Section Header
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Schedules',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_schedules.length}/2 added',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color:
+                                          _schedules.length >= 2
+                                              ? const Color(0xFF34A853)
+                                              : Colors.black54,
+                                      fontWeight:
+                                          _schedules.length >= 2
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Display added schedules
+                              if (_schedules.isNotEmpty)
+                                Container(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 150,
+                                  ),
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: _schedules.length,
+                                    itemBuilder: (context, index) {
+                                      final schedule = _schedules[index];
+                                      return Container(
+                                        margin: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(
+                                              0xFF34A853,
+                                            ).withOpacity(0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '${schedule['day']} • ${schedule['startTime']} - ${schedule['endTime']}',
+                                                    style: const TextStyle(
+                                                      color: Colors.black87,
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.meeting_room,
+                                                        size: 14,
+                                                        color: Colors.black54,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        schedule['room'] ??
+                                                            'No room',
+                                                        style: const TextStyle(
+                                                          color: Colors.black54,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete,
+                                                color: Colors.red,
+                                                size: 20,
+                                              ),
+                                              onPressed:
+                                                  () => _removeSchedule(index),
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+
+                              if (_schedules.isNotEmpty)
+                                const SizedBox(height: 12),
+
+                              // Add Schedule Form (hidden when 2 schedules added)
+                              if (_schedules.length < 2)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: Colors.grey.withOpacity(0.2),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Add Schedule',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Day Dropdown
+                                      Container(
+                                        height: 50,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: DropdownButton<String>(
+                                          borderRadius: BorderRadius.circular(
+                                            15,
+                                          ),
+                                          value: _tempSelectedDay,
+                                          hint: const Text(
+                                            'Select Day',
+                                            style: TextStyle(
+                                              color: Colors.black45,
+                                            ),
+                                          ),
+                                          isExpanded: true,
+                                          underline: Container(),
+                                          items:
+                                              _daysOfWeek.map<
+                                                DropdownMenuItem<String>
+                                              >((String day) {
+                                                return DropdownMenuItem<String>(
+                                                  value: day,
+                                                  child: Text(
+                                                    day,
+                                                    style: const TextStyle(
+                                                      color: Colors.black87,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                          onChanged: (String? newValue) {
+                                            setState(() {
+                                              _tempSelectedDay = newValue;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Time and Room Row
+                                      Row(
+                                        children: [
+                                          // Start Time
+                                          Expanded(
+                                            child: InkWell(
+                                              onTap: _selectStartTime,
+                                              child: Container(
+                                                height: 50,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFF34A853,
+                                                  ).withOpacity(0.15),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.access_time,
+                                                      size: 18,
+                                                      color: Colors.black54,
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: TextField(
+                                                        controller:
+                                                            _tempStartTimeController,
+                                                        enabled: false,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                              hintText:
+                                                                  'Start Time',
+                                                              border:
+                                                                  InputBorder
+                                                                      .none,
+                                                              hintStyle: TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .black45,
+                                                              ),
+                                                            ),
+                                                        style: const TextStyle(
+                                                          color: Colors.black87,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          // End Time
+                                          Expanded(
+                                            child: InkWell(
+                                              onTap: _selectEndTime,
+                                              child: Container(
+                                                height: 50,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFF34A853,
+                                                  ).withOpacity(0.15),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.access_time,
+                                                      size: 18,
+                                                      color: Colors.black54,
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: TextField(
+                                                        controller:
+                                                            _tempEndTimeController,
+                                                        enabled: false,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                              hintText:
+                                                                  'End Time',
+                                                              border:
+                                                                  InputBorder
+                                                                      .none,
+                                                              hintStyle: TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .black45,
+                                                              ),
+                                                            ),
+                                                        style: const TextStyle(
+                                                          color: Colors.black87,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Room Field
+                                      Container(
+                                        height: 50,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: TextField(
+                                          controller: _tempRoomController,
+                                          decoration: InputDecoration(
+                                            hintText: 'Room',
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                  vertical: 12,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Add Schedule Button
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: _addSchedule,
+                                          icon: const Icon(Icons.add, size: 18),
+                                          label: const Text('Add Schedule'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF34A853,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Schedule requirement message
+                      if (_schedules.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.orange.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.orange[700],
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Please add at least one schedule to update the class.',
+                                  style: TextStyle(
+                                    color: Colors.orange[700],
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (_schedules.isEmpty) const SizedBox(height: 16),
+                      // Action Buttons (Fixed at bottom)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: _hideEditClassDialog,
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          TextButton(
+                            onPressed:
+                                _availableSections.isEmpty ||
+                                        _selectedSectionId == null ||
+                                        _schedules.isEmpty
+                                    ? null
+                                    : _updateClass,
+                            child: Text(
+                              'Update',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color:
+                                    _availableSections.isEmpty ||
+                                            _selectedSectionId == null ||
+                                            _schedules.isEmpty
+                                        ? Colors.grey
+                                        : const Color(0xFF34A853),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1473,6 +2153,24 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                         // Action buttons
                         Row(
                           children: [
+                            // Edit button
+                            if (!_showArchivedClasses)
+                              GestureDetector(
+                                onTap: () => _openEditClassDialog(classData),
+                                child: Container(
+                                  padding: EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.edit_outlined,
+                                    color: Colors.blue,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            if (!_showArchivedClasses) SizedBox(width: 8),
                             // Archive/Unarchive button
                             GestureDetector(
                               onTap:

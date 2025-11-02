@@ -225,10 +225,24 @@ class LoginScreenController extends GetxController {
           final instructorData = instructorQuery.docs.first.data();
           final status = instructorData['status']?.toString() ?? 'Pending';
           final isActive = instructorData['isActive'] ?? false;
+          final isPhoneVerified = instructorData['isPhoneVerified'] ?? false;
 
           if (status == 'Approved' && isActive) {
             userType = 'instructor';
             debugPrint('Found approved instructor');
+
+            // Check if phone is verified (required for first login after approval)
+            if (!isPhoneVerified) {
+              debugPrint(
+                'Instructor phone not verified. Redirecting to OTP verification.',
+              );
+              // Set user as online (will be set again after OTP verification)
+              await OnlineStatusService().setOnline();
+
+              // Navigate to phone OTP verification screen
+              Get.offAllNamed('/instructor-phone-otp-verification');
+              return;
+            }
           } else {
             debugPrint(
               'Instructor not approved yet. Status: $status, Active: $isActive',

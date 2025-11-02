@@ -22,6 +22,7 @@ import 'admin/admin_class_management_screen.dart';
 import 'instructor/instructor_register_screen.dart';
 import 'instructor/instructor_forgot_password_screen.dart';
 import 'instructor/email_verification_screen.dart';
+import 'instructor/phone_otp_verification_screen.dart';
 import 'instructor/instructor_dashboard.dart';
 import 'instructor/announcement/announcement_screen.dart';
 import 'instructor/planted_trees/planted_trees_screen.dart';
@@ -124,6 +125,10 @@ class GreenQuestApp extends StatelessWidget {
         GetPage(
           name: '/instructor-email-verification',
           page: () => const EmailVerificationScreen(),
+        ),
+        GetPage(
+          name: '/instructor-phone-otp-verification',
+          page: () => const PhoneOtpVerificationScreen(),
         ),
         GetPage(
           name: '/instructor-forgot-password',

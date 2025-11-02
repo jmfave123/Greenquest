@@ -57,34 +57,29 @@ class AnnouncementScreenController extends GetxController {
     _fileUploadService.initialize();
   }
 
-  // Load instructor's assigned sections
+  // Load instructor's assigned sections (only from admin assignments)
   Future<void> loadInstructorSections() async {
     try {
       isLoadingSections.value = true;
       final sectionCodes =
           await InstructorClassService.getInstructorSectionCodes();
 
+      // Only use sections assigned by admin - no fallback to hardcoded classes
       if (sectionCodes.isNotEmpty) {
         availableSections.value = sectionCodes;
         selectedClasses.value = Map.fromEntries(
           sectionCodes.map((e) => MapEntry(e, true)), // Select all by default
         );
       } else {
-        // Fallback to static classes if no assignments found
-        final fallbackClasses = InstructorClassService.getFallbackClasses();
-        availableSections.value = fallbackClasses;
-        selectedClasses.value = Map.fromEntries(
-          fallbackClasses.map((e) => MapEntry(e, true)),
-        );
+        // If no assignments found, show empty list (new instructors won't see any sections until admin assigns them)
+        availableSections.value = [];
+        selectedClasses.value = {};
       }
     } catch (e) {
       print('Error loading instructor sections: $e');
-      // Fallback to static classes on error
-      final fallbackClasses = InstructorClassService.getFallbackClasses();
-      availableSections.value = fallbackClasses;
-      selectedClasses.value = Map.fromEntries(
-        fallbackClasses.map((e) => MapEntry(e, true)),
-      );
+      // On error, also show empty list - no fallback to hardcoded classes
+      availableSections.value = [];
+      selectedClasses.value = {};
     } finally {
       isLoadingSections.value = false;
     }

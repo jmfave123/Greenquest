@@ -27,6 +27,28 @@ class ClassController extends GetxController {
     delete4DClass();
   }
 
+  /// Check if a class with the same section already exists
+  Future<bool> checkSectionDuplicate(String? sectionId) async {
+    try {
+      final User? user = _auth.currentUser;
+      if (user == null || sectionId == null) return false;
+
+      final QuerySnapshot existingClasses =
+          await _firestore
+              .collection('instructors')
+              .doc(user.uid)
+              .collection('classes')
+              .where('sectionId', isEqualTo: sectionId)
+              .where('isArchived', isEqualTo: false)
+              .get();
+
+      return existingClasses.docs.isNotEmpty;
+    } catch (e) {
+      print('Error checking section duplicate: $e');
+      return false;
+    }
+  }
+
   /// Add class to Firestore under logged-in instructor's document
   /// Supports multiple schedules per class
   Future<void> addClass({
@@ -42,6 +64,22 @@ class ClassController extends GetxController {
       if (user == null) {
         Get.snackbar("Error", "No instructor is logged in.");
         return;
+      }
+
+      // Check for duplicate section
+      if (sectionId != null) {
+        final isDuplicate = await checkSectionDuplicate(sectionId);
+        if (isDuplicate) {
+          Get.snackbar(
+            "Error",
+            "A class with this section already exists. Please select a different section or edit the existing class.",
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+          return;
+        }
       }
 
       // Convert schedules to list of maps
@@ -66,6 +104,78 @@ class ClassController extends GetxController {
       loadClasses();
     } catch (e) {
       Get.snackbar("Error", "Failed to create class: $e");
+    }
+  }
+
+  /// Update class in Firestore
+  /// Supports multiple schedules per class
+  Future<void> updateClass({
+    required String classId,
+    required String section,
+    required String course,
+    required String room,
+    required List<ClassSchedule> schedules,
+    String? sectionId,
+  }) async {
+    try {
+      final User? user = _auth.currentUser;
+      if (user == null) {
+        Get.snackbar("Error", "No instructor is logged in.");
+        return;
+      }
+
+      // Check for duplicate section (excluding current class)
+      if (sectionId != null) {
+        final QuerySnapshot existingClasses =
+            await _firestore
+                .collection('instructors')
+                .doc(user.uid)
+                .collection('classes')
+                .where('sectionId', isEqualTo: sectionId)
+                .where('isArchived', isEqualTo: false)
+                .get();
+
+        // Check if there's a duplicate that's not the current class
+        final hasDuplicate = existingClasses.docs.any(
+          (doc) => doc.id != classId,
+        );
+
+        if (hasDuplicate) {
+          Get.snackbar(
+            "Error",
+            "A class with this section already exists. Please select a different section.",
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+          return;
+        }
+      }
+
+      // Convert schedules to list of maps
+      final schedulesData =
+          schedules.map((schedule) => schedule.toMap()).toList();
+
+      await _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('classes')
+          .doc(classId)
+          .update({
+            'section': section,
+            'course': course,
+            'room': room,
+            'schedules': schedulesData,
+            'sectionId': sectionId,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+      Get.snackbar("Success", "Class updated successfully!");
+      // Reload classes after updating
+      loadClasses();
+    } catch (e) {
+      Get.snackbar("Error", "Failed to update class: $e");
     }
   }
 

@@ -136,6 +136,9 @@ class InstructorRegisterController extends GetxController {
           'isVerified': false,
           'isActive': false, // Set to false until admin approval
           'status': 'Pending', // Set status to Pending for admin review
+          'isPhoneVerified':
+              false, // Phone verification required on first login
+          'phoneVerifiedAt': null,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
