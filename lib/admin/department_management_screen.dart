@@ -2743,18 +2743,28 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
   final List<Map<String, dynamic>> _instructors = [];
   final List<Map<String, dynamic>> _classes = [];
   bool _isLoading = true;
+  int _expandedClassIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    _loadSemesterData();
+    // Defer loading to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadSemesterData();
+      }
+    });
   }
 
   Future<void> _loadSemesterData() async {
+    if (!mounted) return;
+
     try {
-      setState(() {
-        _isLoading = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
 
       final semesterId = widget.semester['id'];
 
@@ -2768,6 +2778,8 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
 
       _departments.clear();
       for (var assignedDept in assignedDeptsSnapshot.docs) {
+        if (!mounted) return; // Check if widget is still mounted
+
         final deptSnapshot =
             await widget.firestore
                 .collection('departments')
@@ -2798,6 +2810,8 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
 
       _instructors.clear();
       for (var assignedInstructor in assignedInstructorsSnapshot.docs) {
+        if (!mounted) return; // Check if widget is still mounted
+
         final instructorSnapshot =
             await widget.firestore
                 .collection('instructors')
@@ -2828,8 +2842,12 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
 
       _classes.clear();
       for (var assignedClass in assignedClassesSnapshot.docs) {
+        if (!mounted) return; // Check if widget is still mounted
+
         // Find the class in instructors collection
         for (var instructor in _instructors) {
+          if (!mounted) return; // Check if widget is still mounted
+
           final classSnapshot =
               await widget.firestore
                   .collection('instructors')
@@ -2842,12 +2860,89 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
             final classData = classSnapshot.data()!;
             final sectionName = classData['section']?.toString().trim() ?? '';
             if (sectionName.isNotEmpty) {
+              // Load students for this class
+              List<Map<String, dynamic>> students = [];
+              try {
+                final studentsSnapshot =
+                    await widget.firestore
+                        .collection('instructors')
+                        .doc(instructor['id'])
+                        .collection('students')
+                        .where('selectedSectionCode', isEqualTo: sectionName)
+                        .get();
+
+                for (var studentDoc in studentsSnapshot.docs) {
+                  if (!mounted) return;
+                  final studentData = studentDoc.data();
+                  String studentProgramCode = 'N/A';
+                  final studentSectionCode =
+                      studentData['selectedSectionCode']?.toString().trim() ??
+                      '';
+                  if (studentSectionCode.isNotEmpty) {
+                    final studentSectionMatch = RegExp(
+                      r'^([A-Z]+)',
+                    ).firstMatch(studentSectionCode);
+                    if (studentSectionMatch != null) {
+                      studentProgramCode =
+                          studentSectionMatch.group(1) ?? 'N/A';
+                    }
+                  }
+
+                  // Fetch idNumber from users collection
+                  String idNumber = '';
+                  try {
+                    final userDoc =
+                        await widget.firestore
+                            .collection('users')
+                            .doc(studentDoc.id)
+                            .get();
+                    if (userDoc.exists) {
+                      final userData = userDoc.data() ?? {};
+                      idNumber = userData['idNumber']?.toString() ?? '';
+                    } else {
+                      // Fallback: try matching by studentId
+                      final studentId =
+                          studentData['studentId']?.toString() ?? '';
+                      if (studentId.isNotEmpty) {
+                        final userQuery =
+                            await widget.firestore
+                                .collection('users')
+                                .where('studentId', isEqualTo: studentId)
+                                .limit(1)
+                                .get();
+                        if (userQuery.docs.isNotEmpty) {
+                          final userData = userQuery.docs.first.data();
+                          idNumber = userData['idNumber']?.toString() ?? '';
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    print(
+                      'Error fetching idNumber for student ${studentDoc.id}: $e',
+                    );
+                  }
+
+                  students.add({
+                    'name': studentData['studentName']?.toString() ?? 'Unknown',
+                    'email': studentData['email']?.toString() ?? '',
+                    'studentId': studentData['studentId']?.toString() ?? '',
+                    'idNumber': idNumber,
+                    'program': studentProgramCode,
+                  });
+                }
+              } catch (e) {
+                print(
+                  'Error loading students for class ${classSnapshot.id}: $e',
+                );
+              }
+
               _classes.add({
                 'id': classSnapshot.id,
                 'section': sectionName,
                 'instructorName': instructor['name'],
                 'instructorId': instructor['id'],
                 'department': instructor['department'],
+                'students': students,
               });
               break; // Found the class, no need to continue searching
             }
@@ -2855,14 +2950,18 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
         }
       }
 
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error loading semester data: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -3177,36 +3276,320 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
       itemCount: _classes.length,
       itemBuilder: (context, index) {
         final classItem = _classes[index];
+        final isExpanded = _expandedClassIndex == index;
+        final students =
+            classItem['students'] as List<Map<String, dynamic>>? ?? [];
+
         return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[200]!),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFF34A853).withOpacity(0.2),
+              width: isExpanded ? 2 : 1,
+            ),
           ),
-          child: Row(
+          child: Column(
             children: [
-              const Icon(Icons.class_, color: Color(0xFF34A853), size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      classItem['section'],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _expandedClassIndex = isExpanded ? -1 : index;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF34A853).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.class_,
+                          color: Color(0xFF34A853),
+                          size: 24,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Instructor: ${classItem['instructorName']}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              classItem['section'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Instructor: ${classItem['instructorName']}',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${students.length} student${students.length != 1 ? 's' : ''} enrolled',
+                              style: const TextStyle(
+                                color: Color(0xFF34A853),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        isExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: const Color(0xFF34A853),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              if (isExpanded && students.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Divider(color: Colors.black26),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Students',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: students.length > 5 ? 300 : null,
+                        child:
+                            students.length > 5
+                                ? ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: students.length,
+                                  itemBuilder: (context, studentIndex) {
+                                    final student = students[studentIndex];
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: Colors.grey[200]!,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: const Color(
+                                                0xFF34A853,
+                                              ).withOpacity(0.1),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                (student['name']
+                                                        ?.toString()
+                                                        .substring(0, 1)
+                                                        .toUpperCase() ??
+                                                    'U'),
+                                                style: const TextStyle(
+                                                  color: Color(0xFF34A853),
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  student['name'] ?? 'Unknown',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  student['email'] ?? '',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                if (student['idNumber'] !=
+                                                        null &&
+                                                    (student['idNumber']
+                                                            as String)
+                                                        .isNotEmpty)
+                                                  Text(
+                                                    'ID Number: ${student['idNumber']}',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              border: Border.all(
+                                                color: const Color(0xFFBDBDBD),
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              student['program'] ?? 'N/A',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.black,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                )
+                                : Column(
+                                  children:
+                                      students.map((student) {
+                                        return Container(
+                                          margin: const EdgeInsets.only(
+                                            bottom: 8,
+                                          ),
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.grey[200]!,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: const Color(
+                                                    0xFF34A853,
+                                                  ).withOpacity(0.1),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    (student['name']
+                                                            ?.toString()
+                                                            .substring(0, 1)
+                                                            .toUpperCase() ??
+                                                        'U'),
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF34A853),
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      student['name'] ??
+                                                          'Unknown',
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      student['email'] ?? '',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                      0xFFBDBDBD,
+                                                    ),
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  student['program'] ?? 'N/A',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.black,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         );

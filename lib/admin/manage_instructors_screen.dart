@@ -83,6 +83,104 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
     );
   }
 
+  void _showApproveConfirmation(String instructorId, String instructorName) {
+    showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.green,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Approve Instructor',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Are you sure you want to approve "$instructorName"? They will be able to access their dashboard after approval.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black54, fontSize: 15),
+              ),
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text(
+                      'Approve',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black54,
+                      side: const BorderSide(color: Colors.grey),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    ).then((shouldApprove) {
+      if (shouldApprove == true) {
+        _approveInstructor(instructorId);
+      }
+    });
+  }
+
   Future<void> _approveInstructor(String instructorId) async {
     try {
       await _firestore.collection('instructors').doc(instructorId).update({
@@ -107,6 +205,104 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
         colorText: Colors.white,
       );
     }
+  }
+
+  void _showRejectConfirmation(String instructorId, String instructorName) {
+    showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Icon(
+                  Icons.cancel_outlined,
+                  color: Colors.orange,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Reject Instructor',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Are you sure you want to reject "$instructorName"? They will not be able to access their dashboard.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black54, fontSize: 15),
+              ),
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text(
+                      'Reject',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black54,
+                      side: const BorderSide(color: Colors.grey),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    ).then((shouldReject) {
+      if (shouldReject == true) {
+        _rejectInstructor(instructorId);
+      }
+    });
   }
 
   Future<void> _rejectInstructor(String instructorId) async {
@@ -139,7 +335,22 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
     String instructorId,
     String instructorName,
     List<Map<String, dynamic>>? existingAssignments,
+    String? instructorStatus,
   ) {
+    // Prevent assigning pending instructors
+    if (instructorStatus == 'Pending') {
+      Get.snackbar(
+        'Cannot Assign',
+        'Pending instructors cannot be assigned. Please approve the instructor first.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder:
@@ -1234,8 +1445,10 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                 width: 140,
                                                 child: ElevatedButton.icon(
                                                   onPressed:
-                                                      () => _approveInstructor(
+                                                      () => _showApproveConfirmation(
                                                         doc.id,
+                                                        data['name'] ??
+                                                            'Unknown Instructor',
                                                       ),
                                                   icon: const Icon(
                                                     Icons.check,
@@ -1266,8 +1479,10 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                 width: 140,
                                                 child: ElevatedButton.icon(
                                                   onPressed:
-                                                      () => _rejectInstructor(
+                                                      () => _showRejectConfirmation(
                                                         doc.id,
+                                                        data['name'] ??
+                                                            'Unknown Instructor',
                                                       ),
                                                   icon: const Icon(
                                                     Icons.close,
@@ -1372,6 +1587,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                             data['assignments'],
                                                           )
                                                           : null,
+                                                      status,
                                                     ),
                                                 icon: const Icon(
                                                   Icons.school_outlined,

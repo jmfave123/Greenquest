@@ -81,43 +81,19 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
     print('🔍 Midterm exam items: ${_midtermExamItems.length}');
     print('🔍 PIT items: ${_pitItems.length}');
 
-    // Show message if no class standing items
-    if (_classStandingItems.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.assignment, size: 64, color: Colors.grey),
-              SizedBox(height: 16),
-              Text(
-                'No Class Standing Items Found',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Create assignments, activities, or quizzes with category "class_standing"',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Use the new Syncfusion DataGrid component
+    // Always show the table structure, even if empty
+    // The table will display with empty student rows if no students exist
+    // and will show column structure even if no items are created yet
     return ClassRecordTable(
-      students: scores,
+      students: scores, // Will be empty list if no students exist
       classStandingItems: _classStandingItems,
       quizPrelimItems: _quizPrelimItems,
       midtermExamItems: _midtermExamItems,
       pitItems: _pitItems,
-      finalClassStandingItems: [],
-      finalQuizItems: [],
-      finalExamItems: [],
-      finalPitItems: [],
+      finalClassStandingItems: _finalClassStandingItems,
+      finalQuizItems: _finalQuizItems,
+      finalExamItems: _finalExamItems,
+      finalPitItems: _finalPitItems,
       onCellValueChanged: (student, itemKey, value) {
         // Handle cell editing if needed in the future
         print(
@@ -1465,260 +1441,299 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                       horizontal: 32,
                       vertical: 24,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Class Report',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            // Responsive button row
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                // If screen is too narrow, stack buttons vertically
-                                if (constraints.maxWidth < 600) {
-                                  return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      // Refresh Button
-                                      ElevatedButton.icon(
-                                        onPressed: _refreshData,
-                                        icon: const Icon(
-                                          Icons.refresh,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Refresh'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFF34A853,
-                                          ),
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      // Export Button
-                                      ElevatedButton.icon(
-                                        onPressed: _exportData,
-                                        icon: const Icon(
-                                          Icons.download,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Export'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFF22C55E,
-                                          ),
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Calculate available height for the table
+                        // Account for: header, buttons, semester filter, and padding
+                        const double headerHeight =
+                            60; // Approximate header height
+                        const double buttonsHeight =
+                            60; // Approximate buttons height
+                        const double filterHeight =
+                            50; // Approximate filter height
+                        const double spacingHeight =
+                            16 + 16; // SizedBox heights
+                        final double availableHeight =
+                            constraints.maxHeight -
+                            headerHeight -
+                            buttonsHeight -
+                            filterHeight -
+                            spacingHeight;
 
-                                // Default horizontal layout
-                                return Row(
-                                  children: [
-                                    // Refresh Button
-                                    ElevatedButton.icon(
-                                      onPressed: _refreshData,
-                                      icon: const Icon(Icons.refresh, size: 18),
-                                      label: const Text('Refresh'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF34A853,
-                                        ),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Export Button
-                                    ElevatedButton.icon(
-                                      onPressed: _exportData,
-                                      icon: const Icon(
-                                        Icons.download,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Export'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF22C55E,
-                                        ),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Semester Filter
-                        _buildSemesterFilter(),
-                        const SizedBox(height: 16),
-                        // Table with Pull-to-Refresh + filtering overlay
-                        Expanded(
-                          child: Stack(
+                        return SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              RefreshIndicator(
-                                onRefresh: _refreshData,
-                                color: const Color(0xFF34A853),
-                                child: Obx(() {
-                                  if (_classReportController
-                                      .isLoadingStudents
-                                      .value) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Color(0xFF34A853),
+                              // Header
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Class Report',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  // Responsive button row
+                                  LayoutBuilder(
+                                    builder: (context, buttonConstraints) {
+                                      // If screen is too narrow, stack buttons vertically
+                                      if (buttonConstraints.maxWidth < 600) {
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            // Refresh Button
+                                            ElevatedButton.icon(
+                                              onPressed: _refreshData,
+                                              icon: const Icon(
+                                                Icons.refresh,
+                                                size: 18,
+                                              ),
+                                              label: const Text('Refresh'),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xFF34A853,
+                                                ),
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
                                             ),
-                                      ),
-                                    );
-                                  }
+                                            const SizedBox(height: 8),
+                                            // Export Button
+                                            ElevatedButton.icon(
+                                              onPressed: _exportData,
+                                              icon: const Icon(
+                                                Icons.download,
+                                                size: 18,
+                                              ),
+                                              label: const Text('Export'),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xFF22C55E,
+                                                ),
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }
 
-                                  if (_classReportController
-                                      .errorMessage
-                                      .value
-                                      .isNotEmpty) {
-                                    return Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                      // Default horizontal layout
+                                      return Row(
                                         children: [
-                                          Icon(
-                                            Icons.error_outline,
-                                            size: 64,
-                                            color: Colors.red[400],
-                                          ),
-                                          const SizedBox(height: 16),
-                                          Text(
-                                            'Error: ${_classReportController.errorMessage.value}',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Colors.red[600],
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          ElevatedButton(
+                                          // Refresh Button
+                                          ElevatedButton.icon(
                                             onPressed: _refreshData,
+                                            icon: const Icon(
+                                              Icons.refresh,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Refresh'),
                                             style: ElevatedButton.styleFrom(
                                               backgroundColor: const Color(
                                                 0xFF34A853,
                                               ),
                                               foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
                                             ),
-                                            child: const Text('Retry'),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          // Export Button
+                                          ElevatedButton.icon(
+                                            onPressed: _exportData,
+                                            icon: const Icon(
+                                              Icons.download,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Export'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFF22C55E,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
                                           ),
                                         ],
-                                      ),
-                                    );
-                                  }
-
-                                  // Use StreamBuilder for real-time updates
-                                  return StreamBuilder<
-                                    List<Map<String, dynamic>>
-                                  >(
-                                    stream:
-                                        _classReportController
-                                            .createRealTimeStudentsStream(),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState ==
-                                              ConnectionState.waiting &&
-                                          !snapshot.hasData) {
-                                        return const Center(
-                                          child: CircularProgressIndicator(),
-                                        );
-                                      }
-
-                                      if (snapshot.hasError) {
-                                        return Center(
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              const Icon(
-                                                Icons.error_outline,
-                                                size: 48,
-                                                color: Colors.red,
-                                              ),
-                                              const SizedBox(height: 16),
-                                              Text('Error: ${snapshot.error}'),
-                                            ],
-                                          ),
-                                        );
-                                      }
-
-                                      final studentScores = snapshot.data ?? [];
-                                      return _buildDynamicClassStandingTable(
-                                        studentScores,
                                       );
                                     },
-                                  );
-                                }),
-                              ),
-                              if (_isFiltering)
-                                Positioned.fill(
-                                  child: Container(
-                                    color: Colors.white.withOpacity(0.5),
-                                    child: const Center(
-                                      child: CircularProgressIndicator(
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Color(0xFF34A853),
-                                            ),
-                                      ),
-                                    ),
                                   ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Semester Filter
+                              _buildSemesterFilter(),
+                              const SizedBox(height: 16),
+                              // Table with fixed height - scrollable independently
+                              SizedBox(
+                                height:
+                                    availableHeight > 400
+                                        ? availableHeight
+                                        : 400, // Minimum height of 400
+                                child: Stack(
+                                  children: [
+                                    RefreshIndicator(
+                                      onRefresh: _refreshData,
+                                      color: const Color(0xFF34A853),
+                                      child: Obx(() {
+                                        if (_classReportController
+                                            .isLoadingStudents
+                                            .value) {
+                                          return const Center(
+                                            child: CircularProgressIndicator(
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Color(0xFF34A853),
+                                                  ),
+                                            ),
+                                          );
+                                        }
+
+                                        if (_classReportController
+                                            .errorMessage
+                                            .value
+                                            .isNotEmpty) {
+                                          return Center(
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.error_outline,
+                                                  size: 64,
+                                                  color: Colors.red[400],
+                                                ),
+                                                const SizedBox(height: 16),
+                                                Text(
+                                                  'Error: ${_classReportController.errorMessage.value}',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    color: Colors.red[600],
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                ElevatedButton(
+                                                  onPressed: _refreshData,
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            const Color(
+                                                              0xFF34A853,
+                                                            ),
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                      ),
+                                                  child: const Text('Retry'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+
+                                        // Use StreamBuilder for real-time updates
+                                        return StreamBuilder<
+                                          List<Map<String, dynamic>>
+                                        >(
+                                          stream:
+                                              _classReportController
+                                                  .createRealTimeStudentsStream(),
+                                          builder: (context, snapshot) {
+                                            if (snapshot.connectionState ==
+                                                    ConnectionState.waiting &&
+                                                !snapshot.hasData) {
+                                              return const Center(
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              );
+                                            }
+
+                                            if (snapshot.hasError) {
+                                              return Center(
+                                                child: Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.error_outline,
+                                                      size: 48,
+                                                      color: Colors.red,
+                                                    ),
+                                                    const SizedBox(height: 16),
+                                                    Text(
+                                                      'Error: ${snapshot.error}',
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            }
+
+                                            final studentScores =
+                                                snapshot.data ?? [];
+                                            return _buildDynamicClassStandingTable(
+                                              studentScores,
+                                            );
+                                          },
+                                        );
+                                      }),
+                                    ),
+                                    if (_isFiltering)
+                                      Positioned.fill(
+                                        child: Container(
+                                          color: Colors.white.withOpacity(0.5),
+                                          child: const Center(
+                                            child: CircularProgressIndicator(
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Color(0xFF34A853),
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
+                              ),
                             ],
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ),

@@ -419,58 +419,87 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Tabs
-                        Row(
-                          children: [
-                            _buildTab('Class', 0),
-                            const SizedBox(width: 32),
-                            _buildTab('Students', 1),
-                            const SizedBox(width: 32),
-                            _buildTab('Classwork', 2),
-                            const SizedBox(width: 32),
-                            _buildTab('Trees', 3),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Calculate available height for tab content
+                        // Account for: tabs, conditional plant tree button, and spacing
+                        const double tabsHeight = 50; // Approximate tabs height
+                        const double plantTreeButtonHeight =
+                            60; // Plant tree button + spacing
+                        final double availableHeight =
+                            constraints.maxHeight -
+                            tabsHeight -
+                            (_selectedTabIndex == 3
+                                ? plantTreeButtonHeight
+                                : 0) -
+                            20; // SizedBox height
 
-                        // Plant Tree Button - Only show on Trees tab
-                        if (_selectedTabIndex == 3) ...[
-                          Row(
+                        return SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ElevatedButton.icon(
-                                onPressed: _showPlantTreeDialog,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF34A853),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                icon: const Icon(Icons.eco, size: 20),
-                                label: const Text(
-                                  'Plant Tree',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                              // Tabs
+                              Row(
+                                children: [
+                                  _buildTab('Class', 0),
+                                  const SizedBox(width: 32),
+                                  _buildTab('Students', 1),
+                                  const SizedBox(width: 32),
+                                  _buildTab('Classwork', 2),
+                                  const SizedBox(width: 32),
+                                  _buildTab('Trees', 3),
+                                ],
                               ),
-                              const Spacer(),
+                              const SizedBox(height: 20),
+
+                              // Plant Tree Button - Only show on Trees tab
+                              if (_selectedTabIndex == 3) ...[
+                                Row(
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: _showPlantTreeDialog,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF34A853,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                      icon: const Icon(Icons.eco, size: 20),
+                                      label: const Text(
+                                        'Plant Tree',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+
+                              // Tab Content with fixed height for independent scrolling
+                              SizedBox(
+                                height:
+                                    availableHeight > 400
+                                        ? availableHeight
+                                        : 400, // Minimum height of 400
+                                child: _buildTabContent(),
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 20),
-                        ],
-
-                        // Tab Content
-                        Expanded(child: _buildTabContent()),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -830,34 +859,49 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
                     if (postedItems.isEmpty) {
                       return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset(
-                              'assets/icons/solar_document-outline.png',
-                              width: 80,
-                              height: 80,
-                              color: Colors.grey.withOpacity(0.5),
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 24,
                             ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'No assignments or activities posted yet',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
-                              ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Image.asset(
+                                  'assets/icons/solar_document-outline.png',
+                                  width: 80,
+                                  height: 80,
+                                  color: Colors.grey.withOpacity(0.5),
+                                ),
+                                const SizedBox(height: 16),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    'No assignments or activities posted yet',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    'Create assignments, activities, and quizzes for your class.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Create assignments, activities, and quizzes for your class.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                          ),
                         ),
                       );
                     }
@@ -1127,30 +1171,48 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 }
 
                 return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.people_outline,
-                        size: 64,
-                        color: Colors.grey.withOpacity(0.5),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 24,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        message,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey,
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            size: 64,
+                            color: Colors.grey.withOpacity(0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              message,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        subtitle,
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                    ),
                   ),
                 );
               }
@@ -1947,34 +2009,49 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
                     if (submissions.isEmpty) {
                       return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Image.asset(
-                              'assets/icons/solar_document-outline.png',
-                              width: 80,
-                              height: 80,
-                              color: Colors.grey.withOpacity(0.5),
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 24,
                             ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'No student submissions yet',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
-                              ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Image.asset(
+                                  'assets/icons/solar_document-outline.png',
+                                  width: 80,
+                                  height: 80,
+                                  color: Colors.grey.withOpacity(0.5),
+                                ),
+                                const SizedBox(height: 16),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    'No student submissions yet',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    'Student submissions will appear here when they submit their work.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Student submissions will appear here when they submit their work.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                          ),
                         ),
                       );
                     }
@@ -2744,30 +2821,48 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
                 if (trees.isEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.eco_outlined,
-                          size: 64,
-                          color: Colors.grey.withOpacity(0.5),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 24,
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No trees planted yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.eco_outlined,
+                              size: 64,
+                              color: Colors.grey.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'No trees planted yet',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'Click the "Plant Tree" button to add trees for this class.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Click the "Plant Tree" button to add trees for this class.',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                      ),
                     ),
                   );
                 }

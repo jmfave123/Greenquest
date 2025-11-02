@@ -38,16 +38,20 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
   void initState() {
     super.initState();
     submissionsController = Get.put(SubmissionsController());
-    _loadSubmissions();
 
-    // Set up a delayed fallback to try direct loading if no submissions found
-    Future.delayed(const Duration(seconds: 2), () {
-      if (submissionsController.submissions.isEmpty) {
-        print(
-          '🔄 No submissions found with standard method, trying direct loading...',
-        );
-        _loadSubmissionsDirectly();
-      }
+    // Defer loading to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSubmissions();
+
+      // Set up a delayed fallback to try direct loading if no submissions found
+      Future.delayed(const Duration(seconds: 2), () {
+        if (submissionsController.submissions.isEmpty) {
+          print(
+            '🔄 No submissions found with standard method, trying direct loading...',
+          );
+          _loadSubmissionsDirectly();
+        }
+      });
     });
   }
 
@@ -139,6 +143,7 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
         directSubmissions.add({'id': doc.id, 'type': itemType, ...data});
       }
 
+      // Update observables directly - async operations are done, build phase is complete
       submissionsController.submissions.assignAll(directSubmissions);
       submissionsController.updateStats();
     } catch (e) {

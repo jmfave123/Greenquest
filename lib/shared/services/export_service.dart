@@ -66,7 +66,7 @@ class ExportService {
       );
 
       // Write Max Points row (aligned below detailed column headers)
-      int startRow = 11; // headers at row 10, max points at 11
+      int startRow = 8; // headers at row 7, max points at 8
       _writeMaxPointsRow(
         sheet,
         startRow,
@@ -807,16 +807,16 @@ class ExportService {
         .getRangeByName('A1')
         .setText('Department of NATIONAL SERVICE TRAINING PROGRAM');
     sheet.getRangeByName('A1').cellStyle.bold = true;
-    sheet.getRangeByName('A1').cellStyle.backColor = '#E3F2FD';
+    sheet.getRangeByName('A1').cellStyle.backColor = '#FFFFFF';
 
     // Row 2: Subject (merged across all columns)
     sheet.getRangeByName('A2:${_getColumnLetter(totalColumns)}2').merge();
     sheet.getRangeByName('A2').setText('Subject: NSTP 101C');
     sheet.getRangeByName('A2').cellStyle.bold = true;
-    sheet.getRangeByName('A2').cellStyle.backColor = '#E3F2FD';
+    sheet.getRangeByName('A2').cellStyle.backColor = '#FFFFFF';
 
-    // Row 7: Top stacked headers for sections
-    row = 7;
+    // Row 4: Top stacked headers for sections
+    row = 4;
     int col = 1;
     sheet
         .getRangeByName(
@@ -871,8 +871,8 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.fontColor =
         '#FFFFFF';
 
-    // Row 8: Lecture 100% over midterm and final groups
-    row = 8;
+    // Row 5: Lecture 100% over midterm and final groups
+    row = 5;
     col = 4;
     sheet
         .getRangeByName(
@@ -911,8 +911,8 @@ class ExportService {
         )
         .merge();
 
-    // Row 9: Category headers for midterm and final groups
-    row = 9;
+    // Row 6: Category headers for midterm and final groups
+    row = 6;
     col = 4; // midterm start
     sheet
         .getRangeByName(
@@ -1062,8 +1062,8 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
         HAlignType.center;
 
-    // Row 10: Detailed column headers
-    row = 10;
+    // Row 7: Detailed column headers
+    row = 7;
     col = 1;
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('');
     sheet.getRangeByName('${_getColumnLetter(col++)}$row').setText('');

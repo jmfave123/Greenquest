@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 
 class MultipleAssignmentDialog extends StatefulWidget {
   final String instructorId;
@@ -21,6 +22,8 @@ class MultipleAssignmentDialog extends StatefulWidget {
 class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<Map<String, dynamic>> selectedAssignments = [];
+  List<Map<String, dynamic>> _initialAssignments =
+      []; // Track initial assignments on dialog open
   String? selectedDepartmentId;
   String? selectedSectionId;
   List<Map<String, dynamic>> departments = [];
@@ -32,10 +35,13 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
     selectedAssignments = List<Map<String, dynamic>>.from(
       widget.existingAssignments ?? [],
     );
+    // Store initial assignments to compare later
+    _initialAssignments = List<Map<String, dynamic>>.from(selectedAssignments);
 
     // Debug: Print existing assignments
     print('Existing assignments: ${widget.existingAssignments}');
     print('Selected assignments: $selectedAssignments');
+    print('Initial assignments count: ${_initialAssignments.length}');
 
     // Always load assignments from Firestore to ensure we have the latest data
     _loadAssignmentsFromFirestore();
@@ -59,10 +65,19 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                 assignments
                     .map((assignment) => Map<String, dynamic>.from(assignment))
                     .toList();
+            // Update initial assignments to match Firestore data
+            _initialAssignments = List<Map<String, dynamic>>.from(
+              selectedAssignments,
+            );
           });
           print('Loaded assignments from Firestore: $selectedAssignments');
+          print(
+            'Updated initial assignments count: ${_initialAssignments.length}',
+          );
         } else {
           print('No assignments found in Firestore');
+          // Reset initial assignments if Firestore has none
+          _initialAssignments = [];
         }
       }
     } catch (e) {
@@ -150,22 +165,22 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         print('New selectedAssignments: $selectedAssignments');
 
         // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Assignment added successfully! Click Save to confirm.',
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
+        Get.snackbar(
+          'Success',
+          'Assignment added successfully! Click Save to confirm.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
         );
       } else {
         print('✗ Assignment already exists - blocked');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This assignment already exists'),
-            backgroundColor: Colors.orange,
-          ),
+        Get.snackbar(
+          'Warning',
+          'This assignment already exists',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
         );
       }
     } else {
@@ -182,6 +197,28 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
     });
   }
 
+  // Helper method to check if two assignment lists are identical
+  bool _areListsIdentical(
+    List<Map<String, dynamic>> list1,
+    List<Map<String, dynamic>> list2,
+  ) {
+    if (list1.length != list2.length) return false;
+
+    for (var i = 0; i < list1.length; i++) {
+      final a1 = list1[i];
+      final a2 = list2[i];
+
+      if (a1['departmentId'] != a2['departmentId'] ||
+          a1['sectionId'] != a2['sectionId'] ||
+          a1['departmentCode'] != a2['departmentCode'] ||
+          a1['sectionCode'] != a2['sectionCode']) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   Future<void> _saveAssignments() async {
     print('==================== SAVE ASSIGNMENTS ====================');
     print('Saving assignments: $selectedAssignments');
@@ -189,28 +226,142 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
     print('Instructor ID: ${widget.instructorId}');
 
     try {
-      // Validate assignments before saving
-      for (var i = 0; i < selectedAssignments.length; i++) {
-        var assignment = selectedAssignments[i];
-        print('Validating assignment $i: $assignment');
-        if (assignment['departmentId'] == null ||
-            assignment['sectionId'] == null ||
-            assignment['departmentName'] == null ||
-            assignment['sectionName'] == null ||
-            assignment['departmentCode'] == null ||
-            assignment['sectionCode'] == null) {
-          print('VALIDATION FAILED for assignment $i');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid assignment data. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+      // Check if instructor is pending - prevent assignment
+      final instructorDoc =
+          await _firestore
+              .collection('instructors')
+              .doc(widget.instructorId)
+              .get();
+
+      if (instructorDoc.exists) {
+        final instructorData = instructorDoc.data() as Map<String, dynamic>;
+        final instructorStatus =
+            instructorData['status']?.toString() ?? 'Pending';
+
+        if (instructorStatus == 'Pending') {
+          print('✗ Cannot assign pending instructor');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Cannot assign pending instructor. Please approve the instructor first.',
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
           return;
         }
       }
 
+      // STRICT VALIDATION: Block save if:
+      // 1. No assignments in list at all, OR
+      // 2. Dropdowns are empty AND no new assignments were added (same as initial state)
+      if (selectedAssignments.isEmpty) {
+        print('✗ BLOCKED: Cannot save - no assignments in list');
+        if (mounted) {
+          Get.snackbar(
+            'Cannot Save',
+            'Please select a department and section, then click Add before saving.',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+        }
+        return; // Stop - do not save
+      }
+
+      // Check if dropdowns are empty AND no new assignments were added
+      final hasNewAssignments =
+          selectedAssignments.length > _initialAssignments.length ||
+          !_areListsIdentical(selectedAssignments, _initialAssignments);
+
+      if (!hasNewAssignments &&
+          (selectedDepartmentId == null || selectedSectionId == null)) {
+        print('✗ BLOCKED: Dropdowns are empty and no new assignments added');
+        print('  selectedDepartmentId: $selectedDepartmentId');
+        print('  selectedSectionId: $selectedSectionId');
+        print('  Initial assignments: ${_initialAssignments.length}');
+        print('  Current assignments: ${selectedAssignments.length}');
+
+        if (mounted) {
+          Get.snackbar(
+            'Cannot Save',
+            'Please select a department and section from the dropdowns, then click Add before saving.',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+        }
+        return; // Stop - do not save
+      }
+
+      // Validate assignments before saving - must have valid department and section
+      for (var i = 0; i < selectedAssignments.length; i++) {
+        var assignment = selectedAssignments[i];
+        print('Validating assignment $i: $assignment');
+
+        // Check for null or empty department and section
+        final departmentId = assignment['departmentId'];
+        final sectionId = assignment['sectionId'];
+        final departmentName = assignment['departmentName'];
+        final sectionName = assignment['sectionName'];
+        final departmentCode = assignment['departmentCode'];
+        final sectionCode = assignment['sectionCode'];
+
+        if (departmentId == null ||
+            departmentId.toString().isEmpty ||
+            sectionId == null ||
+            sectionId.toString().isEmpty ||
+            departmentName == null ||
+            departmentName.toString().isEmpty ||
+            sectionName == null ||
+            sectionName.toString().isEmpty ||
+            departmentCode == null ||
+            departmentCode.toString().isEmpty ||
+            sectionCode == null ||
+            sectionCode.toString().isEmpty) {
+          print('VALIDATION FAILED for assignment $i');
+          print('  - Department ID: $departmentId');
+          print('  - Section ID: $sectionId');
+          print('  - Department Name: $departmentName');
+          print('  - Section Name: $sectionName');
+
+          if (mounted) {
+            Get.snackbar(
+              'Cannot Save',
+              'One or more assignments have missing department or section information. Please remove invalid assignments and try again.',
+              snackPosition: SnackPosition.TOP,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 4),
+            );
+          }
+          return;
+        }
+      }
+
+      // Final check: Ensure list is not empty before saving
+      if (selectedAssignments.isEmpty) {
+        print('✗ BLOCKED: Cannot save - assignments list is empty');
+        if (mounted) {
+          Get.snackbar(
+            'Cannot Save',
+            'No assignments to save. Please add at least one department and section assignment.',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+        }
+        return; // Stop - do not save
+      }
+
       print('Validation passed. Updating Firestore...');
+      print('Saving ${selectedAssignments.length} assignment(s)');
 
       await _firestore
           .collection('instructors')
@@ -225,26 +376,26 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
 
       if (mounted) {
         Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              selectedAssignments.isEmpty
-                  ? 'All assignments removed successfully!'
-                  : 'Assignments saved successfully!',
-            ),
-            backgroundColor: Colors.green,
-          ),
+        Get.snackbar(
+          'Success',
+          selectedAssignments.isEmpty
+              ? 'All assignments removed successfully!'
+              : 'Assignments saved successfully!',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
         );
       }
     } catch (e) {
       print('✗ ERROR saving assignments: $e');
       print('=========================================================');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving assignments: $e'),
-            backgroundColor: Colors.red,
-          ),
+        Get.snackbar(
+          'Error',
+          'Error saving assignments: $e',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
         );
       }
     }

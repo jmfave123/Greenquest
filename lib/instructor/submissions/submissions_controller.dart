@@ -98,10 +98,11 @@ class SubmissionsController extends GetxController {
     String assignmentId, {
     String? sectionId,
   }) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
+    // Since this is called from initState (which defers the call), we can update directly
+    isLoading.value = true;
+    errorMessage.value = '';
 
+    try {
       print('🔍 Loading assignment submissions:');
       print('  - Assignment ID: $assignmentId');
       print('  - Section ID: $sectionId');
@@ -121,6 +122,7 @@ class SubmissionsController extends GetxController {
         print('❌ No sections found for instructor: ${user.uid}');
         submissions.assignAll([]);
         updateStats();
+        isLoading.value = false;
         return;
       }
 
@@ -155,22 +157,25 @@ class SubmissionsController extends GetxController {
       );
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
+
+      // Update observables directly - async operations are done, build phase is complete
       submissions.assignAll(loadedSubmissions);
       updateStats();
+      isLoading.value = false;
     } catch (e) {
       print('❌ Error loading assignment submissions: $e');
       errorMessage.value = 'Failed to load submissions: $e';
-    } finally {
       isLoading.value = false;
     }
   }
 
   // Load submissions for a specific quiz
   Future<void> loadQuizSubmissions(String quizId, {String? sectionId}) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
+    // Since this is called from initState (which defers the call), we can update directly
+    isLoading.value = true;
+    errorMessage.value = '';
 
+    try {
       print('🔍 Loading quiz submissions:');
       print('  - Quiz ID: $quizId');
       print('  - Section ID: $sectionId');
@@ -190,6 +195,7 @@ class SubmissionsController extends GetxController {
         print('❌ No sections found for instructor: ${user.uid}');
         submissions.assignAll([]);
         updateStats();
+        isLoading.value = false;
         return;
       }
 
@@ -231,12 +237,14 @@ class SubmissionsController extends GetxController {
       );
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
+
+      // Update observables directly - async operations are done, build phase is complete
       submissions.assignAll(loadedSubmissions);
       updateStats();
+      isLoading.value = false;
     } catch (e) {
       print('❌ Error loading quiz submissions: $e');
       errorMessage.value = 'Failed to load quiz submissions: $e';
-    } finally {
       isLoading.value = false;
     }
   }
@@ -246,10 +254,11 @@ class SubmissionsController extends GetxController {
     String activityId, {
     String? sectionId,
   }) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
+    // Since this is called from initState (which defers the call), we can update directly
+    isLoading.value = true;
+    errorMessage.value = '';
 
+    try {
       print('🔍 Loading activity submissions:');
       print('  - Activity ID: $activityId');
       print('  - Section ID: $sectionId');
@@ -269,6 +278,7 @@ class SubmissionsController extends GetxController {
         print('❌ No sections found for instructor: ${user.uid}');
         submissions.assignAll([]);
         updateStats();
+        isLoading.value = false;
         return;
       }
 
@@ -310,12 +320,14 @@ class SubmissionsController extends GetxController {
       );
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
+
+      // Update observables directly - async operations are done, build phase is complete
       submissions.assignAll(loadedSubmissions);
       updateStats();
+      isLoading.value = false;
     } catch (e) {
       print('❌ Error loading activity submissions: $e');
       errorMessage.value = 'Failed to load submissions: $e';
-    } finally {
       isLoading.value = false;
     }
   }
@@ -325,10 +337,10 @@ class SubmissionsController extends GetxController {
     String? instructorId,
     String? sectionId,
   }) async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = '';
+    isLoading.value = true;
+    errorMessage.value = '';
 
+    try {
       final user = _auth.currentUser;
       final currentInstructorId = instructorId ?? user?.uid;
 
@@ -351,6 +363,7 @@ class SubmissionsController extends GetxController {
         print('No sections found for instructor: $currentInstructorId');
         submissions.assignAll([]);
         updateStats();
+        isLoading.value = false;
         return;
       }
 
@@ -400,10 +413,10 @@ class SubmissionsController extends GetxController {
       print('✅ Total submissions loaded: ${allSubmissions.length}');
       submissions.assignAll(allSubmissions);
       updateStats();
+      isLoading.value = false;
     } catch (e) {
       print('❌ Error loading instructor submissions: $e');
       errorMessage.value = 'Failed to load submissions: $e';
-    } finally {
       isLoading.value = false;
     }
   }

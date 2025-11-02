@@ -53,7 +53,12 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // Defer loading to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadData();
+      }
+    });
   }
 
   @override
@@ -70,33 +75,45 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (!mounted) return;
+
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
+      if (!mounted) return;
       // Load all instructors
       await _loadInstructors();
 
+      if (!mounted) return;
       // Load all classes from all instructors
       await _loadAllClasses();
 
+      if (!mounted) return;
       // Load students for each class
       await _loadAllClassStudents();
 
+      if (!mounted) return;
       // Load instructor stats
       await _loadInstructorStats();
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to load data: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      if (mounted) {
+        Get.snackbar(
+          'Error',
+          'Failed to load data: $e',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -104,28 +121,88 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
     try {
       final QuerySnapshot snapshot =
           await _firestore.collection('instructors').get();
-      _instructors =
-          snapshot.docs
-              .map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return {
-                  'id': doc.id,
-                  'name': data['name'] ?? '',
-                  'email': data['email'] ?? '',
-                  'department': data['department'] ?? '',
-                  'phone': data['phone'] ?? '',
-                  'profileUrl':
-                      data['profileUrl'] ?? data['profileImageUrl'] ?? '',
-                };
-              })
-              .where((instructor) {
-                // Filter out instructors with empty names or "Unknown Instructor"
-                final name = instructor['name']?.toString().trim() ?? '';
-                return name.isNotEmpty &&
-                    name.toLowerCase() != 'unknown instructor' &&
-                    name.toLowerCase() != 'unknown';
-              })
-              .toList();
+
+      List<Map<String, dynamic>> instructorsList = [];
+
+      for (var doc in snapshot.docs) {
+        if (!mounted) return;
+
+        final data = doc.data() as Map<String, dynamic>;
+        final instructorName = data['name']?.toString().trim() ?? '';
+        final instructorStatus = data['status']?.toString() ?? 'Pending';
+
+        // Filter out instructors without names or with "unknown" names
+        if (instructorName.isEmpty ||
+            instructorName.toLowerCase() == 'unknown') {
+          continue;
+        }
+
+        // Only include approved instructors - exclude pending and rejected
+        if (instructorStatus != 'Approved') {
+          print(
+            '⏭️ Skipping instructor $instructorName - Status: $instructorStatus',
+          );
+          continue;
+        }
+
+        // Load assigned departments from assignments array
+        Set<String> departmentNames = {};
+        final assignments = data['assignments'];
+        if (assignments != null &&
+            assignments is List &&
+            assignments.isNotEmpty) {
+          for (var assignmentData in assignments) {
+            if (!mounted) return;
+
+            if (assignmentData is Map) {
+              final departmentId = assignmentData['departmentId']?.toString();
+
+              if (departmentId != null) {
+                try {
+                  final departmentDoc =
+                      await _firestore
+                          .collection('departments')
+                          .doc(departmentId)
+                          .get();
+
+                  if (departmentDoc.exists) {
+                    final departmentData = departmentDoc.data();
+                    final deptName =
+                        departmentData?['displayName'] ??
+                        departmentData?['name'] ??
+                        departmentData?['code'] ??
+                        'Unknown';
+
+                    departmentNames.add(deptName);
+                  }
+                } catch (e) {
+                  print('Error fetching department $departmentId: $e');
+                }
+              }
+            }
+          }
+        }
+
+        // Fallback to instructor's department field if no assignments
+        String departmentName =
+            departmentNames.isNotEmpty
+                ? departmentNames.join(', ')
+                : (data['department']?.toString() ?? 'N/A');
+
+        instructorsList.add({
+          'id': doc.id,
+          'name': instructorName,
+          'email': data['email'] ?? '',
+          'department': departmentName,
+          'phone': data['phone'] ?? '',
+          'profileUrl': data['profileUrl'] ?? data['profileImageUrl'] ?? '',
+          'status': instructorStatus,
+        });
+      }
+
+      if (mounted) {
+        _instructors = instructorsList;
+      }
     } catch (e) {
       print('Error loading instructors: $e');
     }
@@ -137,6 +214,8 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
       _instructorClasses.clear();
 
       for (var instructor in _instructors) {
+        if (!mounted) return; // Check if widget is still mounted
+
         // Skip if instructor data is invalid
         if (instructor['name']?.toString().trim().isEmpty ?? true) {
           continue;
@@ -194,6 +273,8 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
       _classStudents.clear();
 
       for (var classData in _allClasses) {
+        if (!mounted) return; // Check if widget is still mounted
+
         final studentsSnapshot =
             await _firestore
                 .collection('instructors')
@@ -203,18 +284,62 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
                 .collection('students')
                 .get();
 
-        List<Map<String, dynamic>> students =
-            studentsSnapshot.docs.map((doc) {
-              final data = doc.data();
-              return {
-                'id': doc.id,
-                'studentId': data['studentId'] ?? '',
-                'studentName': data['studentName'] ?? 'Unknown Student',
-                'enrollmentStatus': data['enrollmentStatus'] ?? 'pending',
-                'enrolledAt': data['enrolledAt'],
-                'isActive': data['isActive'] ?? true,
-              };
-            }).toList();
+        List<Map<String, dynamic>> students = [];
+        for (var doc in studentsSnapshot.docs) {
+          if (!mounted) return;
+
+          final data = doc.data();
+
+          // Fetch idNumber and profileImage from users collection using doc.id as user document ID
+          String idNumber = '';
+          String profileImage = '';
+          try {
+            final userDoc =
+                await _firestore.collection('users').doc(doc.id).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data() ?? {};
+              idNumber = userData['idNumber']?.toString() ?? '';
+              profileImage =
+                  userData['profileImage']?.toString() ??
+                  userData['profileImageUrl']?.toString() ??
+                  userData['profileUrl']?.toString() ??
+                  '';
+            } else {
+              // Fallback: try matching by studentId
+              final studentId = data['studentId']?.toString() ?? '';
+              if (studentId.isNotEmpty) {
+                final userQuery =
+                    await _firestore
+                        .collection('users')
+                        .where('studentId', isEqualTo: studentId)
+                        .limit(1)
+                        .get();
+                if (userQuery.docs.isNotEmpty) {
+                  final userData = userQuery.docs.first.data();
+                  idNumber = userData['idNumber']?.toString() ?? '';
+                  profileImage =
+                      userData['profileImage']?.toString() ??
+                      userData['profileImageUrl']?.toString() ??
+                      userData['profileUrl']?.toString() ??
+                      '';
+                }
+              }
+            }
+          } catch (e) {
+            print('Error fetching user data for student ${doc.id}: $e');
+          }
+
+          students.add({
+            'id': doc.id,
+            'studentId': data['studentId'] ?? '',
+            'idNumber': idNumber,
+            'profileImage': profileImage,
+            'studentName': data['studentName'] ?? 'Unknown Student',
+            'enrollmentStatus': data['enrollmentStatus'] ?? 'pending',
+            'enrolledAt': data['enrolledAt'],
+            'isActive': data['isActive'] ?? true,
+          });
+        }
 
         _classStudents[classData['id']] = students;
       }
@@ -258,9 +383,13 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
       _instructorStats.clear();
 
       for (var instructor in _instructors) {
+        if (!mounted) return; // Check if widget is still mounted
+
         final instructorId = instructor['id'];
         final stats = await _getInstructorStatsAsync(instructorId);
-        _instructorStats[instructorId] = stats;
+        if (mounted) {
+          _instructorStats[instructorId] = stats;
+        }
       }
     } catch (e) {
       print('Error loading instructor stats: $e');
@@ -907,12 +1036,35 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
   final List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
   int _expandedSectionIndex = -1;
+  Map<String, dynamic> _instructorData = {};
+
+  // Helper function to get initials from name (e.g., "Jv P. Tenefrancia" -> "JT")
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+
+    final nameParts =
+        name.trim().split(' ').where((part) => part.isNotEmpty).toList();
+    if (nameParts.isEmpty) return 'U';
+
+    if (nameParts.length == 1) {
+      // If only one part, return first letter
+      return nameParts[0][0].toUpperCase();
+    }
+
+    // Get first letter of first name and first letter of last name
+    return '${nameParts.first[0].toUpperCase()}${nameParts.last[0].toUpperCase()}';
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 7, vsync: this);
-    _loadInstructorData();
+    // Defer loading to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadInstructorData();
+      }
+    });
   }
 
   @override
@@ -922,36 +1074,65 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
   }
 
   Future<void> _loadInstructorData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (!mounted) return;
+
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
+      if (!mounted) return;
       final instructorId = widget.instructor['id'];
 
+      // Load full instructor data including 'about' field
+      if (!mounted) return;
+      final instructorDoc =
+          await widget.firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .get();
+
+      if (instructorDoc.exists && mounted) {
+        _instructorData = instructorDoc.data() ?? {};
+        // Merge with widget.instructor to ensure we have all data
+        _instructorData = {...widget.instructor, ..._instructorData};
+      } else {
+        _instructorData = widget.instructor;
+      }
+
+      if (!mounted) return;
       // Load assignments
       await _loadAssignments(instructorId);
 
+      if (!mounted) return;
       // Load activities
       await _loadActivities(instructorId);
 
+      if (!mounted) return;
       // Load quizzes
       await _loadQuizzes(instructorId);
 
+      if (!mounted) return;
       // Load PITs
       await _loadPITs(instructorId);
 
+      if (!mounted) return;
       // Load materials (if any)
       await _loadMaterials(instructorId);
 
+      if (!mounted) return;
       // Load students from all classes
       await _loadStudents(instructorId);
     } catch (e) {
       print('Error loading instructor data: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1131,6 +1312,8 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
   }
 
   Future<void> _loadStudents(String instructorId) async {
+    if (!mounted) return;
+
     try {
       // Get all classes for this instructor
       final classesSnapshot =
@@ -1140,6 +1323,8 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
               .collection('classes')
               .get();
 
+      if (!mounted) return;
+
       // Load all students from the flat collection (same as admin_dashboard)
       final studentsSnapshot =
           await widget.firestore
@@ -1148,9 +1333,12 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
               .collection('students')
               .get();
 
+      if (!mounted) return;
+
       // Group students by their selectedSectionCode
       Map<String, List<Map<String, dynamic>>> studentsBySection = {};
       for (var studentDoc in studentsSnapshot.docs) {
+        if (!mounted) return;
         final studentData = studentDoc.data();
         final sectionCode =
             studentData['selectedSectionCode']?.toString().trim() ?? 'Unknown';
@@ -1159,9 +1347,54 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
           studentsBySection[sectionCode] = [];
         }
 
+        // Fetch idNumber and profileImage from users collection
+        String idNumber = '';
+        String profileImage = '';
+        try {
+          final userDoc =
+              await widget.firestore
+                  .collection('users')
+                  .doc(studentDoc.id)
+                  .get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() ?? {};
+            idNumber = userData['idNumber']?.toString() ?? '';
+            profileImage =
+                userData['profileImage']?.toString() ??
+                userData['profileImageUrl']?.toString() ??
+                userData['profileUrl']?.toString() ??
+                '';
+          } else {
+            // Fallback: try matching by studentId
+            final studentId =
+                studentData['studentId']?.toString() ?? studentDoc.id;
+            if (studentId.isNotEmpty) {
+              final userQuery =
+                  await widget.firestore
+                      .collection('users')
+                      .where('studentId', isEqualTo: studentId)
+                      .limit(1)
+                      .get();
+              if (userQuery.docs.isNotEmpty) {
+                final userData = userQuery.docs.first.data();
+                idNumber = userData['idNumber']?.toString() ?? '';
+                profileImage =
+                    userData['profileImage']?.toString() ??
+                    userData['profileImageUrl']?.toString() ??
+                    userData['profileUrl']?.toString() ??
+                    '';
+              }
+            }
+          }
+        } catch (e) {
+          print('Error fetching user data for student ${studentDoc.id}: $e');
+        }
+
         studentsBySection[sectionCode]!.add({
           'id': studentDoc.id,
           'studentId': studentData['studentId'] ?? studentDoc.id,
+          'idNumber': idNumber,
+          'profileImage': profileImage,
           'studentName':
               studentData['studentName'] ??
               studentData['name'] ??
@@ -1172,10 +1405,14 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
         });
       }
 
+      if (!mounted) return;
+
       _students.clear();
 
       // Match students to classes by section name
       for (var classDoc in classesSnapshot.docs) {
+        if (!mounted) return;
+
         final classData = classDoc.data();
         final sectionName = classData['section'] ?? 'Unknown Section';
 
@@ -1185,17 +1422,19 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             students.where((s) => s['status'] == 'active').length;
 
         // Add section as a group including student list and count
-        _students.add({
-          'id': classDoc.id,
-          'type': 'section',
-          'sectionName': sectionName,
-          'sectionCode': sectionName,
-          'studentCount': students.length,
-          'activeCount': activeStudents,
-          'students': students,
-          'classId': classDoc.id,
-          'instructorId': instructorId,
-        });
+        if (mounted) {
+          _students.add({
+            'id': classDoc.id,
+            'type': 'section',
+            'sectionName': sectionName,
+            'sectionCode': sectionName,
+            'studentCount': students.length,
+            'activeCount': activeStudents,
+            'students': students,
+            'classId': classDoc.id,
+            'instructorId': instructorId,
+          });
+        }
       }
     } catch (e) {
       print('Error loading students: $e');
@@ -1415,24 +1654,40 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                     _buildInfoRow(
                       Icons.email_outlined,
                       'Email',
-                      widget.instructor['email'] ?? 'N/A',
+                      (_instructorData.isNotEmpty
+                              ? _instructorData['email']
+                              : widget.instructor['email']) ??
+                          'N/A',
                     ),
                     const SizedBox(height: 16),
                     _buildInfoRow(
                       Icons.phone_outlined,
                       'Phone',
-                      widget.instructor['phone']?.toString().isEmpty ?? true
+                      ((_instructorData.isNotEmpty
+                                      ? _instructorData['phone']
+                                      : widget.instructor['phone'])
+                                  ?.toString()
+                                  .isEmpty ??
+                              true)
                           ? 'Not provided'
-                          : widget.instructor['phone'],
+                          : (_instructorData.isNotEmpty
+                              ? _instructorData['phone']
+                              : widget.instructor['phone']),
                     ),
                     const SizedBox(height: 16),
                     _buildInfoRow(
                       Icons.business_outlined,
                       'Department',
-                      widget.instructor['department']?.toString().isEmpty ??
-                              true
+                      ((_instructorData.isNotEmpty
+                                      ? _instructorData['department']
+                                      : widget.instructor['department'])
+                                  ?.toString()
+                                  .isEmpty ??
+                              true)
                           ? 'Not specified'
-                          : widget.instructor['department'],
+                          : (_instructorData.isNotEmpty
+                              ? _instructorData['department']
+                              : widget.instructor['department']),
                     ),
                   ],
                 ),
@@ -1479,7 +1734,9 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Passionate educator dedicated to inspiring students through environmental science and sustainability education. Committed to creating engaging learning experiences that promote positive environmental impacts.',
+                  (_instructorData['about']?.toString().isNotEmpty ?? false)
+                      ? _instructorData['about']
+                      : 'No information provided yet.',
                   style: TextStyle(
                     fontSize: 15,
                     color: Colors.grey[700],
@@ -1931,33 +2188,50 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                           final s =
                               (section['students'] as List)[sIdx]
                                   as Map<String, dynamic>;
-                          final initials =
-                              (s['studentName'] as String?)?.isNotEmpty == true
-                                  ? (s['studentName'] as String)[0]
-                                      .toUpperCase()
-                                  : 'S';
+                          final studentName =
+                              s['studentName']?.toString() ?? 'Unknown';
+                          final profileImage =
+                              s['profileImage']?.toString() ?? '';
+                          final hasImage = profileImage.isNotEmpty;
+
                           return ListTile(
                             leading: CircleAvatar(
                               radius: 18,
-                              backgroundColor: const Color(
-                                0xFF34A853,
-                              ).withOpacity(0.1),
-                              child: Text(
-                                initials,
-                                style: const TextStyle(
-                                  color: Color(0xFF34A853),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              backgroundColor:
+                                  hasImage
+                                      ? Colors.transparent
+                                      : const Color(
+                                        0xFF34A853,
+                                      ).withOpacity(0.1),
+                              backgroundImage:
+                                  hasImage ? NetworkImage(profileImage) : null,
+                              child:
+                                  hasImage
+                                      ? null
+                                      : Text(
+                                        _getInitials(studentName),
+                                        style: const TextStyle(
+                                          color: Color(0xFF34A853),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                             ),
                             title: Text(s['studentName'] ?? 'Unknown'),
-                            subtitle: Text(s['email'] ?? ''),
-                            trailing: Text(
-                              s['studentId'] ?? '',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(s['email'] ?? ''),
+                                if (s['idNumber'] != null &&
+                                    (s['idNumber'] as String).isNotEmpty)
+                                  Text(
+                                    'ID Number: ${s['idNumber']}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                              ],
                             ),
                           );
                         },
@@ -2010,6 +2284,23 @@ class _SectionDetailViewState extends State<SectionDetailView> {
   bool _isLoading = true;
   bool _showAllDemStudents = false;
 
+  // Helper function to get initials from name (e.g., "Jv P. Tenefrancia" -> "JT")
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+
+    final nameParts =
+        name.trim().split(' ').where((part) => part.isNotEmpty).toList();
+    if (nameParts.isEmpty) return 'U';
+
+    if (nameParts.length == 1) {
+      // If only one part, return first letter
+      return nameParts[0][0].toUpperCase();
+    }
+
+    // Get first letter of first name and first letter of last name
+    return '${nameParts.first[0].toUpperCase()}${nameParts.last[0].toUpperCase()}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2027,19 +2318,63 @@ class _SectionDetailViewState extends State<SectionDetailView> {
               .collection('students')
               .get();
 
-      _students =
-          studentsSnapshot.docs.map((doc) {
-            final data = doc.data();
-            return {
-              'id': doc.id,
-              'studentId': data['studentId'] ?? '',
-              'studentName': data['studentName'] ?? 'Unknown Student',
-              'enrollmentStatus': data['enrollmentStatus'] ?? 'pending',
-              'enrolledAt': _formatDate(data['enrolledAt']),
-              'isActive': data['isActive'] ?? true,
-              'section': widget.section['sectionName'] ?? 'Unknown Section',
-            };
-          }).toList();
+      _students = [];
+      for (var doc in studentsSnapshot.docs) {
+        if (!mounted) return;
+
+        final data = doc.data();
+
+        // Fetch idNumber and profileImage from users collection using doc.id as user document ID
+        String idNumber = '';
+        String profileImage = '';
+        try {
+          final userDoc =
+              await widget.firestore.collection('users').doc(doc.id).get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() ?? {};
+            idNumber = userData['idNumber']?.toString() ?? '';
+            profileImage =
+                userData['profileImage']?.toString() ??
+                userData['profileImageUrl']?.toString() ??
+                userData['profileUrl']?.toString() ??
+                '';
+          } else {
+            // Fallback: try matching by studentId
+            final studentId = data['studentId']?.toString() ?? '';
+            if (studentId.isNotEmpty) {
+              final userQuery =
+                  await widget.firestore
+                      .collection('users')
+                      .where('studentId', isEqualTo: studentId)
+                      .limit(1)
+                      .get();
+              if (userQuery.docs.isNotEmpty) {
+                final userData = userQuery.docs.first.data();
+                idNumber = userData['idNumber']?.toString() ?? '';
+                profileImage =
+                    userData['profileImage']?.toString() ??
+                    userData['profileImageUrl']?.toString() ??
+                    userData['profileUrl']?.toString() ??
+                    '';
+              }
+            }
+          }
+        } catch (e) {
+          print('Error fetching user data for student ${doc.id}: $e');
+        }
+
+        _students.add({
+          'id': doc.id,
+          'studentId': data['studentId'] ?? '',
+          'idNumber': idNumber,
+          'profileImage': profileImage,
+          'studentName': data['studentName'] ?? 'Unknown Student',
+          'enrollmentStatus': data['enrollmentStatus'] ?? 'pending',
+          'enrolledAt': _formatDate(data['enrolledAt']),
+          'isActive': data['isActive'] ?? true,
+          'section': widget.section['sectionName'] ?? 'Unknown Section',
+        });
+      }
 
       // If no students found in this specific section, check if instructor is "dem"
       // and load all students enrolled under "dem"
@@ -2412,16 +2747,38 @@ class _SectionDetailViewState extends State<SectionDetailView> {
                               children: [
                                 CircleAvatar(
                                   radius: 20,
-                                  backgroundColor: const Color(
-                                    0xFF34A853,
-                                  ).withOpacity(0.1),
-                                  child: Text(
-                                    student['studentName'][0].toUpperCase(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF34A853),
-                                    ),
-                                  ),
+                                  backgroundColor:
+                                      (student['profileImage']?.toString() ??
+                                                  '')
+                                              .isNotEmpty
+                                          ? Colors.transparent
+                                          : const Color(
+                                            0xFF34A853,
+                                          ).withOpacity(0.1),
+                                  backgroundImage:
+                                      (student['profileImage']?.toString() ??
+                                                  '')
+                                              .isNotEmpty
+                                          ? NetworkImage(
+                                            student['profileImage'],
+                                          )
+                                          : null,
+                                  child:
+                                      (student['profileImage']?.toString() ??
+                                                  '')
+                                              .isEmpty
+                                          ? Text(
+                                            _getInitials(
+                                              student['studentName']
+                                                      ?.toString() ??
+                                                  'Unknown',
+                                            ),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF34A853),
+                                            ),
+                                          )
+                                          : null,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -2436,13 +2793,15 @@ class _SectionDetailViewState extends State<SectionDetailView> {
                                           fontSize: 14,
                                         ),
                                       ),
-                                      if (student['studentId'] != null &&
-                                          student['studentId'].isNotEmpty)
+                                      if (student['idNumber'] != null &&
+                                          (student['idNumber'] as String)
+                                              .isNotEmpty)
                                         Text(
-                                          'ID: ${student['studentId']}',
+                                          'ID Number: ${student['idNumber']}',
                                           style: const TextStyle(
                                             color: Colors.grey,
                                             fontSize: 12,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       if (_showAllDemStudents &&

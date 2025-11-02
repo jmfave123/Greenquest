@@ -122,10 +122,20 @@ class _AdminDashboardState extends State<AdminDashboard>
       for (var instructorDoc in instructorsSnapshot.docs) {
         final instructorData = instructorDoc.data();
         final instructorName = instructorData['name']?.toString().trim() ?? '';
+        final instructorStatus =
+            instructorData['status']?.toString() ?? 'Pending';
 
         // Filter out instructors without names or with "unknown" names
         if (instructorName.isEmpty ||
             instructorName.toLowerCase() == 'unknown') {
+          continue;
+        }
+
+        // Only include approved instructors - exclude pending and rejected
+        if (instructorStatus != 'Approved') {
+          print(
+            '⏭️ Skipping instructor $instructorName - Status: $instructorStatus',
+          );
           continue;
         }
 
@@ -240,9 +250,72 @@ class _AdminDashboardState extends State<AdminDashboard>
             }
           }
 
+          // Fetch idNumber and profileImage from users collection using doc.id as user document ID
+          String idNumber = '';
+          String profileImage = '';
+          try {
+            // The document ID in students subcollection is often the user document ID
+            final userDoc =
+                await _firestore.collection('users').doc(studentDoc.id).get();
+
+            if (userDoc.exists) {
+              final userData = userDoc.data() ?? {};
+              idNumber = userData['idNumber']?.toString() ?? '';
+              profileImage =
+                  userData['profileImage']?.toString() ??
+                  userData['profileImageUrl']?.toString() ??
+                  userData['profileUrl']?.toString() ??
+                  '';
+              print(
+                '✅ Found idNumber via doc.id (${studentDoc.id}): "$idNumber"',
+              );
+            } else {
+              // Fallback: try matching by studentId field
+              final studentId = studentData['studentId']?.toString() ?? '';
+              print(
+                '⚠️ User doc not found for ${studentDoc.id}, trying studentId: "$studentId"',
+              );
+              if (studentId.isNotEmpty) {
+                final userQuery =
+                    await _firestore
+                        .collection('users')
+                        .where('studentId', isEqualTo: studentId)
+                        .limit(1)
+                        .get();
+
+                if (userQuery.docs.isNotEmpty) {
+                  final userData = userQuery.docs.first.data();
+                  idNumber = userData['idNumber']?.toString() ?? '';
+                  profileImage =
+                      userData['profileImage']?.toString() ??
+                      userData['profileImageUrl']?.toString() ??
+                      userData['profileUrl']?.toString() ??
+                      '';
+                  print(
+                    '✅ Found idNumber via studentId query ("$studentId"): "$idNumber"',
+                  );
+                } else {
+                  print('❌ No user found with studentId: "$studentId"');
+                }
+              }
+            }
+          } catch (e) {
+            print(
+              '❌ Error fetching user data for student ${studentDoc.id}: $e',
+            );
+          }
+
+          print(
+            '📝 Student: ${studentData['studentName']}, idNumber: "$idNumber"',
+          );
+
           studentsBySection[sectionName]!.add({
             'name': studentData['studentName']?.toString() ?? 'Unknown',
+            'studentName': studentData['studentName']?.toString() ?? 'Unknown',
             'email': studentData['email']?.toString() ?? '',
+            'studentId': studentData['studentId']?.toString() ?? '',
+            'idNumber': idNumber,
+            'profileImage': profileImage,
             'status': studentData['isActive'] == true ? 'active' : 'inactive',
             'program':
                 studentProgramCode, // Store each student's actual program code
@@ -276,11 +349,14 @@ class _AdminDashboardState extends State<AdminDashboard>
             programCode = departmentCodes.first;
           }
 
+          // Format schedule from schedules array or fallback to old format
+          String scheduleString = _formatSchedule(classData);
+
           sections.add({
             'id': classDoc.id,
             'name': sectionName,
-            'code': classData['code'] ?? 'N/A',
-            'schedule': classData['schedule'] ?? 'TBA',
+            'code': classData['course'] ?? 'N/A',
+            'schedule': scheduleString,
             'program':
                 programCode, // Use the extracted/matched department code for filtering
             'active': activeStudents,
@@ -565,19 +641,44 @@ class _AdminDashboardState extends State<AdminDashboard>
                                         children: [
                                           CircleAvatar(
                                             radius: 20,
-                                            backgroundColor: const Color(
-                                              0xFF34A853,
-                                            ).withOpacity(0.1),
-                                            child: Text(
-                                              (student['studentName']
-                                                          ?.toString() ??
-                                                      'U')[0]
-                                                  .toUpperCase(),
-                                              style: const TextStyle(
-                                                color: Color(0xFF34A853),
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
+                                            backgroundColor:
+                                                (student['profileImage']
+                                                                ?.toString() ??
+                                                            '')
+                                                        .isNotEmpty
+                                                    ? Colors.transparent
+                                                    : const Color(
+                                                      0xFF34A853,
+                                                    ).withOpacity(0.1),
+                                            backgroundImage:
+                                                (student['profileImage']
+                                                                ?.toString() ??
+                                                            '')
+                                                        .isNotEmpty
+                                                    ? NetworkImage(
+                                                      student['profileImage'],
+                                                    )
+                                                    : null,
+                                            child:
+                                                (student['profileImage']
+                                                                ?.toString() ??
+                                                            '')
+                                                        .isEmpty
+                                                    ? Text(
+                                                      _getInitials(
+                                                        student['studentName']
+                                                                ?.toString() ??
+                                                            'Unknown',
+                                                      ),
+                                                      style: const TextStyle(
+                                                        color: Color(
+                                                          0xFF34A853,
+                                                        ),
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    )
+                                                    : null,
                                           ),
                                           const SizedBox(width: 16),
                                           Expanded(
@@ -602,6 +703,20 @@ class _AdminDashboardState extends State<AdminDashboard>
                                                   style: const TextStyle(
                                                     color: Colors.grey,
                                                     fontSize: 14,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  student['idNumber'] != null &&
+                                                          (student['idNumber']
+                                                                  as String)
+                                                              .isNotEmpty
+                                                      ? 'ID Number: ${student['idNumber']}'
+                                                      : 'ID Number: N/A',
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
                                                   ),
                                                 ),
                                                 if (student['section'] != null)
@@ -852,6 +967,23 @@ class _AdminDashboardState extends State<AdminDashboard>
     });
     return sum + studentsCount;
   });
+
+  // Helper function to get initials from name (e.g., "Jv P. Tenefrancia" -> "JT")
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+
+    final nameParts =
+        name.trim().split(' ').where((part) => part.isNotEmpty).toList();
+    if (nameParts.isEmpty) return 'U';
+
+    if (nameParts.length == 1) {
+      // If only one part, return first letter
+      return nameParts[0][0].toUpperCase();
+    }
+
+    // Get first letter of first name and first letter of last name
+    return '${nameParts.first[0].toUpperCase()}${nameParts.last[0].toUpperCase()}';
+  }
 
   // Responsive helpers
   bool get isMobile {
@@ -1319,744 +1451,831 @@ class _AdminDashboardState extends State<AdminDashboard>
                               ],
                             ),
                             const SizedBox(height: 12),
-                            // Instructor List
-                            ...List.generate(filteredInstructors.length, (i) {
-                              final instructor = filteredInstructors[i];
-                              final isExpanded = expandedInstructor == i;
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 18),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Color(0xFFBDBDBD),
-                                      blurRadius: 2, // more blur for smoothness
-                                      spreadRadius: 2,
-                                      offset: const Offset(
-                                        0,
-                                        2,
-                                      ), // more vertical lift
-                                    ),
-                                  ],
-                                ),
-
-                                child: Column(
-                                  children: [
-                                    ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor:
-                                            (instructor['profileUrl']
-                                                            ?.toString() ??
-                                                        '')
-                                                    .isEmpty
-                                                ? const Color.fromARGB(
-                                                  255,
-                                                  228,
-                                                  245,
-                                                  229,
-                                                )
-                                                : Colors.transparent,
-                                        backgroundImage:
-                                            (instructor['profileUrl']
-                                                            ?.toString() ??
-                                                        '')
-                                                    .isNotEmpty
-                                                ? NetworkImage(
-                                                  instructor['profileUrl'],
-                                                )
-                                                : null,
-                                        radius: 35,
-                                        child:
-                                            (instructor['profileUrl']
-                                                            ?.toString() ??
-                                                        '')
-                                                    .isEmpty
-                                                ? Image.asset(
-                                                  'assets/admin_icons/ri_user-line.png',
-                                                  width: 25,
-                                                )
-                                                : null,
-                                      ),
-                                      title: Text(
-                                        instructor['name'] as String,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 18,
+                            // Instructor List - Fixed Height Container
+                            SizedBox(
+                              height: 600, // Fixed height to prevent collapse
+                              child:
+                                  filteredInstructors.isEmpty
+                                      ? Center(
+                                        child: Text(
+                                          'No instructors found',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 16,
+                                          ),
                                         ),
-                                      ),
-                                      subtitle: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            instructor['email'] as String,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          Text(
-                                            instructor['department'] as String,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      trailing: SizedBox(
-                                        width: 200,
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          children: [
-                                            Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Image.asset(
-                                                      'assets/admin_icons/lucide_users-round (3).png',
-                                                      width: 18,
-                                                    ),
-                                                    const SizedBox(width: 10),
-                                                    Text(
-                                                      '${instructor['totalSections']} sections',
-                                                      style: const TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Image.asset(
-                                                      'assets/admin_icons/lucide_users-round (4).png',
-                                                      width: 18,
-                                                    ),
-                                                    const SizedBox(width: 10),
-                                                    Text(
-                                                      '${instructor['totalStudents']} students',
-                                                      style: const TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(width: 10),
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.person_outline,
-                                                color: Color(0xFF34A853),
-                                                size: 20,
-                                              ),
-                                              onPressed: () {
-                                                final instructorData = {
-                                                  'name': instructor['name'],
-                                                  'email': instructor['email'],
-                                                  'phone':
-                                                      instructor['phone'] ?? '',
-                                                  'department':
-                                                      instructor['department'],
-                                                  'profileUrl':
-                                                      instructor['profileUrl'] ??
-                                                      '',
-                                                };
-                                                _showInstructorProfile(
-                                                  instructorData,
-                                                );
-                                              },
-                                              tooltip: 'View Profile',
-                                            ),
-                                            InkWell(
-                                              onTap:
-                                                  () => setState(
-                                                    () =>
-                                                        expandedInstructor =
-                                                            isExpanded ? -1 : i,
-                                                  ),
-                                              child: Image.asset(
-                                                isExpanded
-                                                    ? 'assets/admin_icons/gridicons_dropdown (2).png'
-                                                    : 'assets/admin_icons/gridicons_dropdown.png',
-                                                width: 22,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      onTap:
-                                          () => setState(
-                                            () =>
-                                                expandedInstructor =
-                                                    isExpanded ? -1 : i,
-                                          ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 18,
-                                            vertical: 10,
-                                          ),
-                                    ),
-                                    if (isExpanded &&
-                                        instructor['sections'] != null &&
-                                        (instructor['sections'] as List)
-                                            .isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 18,
-                                          vertical: 8,
-                                        ),
+                                      )
+                                      : SingleChildScrollView(
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            const Divider(
-                                              color: Colors.black26,
-                                            ),
-                                            const SizedBox(height: 10),
-                                            const Text(
-                                              'Sections',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            ...List.generate(
-                                              (instructor['sections'] as List)
-                                                  .length,
-                                              (j) {
-                                                final section =
-                                                    (instructor['sections']
-                                                        as List)[j];
-                                                final isSectionExpanded =
-                                                    expandedSection == j;
-                                                return GestureDetector(
-                                                  onTap: () {
-                                                    // Check if this instructor is "dem" - show all dem students for any section
-                                                    if (instructor['name'] ==
-                                                        'dem') {
-                                                      _showDemStudentsModal();
-                                                    } else {
-                                                      setState(
-                                                        () =>
-                                                            expandedSection =
-                                                                isSectionExpanded
-                                                                    ? -1
-                                                                    : j,
-                                                      );
-                                                    }
-                                                  },
-                                                  child: Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          bottom: 10,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 15,
-                                                          vertical: 20,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
-                                                          ),
-                                                      border: Border(
-                                                        top: BorderSide(
-                                                          color: const Color(
-                                                            0xFF34A853,
-                                                          ).withOpacity(0.2),
-                                                        ),
-                                                        bottom: BorderSide(
-                                                          color: const Color(
-                                                            0xFF34A853,
-                                                          ).withOpacity(0.2),
-                                                        ),
-                                                        right: BorderSide(
-                                                          color: const Color(
-                                                            0xFF34A853,
-                                                          ).withOpacity(0.2),
-                                                        ),
-                                                        left: BorderSide(
-                                                          color: const Color(
-                                                            0xFF34A853,
-                                                          ).withOpacity(0.2),
-                                                          width: 7,
+                                            ...List.generate(filteredInstructors.length, (
+                                              i,
+                                            ) {
+                                              final instructor =
+                                                  filteredInstructors[i];
+                                              final isExpanded =
+                                                  expandedInstructor == i;
+                                              return Container(
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 18,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Color(0xFFBDBDBD),
+                                                      blurRadius:
+                                                          2, // more blur for smoothness
+                                                      spreadRadius: 2,
+                                                      offset: const Offset(
+                                                        0,
+                                                        2,
+                                                      ), // more vertical lift
+                                                    ),
+                                                  ],
+                                                ),
+
+                                                child: Column(
+                                                  children: [
+                                                    ListTile(
+                                                      leading: CircleAvatar(
+                                                        backgroundColor:
+                                                            (instructor['profileUrl']
+                                                                            ?.toString() ??
+                                                                        '')
+                                                                    .isEmpty
+                                                                ? const Color.fromARGB(
+                                                                  255,
+                                                                  228,
+                                                                  245,
+                                                                  229,
+                                                                )
+                                                                : Colors
+                                                                    .transparent,
+                                                        backgroundImage:
+                                                            (instructor['profileUrl']
+                                                                            ?.toString() ??
+                                                                        '')
+                                                                    .isNotEmpty
+                                                                ? NetworkImage(
+                                                                  instructor['profileUrl'],
+                                                                )
+                                                                : null,
+                                                        radius: 35,
+                                                        child:
+                                                            (instructor['profileUrl']
+                                                                            ?.toString() ??
+                                                                        '')
+                                                                    .isEmpty
+                                                                ? Image.asset(
+                                                                  'assets/admin_icons/ri_user-line.png',
+                                                                  width: 25,
+                                                                )
+                                                                : null,
+                                                      ),
+                                                      title: Text(
+                                                        instructor['name']
+                                                            as String,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 18,
                                                         ),
                                                       ),
-                                                    ),
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
+                                                      subtitle: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            instructor['email']
+                                                                as String,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 13,
+                                                                ),
+                                                          ),
+                                                          Text(
+                                                            instructor['department']
+                                                                as String,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 13,
+                                                                  color:
+                                                                      Colors
+                                                                          .black,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      trailing: SizedBox(
+                                                        width: 200,
+                                                        child: Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .end,
                                                           children: [
-                                                            Container(
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal:
-                                                                        10,
-                                                                    vertical:
-                                                                        10,
-                                                                  ),
-                                                              decoration: BoxDecoration(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      10,
-                                                                    ),
-                                                                color:
-                                                                    const Color.fromARGB(
-                                                                      255,
-                                                                      228,
-                                                                      245,
-                                                                      229,
-                                                                    ),
-                                                              ),
-                                                              child: Image.asset(
-                                                                'assets/admin_icons/ri_user-line.png',
-                                                                height: 20,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 20,
-                                                            ),
-                                                            Expanded(
-                                                              child: Column(
-                                                                crossAxisAlignment:
-                                                                    CrossAxisAlignment
-                                                                        .start,
-                                                                children: [
-                                                                  Text(
-                                                                    section['name'],
-                                                                    style: const TextStyle(
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                    ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 10,
-                                                                  ),
-                                                                  Row(
-                                                                    children: [
-                                                                      Container(
-                                                                        padding: const EdgeInsets.symmetric(
-                                                                          horizontal:
-                                                                              8,
-                                                                          vertical:
-                                                                              2,
-                                                                        ),
-                                                                        decoration: BoxDecoration(
-                                                                          color:
-                                                                              Colors.white,
-                                                                          borderRadius: BorderRadius.circular(
-                                                                            15,
-                                                                          ),
-                                                                          border: Border.all(
-                                                                            color: Color(
-                                                                              0xFFBDBDBD,
-                                                                            ),
-                                                                          ),
-                                                                        ),
-                                                                        child: Text(
-                                                                          section['code'],
-                                                                          style: const TextStyle(
-                                                                            fontSize:
-                                                                                12,
-                                                                            color:
-                                                                                Colors.black,
-                                                                          ),
-                                                                        ),
-                                                                      ),
-                                                                      const SizedBox(
-                                                                        width:
-                                                                            8,
-                                                                      ),
-                                                                      Image.asset(
-                                                                        'assets/admin_icons/iconamoon_clock-thin.png',
-                                                                        width:
-                                                                            16,
-                                                                      ),
-                                                                      const SizedBox(
-                                                                        width:
-                                                                            2,
-                                                                      ),
-                                                                      Text(
-                                                                        section['schedule'],
-                                                                        style: const TextStyle(
-                                                                          fontSize:
-                                                                              12,
-                                                                          color:
-                                                                              Colors.black54,
-                                                                        ),
-                                                                      ),
-                                                                    ],
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 8,
-                                                            ),
                                                             Column(
                                                               crossAxisAlignment:
                                                                   CrossAxisAlignment
-                                                                      .center,
+                                                                      .start,
                                                               children: [
-                                                                Container(
-                                                                  padding:
-                                                                      const EdgeInsets.symmetric(
-                                                                        horizontal:
-                                                                            10,
-                                                                        vertical:
-                                                                            4,
-                                                                      ),
-                                                                  decoration: BoxDecoration(
-                                                                    color: const Color(
-                                                                      0xFF34A853,
-                                                                    ).withOpacity(
-                                                                      0.1,
+                                                                Row(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  children: [
+                                                                    Image.asset(
+                                                                      'assets/admin_icons/lucide_users-round (3).png',
+                                                                      width: 18,
                                                                     ),
-                                                                    borderRadius:
-                                                                        BorderRadius.circular(
-                                                                          8,
-                                                                        ),
-                                                                  ),
-                                                                  child: Text(
-                                                                    '${section['active']} active',
-                                                                    style: const TextStyle(
-                                                                      color: Color(
-                                                                        0xFF34A853,
-                                                                      ),
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                      fontSize:
-                                                                          13,
+                                                                    const SizedBox(
+                                                                      width: 10,
                                                                     ),
-                                                                  ),
+                                                                    Text(
+                                                                      '${instructor['totalSections']} sections',
+                                                                      style: const TextStyle(
+                                                                        fontSize:
+                                                                            13,
+                                                                      ),
+                                                                    ),
+                                                                  ],
                                                                 ),
-                                                                Text(
-                                                                  '${section['inactive']} inactive',
-                                                                  style: const TextStyle(
-                                                                    color:
-                                                                        Colors
-                                                                            .black54,
-                                                                    fontSize:
-                                                                        12,
-                                                                  ),
+                                                                Row(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  children: [
+                                                                    Image.asset(
+                                                                      'assets/admin_icons/lucide_users-round (4).png',
+                                                                      width: 18,
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 10,
+                                                                    ),
+                                                                    Text(
+                                                                      '${instructor['totalStudents']} students',
+                                                                      style: const TextStyle(
+                                                                        fontSize:
+                                                                            13,
+                                                                      ),
+                                                                    ),
+                                                                  ],
                                                                 ),
                                                               ],
                                                             ),
                                                             const SizedBox(
                                                               width: 10,
                                                             ),
-                                                            Image.asset(
-                                                              isSectionExpanded
-                                                                  ? 'assets/admin_icons/gridicons_dropdown (2).png'
-                                                                  : 'assets/admin_icons/gridicons_dropdown.png',
-                                                              width: 22,
+                                                            IconButton(
+                                                              icon: const Icon(
+                                                                Icons
+                                                                    .person_outline,
+                                                                color: Color(
+                                                                  0xFF34A853,
+                                                                ),
+                                                                size: 20,
+                                                              ),
+                                                              onPressed: () {
+                                                                final instructorData = {
+                                                                  'name':
+                                                                      instructor['name'],
+                                                                  'email':
+                                                                      instructor['email'],
+                                                                  'phone':
+                                                                      instructor['phone'] ??
+                                                                      '',
+                                                                  'department':
+                                                                      instructor['department'],
+                                                                  'profileUrl':
+                                                                      instructor['profileUrl'] ??
+                                                                      '',
+                                                                };
+                                                                _showInstructorProfile(
+                                                                  instructorData,
+                                                                );
+                                                              },
+                                                              tooltip:
+                                                                  'View Profile',
+                                                            ),
+                                                            InkWell(
+                                                              onTap:
+                                                                  () => setState(
+                                                                    () =>
+                                                                        expandedInstructor =
+                                                                            isExpanded
+                                                                                ? -1
+                                                                                : i,
+                                                                  ),
+                                                              child: Image.asset(
+                                                                isExpanded
+                                                                    ? 'assets/admin_icons/gridicons_dropdown (2).png'
+                                                                    : 'assets/admin_icons/gridicons_dropdown.png',
+                                                                width: 22,
+                                                              ),
                                                             ),
                                                           ],
                                                         ),
-                                                        if (isSectionExpanded &&
-                                                            section['students'] !=
-                                                                null &&
-                                                            section['students']
-                                                                .isNotEmpty)
-                                                          Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  top: 12,
-                                                                ),
-                                                            child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .start,
-                                                              children: [
-                                                                const Divider(
-                                                                  color:
-                                                                      Colors
-                                                                          .black26,
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: 10,
-                                                                ),
-                                                                const Text(
-                                                                  'Students',
-                                                                  style: TextStyle(
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .bold,
-                                                                    fontSize:
-                                                                        14,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: 6,
-                                                                ),
-                                                                SizedBox(
-                                                                  height: 220,
-                                                                  child: LayoutBuilder(
-                                                                    builder: (
-                                                                      context,
-                                                                      constraints,
-                                                                    ) {
-                                                                      return ListView.builder(
-                                                                        itemCount:
-                                                                            section['students'].length,
-                                                                        shrinkWrap:
-                                                                            true,
-                                                                        physics:
-                                                                            const ClampingScrollPhysics(),
-                                                                        itemBuilder: (
-                                                                          context,
-                                                                          k,
-                                                                        ) {
-                                                                          final student =
-                                                                              section['students'][k];
-                                                                          return Container(
-                                                                            margin: const EdgeInsets.only(
-                                                                              bottom:
-                                                                                  6,
-                                                                            ),
-                                                                            padding: const EdgeInsets.symmetric(
-                                                                              horizontal:
+                                                      ),
+                                                      onTap:
+                                                          () => setState(
+                                                            () =>
+                                                                expandedInstructor =
+                                                                    isExpanded
+                                                                        ? -1
+                                                                        : i,
+                                                          ),
+                                                      contentPadding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 18,
+                                                            vertical: 10,
+                                                          ),
+                                                    ),
+                                                    if (isExpanded &&
+                                                        instructor['sections'] !=
+                                                            null &&
+                                                        (instructor['sections']
+                                                                as List)
+                                                            .isNotEmpty)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 18,
+                                                              vertical: 8,
+                                                            ),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            const Divider(
+                                                              color:
+                                                                  Colors
+                                                                      .black26,
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 10,
+                                                            ),
+                                                            const Text(
+                                                              'Sections',
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 15,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                            ...List.generate(
+                                                              (instructor['sections']
+                                                                      as List)
+                                                                  .length,
+                                                              (j) {
+                                                                final section =
+                                                                    (instructor['sections']
+                                                                        as List)[j];
+                                                                final isSectionExpanded =
+                                                                    expandedSection ==
+                                                                    j;
+                                                                return GestureDetector(
+                                                                  onTap: () {
+                                                                    // Check if this instructor is "dem" - show all dem students for any section
+                                                                    if (instructor['name'] ==
+                                                                        'dem') {
+                                                                      _showDemStudentsModal();
+                                                                    } else {
+                                                                      setState(
+                                                                        () =>
+                                                                            expandedSection =
+                                                                                isSectionExpanded
+                                                                                    ? -1
+                                                                                    : j,
+                                                                      );
+                                                                    }
+                                                                  },
+                                                                  child: Container(
+                                                                    margin:
+                                                                        const EdgeInsets.only(
+                                                                          bottom:
+                                                                              10,
+                                                                        ),
+                                                                    padding: const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          15,
+                                                                      vertical:
+                                                                          20,
+                                                                    ),
+                                                                    decoration: BoxDecoration(
+                                                                      color:
+                                                                          Colors
+                                                                              .white,
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            10,
+                                                                          ),
+                                                                      border: Border(
+                                                                        top: BorderSide(
+                                                                          color: const Color(
+                                                                            0xFF34A853,
+                                                                          ).withOpacity(
+                                                                            0.2,
+                                                                          ),
+                                                                        ),
+                                                                        bottom: BorderSide(
+                                                                          color: const Color(
+                                                                            0xFF34A853,
+                                                                          ).withOpacity(
+                                                                            0.2,
+                                                                          ),
+                                                                        ),
+                                                                        right: BorderSide(
+                                                                          color: const Color(
+                                                                            0xFF34A853,
+                                                                          ).withOpacity(
+                                                                            0.2,
+                                                                          ),
+                                                                        ),
+                                                                        left: BorderSide(
+                                                                          color: const Color(
+                                                                            0xFF34A853,
+                                                                          ).withOpacity(
+                                                                            0.2,
+                                                                          ),
+                                                                          width:
+                                                                              7,
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                    child: Column(
+                                                                      crossAxisAlignment:
+                                                                          CrossAxisAlignment
+                                                                              .start,
+                                                                      children: [
+                                                                        Row(
+                                                                          children: [
+                                                                            Container(
+                                                                              padding: const EdgeInsets.symmetric(
+                                                                                horizontal:
+                                                                                    10,
+                                                                                vertical:
+                                                                                    10,
+                                                                              ),
+                                                                              decoration: BoxDecoration(
+                                                                                borderRadius: BorderRadius.circular(
                                                                                   10,
-                                                                              vertical:
-                                                                                  8,
-                                                                            ),
-                                                                            decoration: BoxDecoration(
-                                                                              color:
-                                                                                  Colors.white,
-                                                                              borderRadius: BorderRadius.circular(
-                                                                                20,
-                                                                              ),
-                                                                              border: Border(
-                                                                                top: BorderSide(
-                                                                                  color: Color(
-                                                                                    0xFFBDBDBD,
-                                                                                  ).withOpacity(
-                                                                                    .3,
-                                                                                  ),
-                                                                                  width:
-                                                                                      3,
                                                                                 ),
-                                                                                bottom: BorderSide(
-                                                                                  color: Color(
-                                                                                    0xFFBDBDBD,
-                                                                                  ).withOpacity(
-                                                                                    .3,
-                                                                                  ),
-                                                                                  width:
-                                                                                      3,
-                                                                                ),
-                                                                                right: BorderSide(
-                                                                                  color: Color(
-                                                                                    0xFFBDBDBD,
-                                                                                  ).withOpacity(
-                                                                                    .3,
-                                                                                  ),
-                                                                                ),
-                                                                                left: BorderSide(
-                                                                                  color: Color(
-                                                                                    0xFFBDBDBD,
-                                                                                  ).withOpacity(
-                                                                                    .3,
-                                                                                  ),
+                                                                                color: const Color.fromARGB(
+                                                                                  255,
+                                                                                  228,
+                                                                                  245,
+                                                                                  229,
                                                                                 ),
                                                                               ),
+                                                                              child: Image.asset(
+                                                                                'assets/admin_icons/ri_user-line.png',
+                                                                                height:
+                                                                                    20,
+                                                                              ),
                                                                             ),
-                                                                            child: Row(
+                                                                            const SizedBox(
+                                                                              width:
+                                                                                  20,
+                                                                            ),
+                                                                            Expanded(
+                                                                              child: Column(
+                                                                                crossAxisAlignment:
+                                                                                    CrossAxisAlignment.start,
+                                                                                children: [
+                                                                                  Text(
+                                                                                    section['name'],
+                                                                                    style: const TextStyle(
+                                                                                      fontWeight:
+                                                                                          FontWeight.bold,
+                                                                                    ),
+                                                                                  ),
+                                                                                  const SizedBox(
+                                                                                    height:
+                                                                                        10,
+                                                                                  ),
+                                                                                  Row(
+                                                                                    children: [
+                                                                                      Container(
+                                                                                        padding: const EdgeInsets.symmetric(
+                                                                                          horizontal:
+                                                                                              8,
+                                                                                          vertical:
+                                                                                              2,
+                                                                                        ),
+                                                                                        decoration: BoxDecoration(
+                                                                                          color:
+                                                                                              Colors.white,
+                                                                                          borderRadius: BorderRadius.circular(
+                                                                                            15,
+                                                                                          ),
+                                                                                          border: Border.all(
+                                                                                            color: Color(
+                                                                                              0xFFBDBDBD,
+                                                                                            ),
+                                                                                          ),
+                                                                                        ),
+                                                                                        child: Text(
+                                                                                          section['code'],
+                                                                                          style: const TextStyle(
+                                                                                            fontSize:
+                                                                                                12,
+                                                                                            color:
+                                                                                                Colors.black,
+                                                                                          ),
+                                                                                        ),
+                                                                                      ),
+                                                                                      const SizedBox(
+                                                                                        width:
+                                                                                            8,
+                                                                                      ),
+                                                                                      Image.asset(
+                                                                                        'assets/admin_icons/iconamoon_clock-thin.png',
+                                                                                        width:
+                                                                                            16,
+                                                                                      ),
+                                                                                      const SizedBox(
+                                                                                        width:
+                                                                                            2,
+                                                                                      ),
+                                                                                      Text(
+                                                                                        section['schedule'],
+                                                                                        style: const TextStyle(
+                                                                                          fontSize:
+                                                                                              12,
+                                                                                          color:
+                                                                                              Colors.black54,
+                                                                                        ),
+                                                                                      ),
+                                                                                    ],
+                                                                                  ),
+                                                                                ],
+                                                                              ),
+                                                                            ),
+                                                                            if (section['inactive'] >
+                                                                                0) ...[
+                                                                              const SizedBox(
+                                                                                width:
+                                                                                    8,
+                                                                              ),
+                                                                              Text(
+                                                                                '${section['inactive']} inactive',
+                                                                                style: const TextStyle(
+                                                                                  color:
+                                                                                      Colors.black54,
+                                                                                  fontSize:
+                                                                                      12,
+                                                                                ),
+                                                                              ),
+                                                                            ],
+                                                                            const SizedBox(
+                                                                              width:
+                                                                                  10,
+                                                                            ),
+                                                                            Image.asset(
+                                                                              isSectionExpanded
+                                                                                  ? 'assets/admin_icons/gridicons_dropdown (2).png'
+                                                                                  : 'assets/admin_icons/gridicons_dropdown.png',
+                                                                              width:
+                                                                                  22,
+                                                                            ),
+                                                                          ],
+                                                                        ),
+                                                                        if (isSectionExpanded &&
+                                                                            section['students'] !=
+                                                                                null &&
+                                                                            section['students'].isNotEmpty)
+                                                                          Padding(
+                                                                            padding: const EdgeInsets.only(
+                                                                              top:
+                                                                                  12,
+                                                                            ),
+                                                                            child: Column(
+                                                                              crossAxisAlignment:
+                                                                                  CrossAxisAlignment.start,
                                                                               children: [
-                                                                                if (student['status'] ==
-                                                                                    'active')
-                                                                                  Container(
-                                                                                    height:
-                                                                                        50,
-                                                                                    padding: const EdgeInsets.symmetric(
-                                                                                      horizontal:
-                                                                                          10,
-                                                                                      vertical:
-                                                                                          4,
-                                                                                    ),
-                                                                                    decoration: BoxDecoration(
-                                                                                      shape:
-                                                                                          BoxShape.circle,
-                                                                                      color: const Color(
-                                                                                        0xFF34A853,
-                                                                                      ).withOpacity(
-                                                                                        0.1,
-                                                                                      ),
-                                                                                    ),
-                                                                                    child: Image.asset(
-                                                                                      'assets/admin_icons/solar_user-check-broken.png',
-                                                                                      width:
-                                                                                          18,
-                                                                                    ),
-                                                                                  )
-                                                                                else
-                                                                                  Container(
-                                                                                    height:
-                                                                                        50,
-                                                                                    padding: const EdgeInsets.symmetric(
-                                                                                      horizontal:
-                                                                                          10,
-                                                                                      vertical:
-                                                                                          4,
-                                                                                    ),
-                                                                                    decoration: BoxDecoration(
-                                                                                      shape:
-                                                                                          BoxShape.circle,
-                                                                                      color: const Color(
-                                                                                        0xFF34A853,
-                                                                                      ).withOpacity(
-                                                                                        0.1,
-                                                                                      ),
-                                                                                    ),
-                                                                                    child: Image.asset(
-                                                                                      'assets/admin_icons/solar_user-cross-broken.png',
-                                                                                      width:
-                                                                                          18,
-                                                                                    ),
-                                                                                  ),
+                                                                                const Divider(
+                                                                                  color:
+                                                                                      Colors.black26,
+                                                                                ),
                                                                                 const SizedBox(
-                                                                                  width:
+                                                                                  height:
                                                                                       10,
                                                                                 ),
-                                                                                Column(
-                                                                                  crossAxisAlignment:
-                                                                                      CrossAxisAlignment.start,
-                                                                                  children: [
-                                                                                    Text(
-                                                                                      student['name'],
-                                                                                      style: const TextStyle(
-                                                                                        fontWeight:
-                                                                                            FontWeight.w500,
-                                                                                      ),
-                                                                                    ),
-                                                                                    Text(
-                                                                                      student['email'],
-                                                                                      style: const TextStyle(
-                                                                                        fontSize:
-                                                                                            12,
-                                                                                        color:
-                                                                                            Colors.black54,
-                                                                                      ),
-                                                                                    ),
-                                                                                  ],
+                                                                                const Text(
+                                                                                  'Students',
+                                                                                  style: TextStyle(
+                                                                                    fontWeight:
+                                                                                        FontWeight.bold,
+                                                                                    fontSize:
+                                                                                        14,
+                                                                                  ),
                                                                                 ),
                                                                                 const SizedBox(
-                                                                                  width:
-                                                                                      20,
+                                                                                  height:
+                                                                                      6,
                                                                                 ),
-                                                                                Container(
-                                                                                  padding: const EdgeInsets.symmetric(
-                                                                                    horizontal:
-                                                                                        10,
-                                                                                    vertical:
-                                                                                        2,
-                                                                                  ),
-                                                                                  decoration: BoxDecoration(
-                                                                                    color:
-                                                                                        Colors.white,
-                                                                                    border: Border.all(
-                                                                                      color: Color(
-                                                                                        0xFFBDBDBD,
-                                                                                      ),
-                                                                                    ),
-                                                                                    borderRadius: BorderRadius.circular(
-                                                                                      20,
-                                                                                    ),
-                                                                                  ),
-                                                                                  child: Text(
-                                                                                    student['program'] ??
-                                                                                        section['program'] ??
-                                                                                        'N/A',
-                                                                                    style: const TextStyle(
-                                                                                      fontSize:
-                                                                                          10,
-                                                                                      color:
-                                                                                          Colors.black,
-                                                                                      fontWeight:
-                                                                                          FontWeight.bold,
-                                                                                    ),
-                                                                                  ),
-                                                                                ),
-                                                                                const Spacer(),
-                                                                                Container(
-                                                                                  padding: const EdgeInsets.symmetric(
-                                                                                    horizontal:
-                                                                                        20,
-                                                                                    vertical:
-                                                                                        7,
-                                                                                  ),
-                                                                                  decoration: BoxDecoration(
-                                                                                    color:
-                                                                                        student['status'] ==
-                                                                                                'active'
-                                                                                            ? const Color(
-                                                                                              0xFF34A853,
-                                                                                            )
-                                                                                            : const Color(
-                                                                                              0xFFBDBDBD,
-                                                                                            ).withOpacity(
-                                                                                              .2,
+                                                                                SizedBox(
+                                                                                  height:
+                                                                                      220,
+                                                                                  child: LayoutBuilder(
+                                                                                    builder: (
+                                                                                      context,
+                                                                                      constraints,
+                                                                                    ) {
+                                                                                      return ListView.builder(
+                                                                                        itemCount:
+                                                                                            section['students'].length,
+                                                                                        shrinkWrap:
+                                                                                            true,
+                                                                                        physics:
+                                                                                            const ClampingScrollPhysics(),
+                                                                                        itemBuilder: (
+                                                                                          context,
+                                                                                          k,
+                                                                                        ) {
+                                                                                          final student =
+                                                                                              section['students'][k];
+                                                                                          return Container(
+                                                                                            margin: const EdgeInsets.only(
+                                                                                              bottom:
+                                                                                                  6,
                                                                                             ),
-                                                                                    borderRadius: BorderRadius.circular(
-                                                                                      15,
-                                                                                    ),
-                                                                                  ),
-                                                                                  child: Text(
-                                                                                    student['status'],
-                                                                                    style: TextStyle(
-                                                                                      color:
-                                                                                          student['status'] ==
-                                                                                                  'active'
-                                                                                              ? Colors.white
-                                                                                              : Colors.black,
-                                                                                      fontWeight:
-                                                                                          FontWeight.bold,
-                                                                                      fontSize:
-                                                                                          13,
-                                                                                    ),
+                                                                                            padding: const EdgeInsets.symmetric(
+                                                                                              horizontal:
+                                                                                                  10,
+                                                                                              vertical:
+                                                                                                  8,
+                                                                                            ),
+                                                                                            decoration: BoxDecoration(
+                                                                                              color:
+                                                                                                  Colors.white,
+                                                                                              borderRadius: BorderRadius.circular(
+                                                                                                20,
+                                                                                              ),
+                                                                                              border: Border(
+                                                                                                top: BorderSide(
+                                                                                                  color: Color(
+                                                                                                    0xFFBDBDBD,
+                                                                                                  ).withOpacity(
+                                                                                                    .3,
+                                                                                                  ),
+                                                                                                  width:
+                                                                                                      3,
+                                                                                                ),
+                                                                                                bottom: BorderSide(
+                                                                                                  color: Color(
+                                                                                                    0xFFBDBDBD,
+                                                                                                  ).withOpacity(
+                                                                                                    .3,
+                                                                                                  ),
+                                                                                                  width:
+                                                                                                      3,
+                                                                                                ),
+                                                                                                right: BorderSide(
+                                                                                                  color: Color(
+                                                                                                    0xFFBDBDBD,
+                                                                                                  ).withOpacity(
+                                                                                                    .3,
+                                                                                                  ),
+                                                                                                ),
+                                                                                                left: BorderSide(
+                                                                                                  color: Color(
+                                                                                                    0xFFBDBDBD,
+                                                                                                  ).withOpacity(
+                                                                                                    .3,
+                                                                                                  ),
+                                                                                                ),
+                                                                                              ),
+                                                                                            ),
+                                                                                            child: Row(
+                                                                                              children: [
+                                                                                                if (student['status'] ==
+                                                                                                    'active')
+                                                                                                  Container(
+                                                                                                    height:
+                                                                                                        50,
+                                                                                                    padding: const EdgeInsets.symmetric(
+                                                                                                      horizontal:
+                                                                                                          10,
+                                                                                                      vertical:
+                                                                                                          4,
+                                                                                                    ),
+                                                                                                    decoration: BoxDecoration(
+                                                                                                      shape:
+                                                                                                          BoxShape.circle,
+                                                                                                      color: const Color(
+                                                                                                        0xFF34A853,
+                                                                                                      ).withOpacity(
+                                                                                                        0.1,
+                                                                                                      ),
+                                                                                                    ),
+                                                                                                    child: Image.asset(
+                                                                                                      'assets/admin_icons/solar_user-check-broken.png',
+                                                                                                      width:
+                                                                                                          18,
+                                                                                                    ),
+                                                                                                  )
+                                                                                                else
+                                                                                                  Container(
+                                                                                                    height:
+                                                                                                        50,
+                                                                                                    padding: const EdgeInsets.symmetric(
+                                                                                                      horizontal:
+                                                                                                          10,
+                                                                                                      vertical:
+                                                                                                          4,
+                                                                                                    ),
+                                                                                                    decoration: BoxDecoration(
+                                                                                                      shape:
+                                                                                                          BoxShape.circle,
+                                                                                                      color: const Color(
+                                                                                                        0xFF34A853,
+                                                                                                      ).withOpacity(
+                                                                                                        0.1,
+                                                                                                      ),
+                                                                                                    ),
+                                                                                                    child: Image.asset(
+                                                                                                      'assets/admin_icons/solar_user-cross-broken.png',
+                                                                                                      width:
+                                                                                                          18,
+                                                                                                    ),
+                                                                                                  ),
+                                                                                                const SizedBox(
+                                                                                                  width:
+                                                                                                      10,
+                                                                                                ),
+                                                                                                CircleAvatar(
+                                                                                                  radius:
+                                                                                                      20,
+                                                                                                  backgroundColor:
+                                                                                                      (student['profileImage']
+                                                                                                                      ?.toString() ??
+                                                                                                                  '')
+                                                                                                              .isNotEmpty
+                                                                                                          ? Colors.transparent
+                                                                                                          : const Color(
+                                                                                                            0xFF34A853,
+                                                                                                          ).withOpacity(
+                                                                                                            0.1,
+                                                                                                          ),
+                                                                                                  backgroundImage:
+                                                                                                      (student['profileImage']?.toString() ??
+                                                                                                                  '')
+                                                                                                              .isNotEmpty
+                                                                                                          ? NetworkImage(
+                                                                                                            student['profileImage'],
+                                                                                                          )
+                                                                                                          : null,
+                                                                                                  child:
+                                                                                                      (student['profileImage']?.toString() ??
+                                                                                                                  '')
+                                                                                                              .isEmpty
+                                                                                                          ? Text(
+                                                                                                            _getInitials(
+                                                                                                              student['name']?.toString() ??
+                                                                                                                  student['studentName']?.toString() ??
+                                                                                                                  'Unknown',
+                                                                                                            ),
+                                                                                                            style: const TextStyle(
+                                                                                                              color: Color(
+                                                                                                                0xFF34A853,
+                                                                                                              ),
+                                                                                                              fontWeight:
+                                                                                                                  FontWeight.bold,
+                                                                                                              fontSize:
+                                                                                                                  14,
+                                                                                                            ),
+                                                                                                          )
+                                                                                                          : null,
+                                                                                                ),
+                                                                                                const SizedBox(
+                                                                                                  width:
+                                                                                                      10,
+                                                                                                ),
+                                                                                                Column(
+                                                                                                  crossAxisAlignment:
+                                                                                                      CrossAxisAlignment.start,
+                                                                                                  children: [
+                                                                                                    Text(
+                                                                                                      student['name'] ??
+                                                                                                          student['studentName'] ??
+                                                                                                          'Unknown',
+                                                                                                      style: const TextStyle(
+                                                                                                        fontWeight:
+                                                                                                            FontWeight.w500,
+                                                                                                      ),
+                                                                                                    ),
+                                                                                                    Text(
+                                                                                                      student['email'],
+                                                                                                      style: const TextStyle(
+                                                                                                        fontSize:
+                                                                                                            12,
+                                                                                                        color:
+                                                                                                            Colors.black54,
+                                                                                                      ),
+                                                                                                    ),
+                                                                                                    const SizedBox(
+                                                                                                      height:
+                                                                                                          4,
+                                                                                                    ),
+                                                                                                    Text(
+                                                                                                      student['idNumber'] !=
+                                                                                                                  null &&
+                                                                                                              (student['idNumber']
+                                                                                                                      as String)
+                                                                                                                  .isNotEmpty
+                                                                                                          ? 'ID Number: ${student['idNumber']}'
+                                                                                                          : 'ID Number: N/A',
+                                                                                                      style: const TextStyle(
+                                                                                                        fontSize:
+                                                                                                            11,
+                                                                                                        color:
+                                                                                                            Colors.grey,
+                                                                                                        fontWeight:
+                                                                                                            FontWeight.w500,
+                                                                                                      ),
+                                                                                                    ),
+                                                                                                  ],
+                                                                                                ),
+                                                                                                const SizedBox(
+                                                                                                  width:
+                                                                                                      20,
+                                                                                                ),
+                                                                                                Container(
+                                                                                                  padding: const EdgeInsets.symmetric(
+                                                                                                    horizontal:
+                                                                                                        10,
+                                                                                                    vertical:
+                                                                                                        2,
+                                                                                                  ),
+                                                                                                  decoration: BoxDecoration(
+                                                                                                    color:
+                                                                                                        Colors.white,
+                                                                                                    border: Border.all(
+                                                                                                      color: Color(
+                                                                                                        0xFFBDBDBD,
+                                                                                                      ),
+                                                                                                    ),
+                                                                                                    borderRadius: BorderRadius.circular(
+                                                                                                      20,
+                                                                                                    ),
+                                                                                                  ),
+                                                                                                  child: Text(
+                                                                                                    student['program'] ??
+                                                                                                        section['program'] ??
+                                                                                                        'N/A',
+                                                                                                    style: const TextStyle(
+                                                                                                      fontSize:
+                                                                                                          10,
+                                                                                                      color:
+                                                                                                          Colors.black,
+                                                                                                      fontWeight:
+                                                                                                          FontWeight.bold,
+                                                                                                    ),
+                                                                                                  ),
+                                                                                                ),
+                                                                                                const Spacer(),
+                                                                                              ],
+                                                                                            ),
+                                                                                          );
+                                                                                        },
+                                                                                      );
+                                                                                    },
                                                                                   ),
                                                                                 ),
                                                                               ],
                                                                             ),
-                                                                          );
-                                                                        },
-                                                                      );
-                                                                    },
+                                                                          ),
+                                                                      ],
+                                                                    ),
                                                                   ),
-                                                                ),
-                                                              ],
+                                                                );
+                                                              },
                                                             ),
-                                                          ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              );
+                                            }),
                                           ],
                                         ),
                                       ),
-                                  ],
-                                ),
-                              );
-                            }),
+                            ),
                           ],
                         ),
                       ),
@@ -2128,6 +2347,73 @@ class _AdminDashboardState extends State<AdminDashboard>
         ),
       ),
     );
+  }
+
+  /// Format schedule from schedules array or fallback to old format
+  String _formatSchedule(Map<String, dynamic> classData) {
+    // Handle new format: schedules array
+    if (classData.containsKey('schedules') && classData['schedules'] is List) {
+      final schedules = List<Map<String, dynamic>>.from(classData['schedules']);
+      if (schedules.isNotEmpty) {
+        // Check if all schedules have the same time
+        final allSameTime = schedules.every(
+          (s) =>
+              s['startTime'] == schedules[0]['startTime'] &&
+              s['endTime'] == schedules[0]['endTime'],
+        );
+
+        if (allSameTime && schedules.length > 1) {
+          // Show as "Mon/Wed 9:00 AM - 10:30 AM"
+          final days = schedules
+              .map((s) => _getDayAbbreviation(s['day']?.toString() ?? ''))
+              .join('/');
+          return '$days ${schedules[0]['startTime']} - ${schedules[0]['endTime']}';
+        } else {
+          // Show all schedules separated by commas
+          final scheduleStrings =
+              schedules.map((schedule) {
+                final dayAbbr = _getDayAbbreviation(
+                  schedule['day']?.toString() ?? '',
+                );
+                return '$dayAbbr ${schedule['startTime']} - ${schedule['endTime']}';
+              }).toList();
+          return scheduleStrings.join(', ');
+        }
+      }
+    }
+
+    // Fallback to old format for backward compatibility
+    if (classData.containsKey('day') &&
+        classData.containsKey('startTime') &&
+        classData.containsKey('endTime')) {
+      final dayAbbr = _getDayAbbreviation(classData['day']?.toString() ?? '');
+      return '${dayAbbr} ${classData['startTime']} - ${classData['endTime']}';
+    }
+
+    // If no schedule data found
+    return 'TBA';
+  }
+
+  /// Get day abbreviation
+  String _getDayAbbreviation(String day) {
+    switch (day.toLowerCase()) {
+      case 'monday':
+        return 'Mon';
+      case 'tuesday':
+        return 'Tue';
+      case 'wednesday':
+        return 'Wed';
+      case 'thursday':
+        return 'Thu';
+      case 'friday':
+        return 'Fri';
+      case 'saturday':
+        return 'Sat';
+      case 'sunday':
+        return 'Sun';
+      default:
+        return day;
+    }
   }
 }
 
