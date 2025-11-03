@@ -3,8 +3,15 @@ import 'package:get/get.dart';
 import 'login_screen_controller.dart';
 import '../widgets/forgot_password_dialog.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool _isPasswordVisible = false;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +124,7 @@ class LoginScreen extends StatelessWidget {
                         const SizedBox(height: 6),
                         TextField(
                           controller: controller.passwordController,
-                          obscureText: true,
+                          obscureText: !_isPasswordVisible,
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) {
                             if (!controller.isLoading.value &&
@@ -131,6 +138,19 @@ class LoginScreen extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                               color: Colors.black45,
                               fontSize: 14,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isPasswordVisible
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                color: Colors.black45,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(6),

@@ -2,8 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'instructor_register_controller.dart';
 
-class InstructorRegisterScreen extends StatelessWidget {
+class InstructorRegisterScreen extends StatefulWidget {
   const InstructorRegisterScreen({super.key});
+
+  @override
+  State<InstructorRegisterScreen> createState() =>
+      _InstructorRegisterScreenState();
+}
+
+class _InstructorRegisterScreenState extends State<InstructorRegisterScreen> {
+  bool _isPasswordVisible = false;
 
   @override
   Widget build(BuildContext context) {
@@ -282,13 +290,26 @@ class InstructorRegisterScreen extends StatelessWidget {
                       SizedBox(height: isMobile ? 4 : 6),
                       TextField(
                         controller: controller.passwordController,
-                        obscureText: true,
+                        obscureText: !_isPasswordVisible,
                         decoration: InputDecoration(
                           hintText: 'Enter your password',
                           hintStyle: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.black45,
                             fontSize: isMobile ? 13 : 14,
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.black45,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordVisible = !_isPasswordVisible;
+                              });
+                            },
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(
