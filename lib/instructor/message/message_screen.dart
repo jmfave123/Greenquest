@@ -107,6 +107,9 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
           messages = messageList;
         });
 
+        // Mark messages as read when opening chat
+        MessageService.markMessagesAsRead(widget.student['id']);
+
         // Auto-scroll to bottom
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scrollController.hasClients) {
@@ -370,6 +373,12 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
           : words[0][0].toUpperCase();
     }
     return 'ST';
+  }
+
+  String _getFirstName(String fullName) {
+    if (fullName.isEmpty) return 'Student';
+    final nameParts = fullName.trim().split(' ');
+    return nameParts.first;
   }
 
   void _onNavigationSelect(InstructorNavigationItem item) {
@@ -718,7 +727,9 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                                                       null)
                                                                 Text(
                                                                   msg.isUnsent
-                                                                      ? 'You unsent a message'
+                                                                      ? (isMe
+                                                                          ? 'You unsent a message'
+                                                                          : '${_getFirstName(student['name'] ?? 'Student')} unsent a message')
                                                                       : msg
                                                                           .content,
                                                                   style: TextStyle(

@@ -58,17 +58,30 @@ class _MessageListScreenState extends State<MessageListScreen> {
     // Cancel previous subscription
     _messageSubscription?.cancel();
 
-    // Subscribe to bidirectional messages and get the last one
+    // Subscribe to bidirectional messages and get the last one - REAL-TIME
     _messageSubscription = MessageService.getBidirectionalMessages(
       instructorId,
     ).listen((messages) {
-      if (messages.isNotEmpty && mounted) {
-        // Get the last message (messages are sorted by timestamp ascending)
+      if (mounted) {
+        // Update last message in real-time (even if empty, to handle unsent updates)
         setState(() {
-          lastMessage = messages.last;
+          if (messages.isNotEmpty) {
+            // Get the last message (messages are sorted by timestamp ascending)
+            lastMessage = messages.last;
+          } else {
+            // Keep lastMessage if list becomes empty (user can still see previous last message)
+            // Or set to null if you want to show "No messages yet"
+            // lastMessage = null; // Uncomment if you want to reset on empty
+          }
         });
       }
     });
+  }
+
+  String _getFirstName(String fullName) {
+    if (fullName.isEmpty) return 'Instructor';
+    final nameParts = fullName.trim().split(' ');
+    return nameParts.first;
   }
 
   @override
@@ -142,97 +155,96 @@ class _MessageListScreenState extends State<MessageListScreen> {
 
     return Column(
       children: [
-        ListTile(
-          leading: InstructorProfileAvatar(
-            profileImage:
-                selectedInstructor!['profileImageUrl'] ??
-                selectedInstructor!['profileImage'],
-            name: selectedInstructor!['name'],
-            isOnline: selectedInstructor!['isOnline'] ?? false,
-          ),
-          title: Text(
-            selectedInstructor!['name'] ?? 'Unknown Instructor',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle:
-              lastMessage != null
-                  ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          // Show icon for attachments
-                          if (lastMessage!.fileAttachment != null) ...[
-                            Icon(
-                              lastMessage!.fileAttachment!.fileType
-                                          .toLowerCase()
-                                          .contains('image') ||
-                                      lastMessage!.fileAttachment!.fileType
-                                          .toLowerCase()
-                                          .contains('video')
-                                  ? Icons.image
-                                  : Icons.insert_drive_file,
-                              size: 16,
-                              color: Colors.black54,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Expanded(
-                            child: Text(
-                              lastMessage!.fileAttachment != null
-                                  ? lastMessage!.fileAttachment!.fileName
-                                  : lastMessage!.content,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+        InkWell(
+          onTap: () {
+            // Navigate to chat screen when tapping anywhere on the message item
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => MessageChatScreen(instructor: selectedInstructor!),
+              ),
+            );
+          },
+          child: ListTile(
+            leading: InstructorProfileAvatar(
+              profileImage:
+                  selectedInstructor!['profileImageUrl'] ??
+                  selectedInstructor!['profileImage'],
+              name: selectedInstructor!['name'],
+              isOnline: selectedInstructor!['isOnline'] ?? false,
+            ),
+            title: Text(
+              selectedInstructor!['name'] ?? 'Unknown Instructor',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle:
+                lastMessage != null
+                    ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            // Show icon for attachments
+                            if (lastMessage!.fileAttachment != null) ...[
+                              Icon(
+                                lastMessage!.fileAttachment!.fileType
+                                            .toLowerCase()
+                                            .contains('image') ||
+                                        lastMessage!.fileAttachment!.fileType
+                                            .toLowerCase()
+                                            .contains('video')
+                                    ? Icons.image
+                                    : Icons.insert_drive_file,
+                                size: 16,
                                 color: Colors.black54,
-                                fontSize: 14,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: Text(
+                                lastMessage!.isUnsent
+                                    ? (lastMessage!.senderType == 'student'
+                                        ? 'You unsent a message'
+                                        : '${_getFirstName(selectedInstructor!['name'] ?? 'Instructor')} unsent a message')
+                                    : (lastMessage!.fileAttachment != null
+                                        ? lastMessage!.fileAttachment!.fileName
+                                        : lastMessage!.content),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 14,
+                                  fontStyle:
+                                      lastMessage!.isUnsent
+                                          ? FontStyle.italic
+                                          : FontStyle.normal,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        lastMessage!.getDisplayTime(),
-                        style: const TextStyle(
-                          color: Colors.black38,
-                          fontSize: 12,
+                          ],
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          lastMessage!.getDisplayTime(),
+                          style: const TextStyle(
+                            color: Colors.black38,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    )
+                    : Text(
+                      selectedInstructor!['isOnline'] == true
+                          ? 'Online'
+                          : 'Offline',
+                      style: TextStyle(
+                        color:
+                            selectedInstructor!['isOnline'] == true
+                                ? const Color(0xFF34A853)
+                                : Colors.grey,
                       ),
-                    ],
-                  )
-                  : Text(
-                    selectedInstructor!['isOnline'] == true
-                        ? 'Online'
-                        : 'Offline',
-                    style: TextStyle(
-                      color:
-                          selectedInstructor!['isOnline'] == true
-                              ? const Color(0xFF34A853)
-                              : Colors.grey,
                     ),
-                  ),
-          trailing: ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (_) => MessageChatScreen(instructor: selectedInstructor!),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF34A853),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-              elevation: 0,
-            ),
-            child: const Text('Chat'),
           ),
         ),
         const Divider(height: 1),

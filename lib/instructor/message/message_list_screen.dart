@@ -48,6 +48,8 @@ class _InstructorMessageListScreenState
 
     return InkWell(
       onTap: () {
+        // Mark messages as read when clicking on student
+        MessageService.markMessagesAsRead(student['id']);
         Get.to(() => InstructorMessageScreen(student: student));
       },
       child: Padding(

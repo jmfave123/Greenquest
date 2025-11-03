@@ -40,6 +40,12 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
     super.initState();
     _loadMessages();
     _loadCurrentUserProfile();
+    // Add listener to update UI when text changes (for send button color)
+    _controller.addListener(() {
+      setState(() {
+        // Trigger rebuild when text changes to update send button color
+      });
+    });
   }
 
   @override
@@ -167,6 +173,12 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
           : words[0][0].toUpperCase();
     }
     return 'S';
+  }
+
+  String _getFirstName(String fullName) {
+    if (fullName.isEmpty) return 'Instructor';
+    final nameParts = fullName.trim().split(' ');
+    return nameParts.first;
   }
 
   String _formatTime(DateTime dateTime) {
@@ -604,7 +616,9 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                                                     message.content.isNotEmpty)
                                                   Text(
                                                     message.isUnsent
-                                                        ? 'You unsent a message'
+                                                        ? (isMe
+                                                            ? 'You unsent a message'
+                                                            : '${_getFirstName(instructor?['name'] ?? 'Instructor')} unsent a message')
                                                         : message.content,
                                                     style: TextStyle(
                                                       color:
@@ -867,7 +881,7 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                           controller: _controller,
                           enabled: !_isUploading,
                           textInputAction: TextInputAction.send,
-                          keyboardType: TextInputType.multiline,
+                          keyboardType: TextInputType.text,
                           maxLines: null,
                           minLines: 1,
                           decoration: const InputDecoration(
@@ -880,7 +894,11 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                             ),
                           ),
                           onSubmitted: (value) {
-                            _sendMessage(value.trim());
+                            // Send message when user presses send/enter on keyboard
+                            if (value.trim().isNotEmpty ||
+                                _previewFile != null) {
+                              _sendMessage(value.trim());
+                            }
                           },
                         ),
                       ),
@@ -901,13 +919,13 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                           ),
                         )
                         : GestureDetector(
-                          onTap:
-                              (_controller.text.trim().isNotEmpty ||
-                                      _previewFile != null)
-                                  ? () {
-                                    _sendMessage(_controller.text.trim());
-                                  }
-                                  : null,
+                          onTap: () {
+                            // Always allow tapping - check inside if we should send
+                            final content = _controller.text.trim();
+                            if (content.isNotEmpty || _previewFile != null) {
+                              _sendMessage(content);
+                            }
+                          },
                           child: Image.asset(
                             'assets/icons/akar-icons_send.png',
                             width: 24,

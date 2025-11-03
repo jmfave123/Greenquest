@@ -213,6 +213,7 @@ class MessageService {
                   final studentData = studentDoc.data();
                   studentName =
                       studentData?['name'] ??
+                      studentData?['fullName'] ??
                       studentData?['studentName'] ??
                       'Student';
                 }
@@ -247,6 +248,7 @@ class MessageService {
                     final studentData = studentDoc.data();
                     studentName =
                         studentData?['name'] ??
+                        studentData?['fullName'] ??
                         studentData?['studentName'] ??
                         'Student';
                   }
@@ -354,6 +356,18 @@ class MessageService {
   ) {
     final messageType = messageData['messageType'] ?? 'text';
     final content = messageData['content']?.toString() ?? '';
+    final isUnsent = messageData['isUnsent'] ?? false;
+
+    // Handle unsent messages
+    if (isUnsent) {
+      if (isFromInstructor) {
+        return 'You unsent a message';
+      } else {
+        // Use first name only for student
+        final firstName = _getFirstName(senderName);
+        return '$firstName unsent a message';
+      }
+    }
 
     // If it's a file attachment
     if (messageType == 'file' && messageData['fileAttachment'] != null) {
