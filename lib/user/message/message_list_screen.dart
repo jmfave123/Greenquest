@@ -159,14 +159,38 @@ class _MessageListScreenState extends State<MessageListScreen> {
                   ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        lastMessage!.content,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 14,
-                        ),
+                      Row(
+                        children: [
+                          // Show icon for attachments
+                          if (lastMessage!.fileAttachment != null) ...[
+                            Icon(
+                              lastMessage!.fileAttachment!.fileType
+                                          .toLowerCase()
+                                          .contains('image') ||
+                                      lastMessage!.fileAttachment!.fileType
+                                          .toLowerCase()
+                                          .contains('video')
+                                  ? Icons.image
+                                  : Icons.insert_drive_file,
+                              size: 16,
+                              color: Colors.black54,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              lastMessage!.fileAttachment != null
+                                  ? lastMessage!.fileAttachment!.fileName
+                                  : lastMessage!.content,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.black54,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(

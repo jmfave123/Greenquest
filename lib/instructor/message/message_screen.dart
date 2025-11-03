@@ -12,6 +12,7 @@ import '../../shared/services/file_upload_service.dart';
 import '../../shared/utils/file_type_utils.dart';
 import '../../shared/widgets/file_display_widgets.dart';
 import '../../shared/services/file_download_service.dart';
+import '../../shared/widgets/confirmation_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class InstructorMessageScreen extends StatefulWidget {
@@ -32,6 +33,10 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
   final ScrollController _scrollController = ScrollController();
   List<MessageModel> messages = [];
 
+  // Preview state for attachments
+  PlatformFile? _previewFile;
+  bool _isUploading = false;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +48,52 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _clearPreview() {
+    setState(() {
+      _previewFile = null;
+    });
+  }
+
+  void _showDeleteDialog(BuildContext context, MessageModel message) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => ConfirmationDialog(
+            title: 'Unsend Message',
+            message: 'Are you sure you want to unsend this message?',
+            warningMessage:
+                'This message will be replaced with "You unsent a message".',
+            confirmText: 'Unsend',
+            cancelText: 'Cancel',
+            icon: Icons.undo_outlined,
+            iconColor: Colors.orange,
+            confirmButtonColor: Colors.orange,
+            onConfirm: () async {
+              try {
+                await MessageService.unsendMessage(message.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Message unsent successfully'),
+                      backgroundColor: Color(0xFF22C55E),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to unsend message: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+    );
   }
 
   void _loadMessages() {
@@ -112,16 +163,74 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
 
   void _sendMessage() async {
     final content = _controller.text.trim();
-    if (content.isEmpty || widget.student['id'] == null) return;
+    final hasContent = content.isNotEmpty;
+    final hasAttachment = _previewFile != null;
+
+    if ((!hasContent && !hasAttachment) || widget.student['id'] == null) return;
+
+    if (_isUploading) return; // Prevent double sending
 
     try {
-      await MessageService.sendMessage(
-        receiverId: widget.student['id'],
-        content: content,
-        senderType: 'instructor',
-      );
+      setState(() {
+        _isUploading = true;
+      });
 
-      _controller.clear();
+      // If there's an attachment, upload and send with file
+      if (hasAttachment && _previewFile != null) {
+        final file = _previewFile!;
+
+        if (file.bytes == null) {
+          throw Exception('File bytes are null');
+        }
+
+        // Upload to Cloudinary
+        final fileUploadService = FileUploadService();
+        fileUploadService.initialize();
+
+        final response = await fileUploadService.uploadFile(
+          file: file,
+          folder: 'greenquest/messages',
+        );
+
+        if (response != null) {
+          // Send message with file attachment
+          await MessageService.sendMessageWithFile(
+            receiverId: widget.student['id'],
+            content: content.isEmpty ? 'Sent a file' : content,
+            fileName: file.name,
+            fileUrl: response.url,
+            fileType: file.extension ?? 'unknown',
+            fileSize: file.size,
+            senderType: 'instructor',
+          );
+
+          // Clear preview and text
+          setState(() {
+            _previewFile = null;
+          });
+          _controller.clear();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('File sent successfully'),
+                backgroundColor: Color(0xFF22C55E),
+              ),
+            );
+          }
+        } else {
+          throw Exception('Upload failed');
+        }
+      } else {
+        // Send text-only message
+        await MessageService.sendMessage(
+          receiverId: widget.student['id'],
+          content: content,
+          senderType: 'instructor',
+        );
+
+        _controller.clear();
+      }
     } catch (e) {
       print('Error sending message: $e');
       if (mounted) {
@@ -132,12 +241,18 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
     }
   }
 
   Future<void> _pickAndSendFile() async {
     try {
-      // Pick file
+      // Pick file - just select, don't upload yet
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
         allowMultiple: false,
@@ -151,56 +266,16 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
         throw Exception('File bytes are null');
       }
 
-      // Show uploading indicator
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Uploading file...'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-
-      // Upload to Cloudinary
-      final fileUploadService = FileUploadService();
-      fileUploadService.initialize();
-
-      final response = await fileUploadService.uploadFile(
-        file: file,
-        folder: 'greenquest/messages',
-      );
-
-      if (response != null) {
-        // Send message with file attachment
-        await MessageService.sendMessageWithFile(
-          receiverId: widget.student['id'],
-          content: _controller.text.trim(),
-          fileName: file.name,
-          fileUrl: response.url,
-          fileType: file.extension ?? 'unknown',
-          fileSize: file.size,
-          senderType: 'instructor',
-        );
-
-        _controller.clear();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('File sent successfully'),
-              backgroundColor: Color(0xFF22C55E),
-            ),
-          );
-        }
-      } else {
-        throw Exception('Upload failed');
-      }
+      // Store file for preview - don't upload yet
+      setState(() {
+        _previewFile = file;
+      });
     } catch (e) {
-      print('Error sending file: $e');
+      print('Error picking file: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send file: $e'),
+            content: Text('Failed to pick file: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -358,58 +433,138 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                           style: TextStyle(color: Colors.black38, fontSize: 16),
                         ),
                         const SizedBox(height: 24),
+                        // Fixed Profile Header (like mobile apps) - stays visible while chatting
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 18,
+                            horizontal: 20,
+                            vertical: 16,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(color: const Color(0xFFE5E7EB)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Row(
                             children: [
-                              (student['image'] != null &&
-                                      (student['image'] as String).isNotEmpty)
-                                  ? CircleAvatar(
-                                    radius: 24,
-                                    backgroundImage: NetworkImage(
-                                      student['image'],
-                                    ),
-                                    backgroundColor: const Color(0xFF22C55E),
-                                  )
-                                  : CircleAvatar(
-                                    radius: 24,
-                                    backgroundColor: const Color(0xFF22C55E),
-                                    child: Text(
-                                      _getInitials(student['name']),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                              // Profile Avatar with Online Indicator
+                              Stack(
+                                children: [
+                                  (student['image'] != null &&
+                                          (student['image'] as String)
+                                              .isNotEmpty)
+                                      ? CircleAvatar(
+                                        radius: 28,
+                                        backgroundImage: NetworkImage(
+                                          student['image'],
+                                        ),
+                                        backgroundColor: const Color(
+                                          0xFF22C55E,
+                                        ),
+                                      )
+                                      : CircleAvatar(
+                                        radius: 28,
+                                        backgroundColor: const Color(
+                                          0xFF22C55E,
+                                        ),
+                                        child: Text(
+                                          _getInitials(student['name']),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  // Online Status Indicator
+                                  if (student['online'] == true ||
+                                      student['isOnline'] == true)
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        width: 14,
+                                        height: 14,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF34A853),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                              const SizedBox(width: 14),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    student['name'],
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 17,
-                                    ),
-                                  ),
-                                  Text(
-                                    student['email'] ?? '',
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      fontSize: 13,
-                                    ),
-                                  ),
                                 ],
+                              ),
+                              const SizedBox(width: 16),
+                              // Profile Info
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            student['name'],
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 18,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        // Online Status or Email
+                                        if (student['online'] == true ||
+                                            student['isOnline'] == true)
+                                          Row(
+                                            children: [
+                                              Container(
+                                                width: 8,
+                                                height: 8,
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFF34A853),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Text(
+                                                'Online',
+                                                style: TextStyle(
+                                                  color: Color(0xFF34A853),
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        else
+                                          Text(
+                                            student['email'] ?? 'Offline',
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                              fontSize: 13,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -448,93 +603,274 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                             padding: const EdgeInsets.symmetric(
                                               vertical: 6,
                                             ),
-                                            child: Column(
-                                              crossAxisAlignment:
+                                            child: Row(
+                                              mainAxisAlignment:
                                                   isMe
-                                                      ? CrossAxisAlignment.end
-                                                      : CrossAxisAlignment
-                                                          .start,
+                                                      ? MainAxisAlignment.end
+                                                      : MainAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
                                               children: [
-                                                Container(
-                                                  constraints:
-                                                      const BoxConstraints(
-                                                        maxWidth: 420,
-                                                      ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 18,
-                                                        vertical: 14,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        isMe
-                                                            ? const Color(
-                                                              0xFF22C55E,
+                                                // Student avatar (shown on left for student messages)
+                                                if (!isMe) ...[
+                                                  CircleAvatar(
+                                                    radius: 16,
+                                                    backgroundColor:
+                                                        const Color(0xFF22C55E),
+                                                    backgroundImage:
+                                                        (student['image'] !=
+                                                                    null &&
+                                                                (student['image']
+                                                                        as String)
+                                                                    .isNotEmpty)
+                                                            ? NetworkImage(
+                                                              student['image'],
                                                             )
-                                                            : const Color(
-                                                              0xFFF3F4F6,
-                                                            ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
+                                                            : null,
+                                                    child:
+                                                        (student['image'] ==
+                                                                    null ||
+                                                                (student['image']
+                                                                        as String)
+                                                                    .isEmpty)
+                                                            ? Text(
+                                                              _getInitials(
+                                                                student['name'],
+                                                              ),
+                                                              style: const TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            )
+                                                            : null,
                                                   ),
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      // Display file attachment with smart rendering
-                                                      if (msg.fileAttachment !=
-                                                          null) ...[
-                                                        _buildFileAttachment(
-                                                          msg.fileAttachment!,
-                                                          isMe,
-                                                        ),
-                                                        if (msg.content !=
-                                                                'Sent a file' &&
-                                                            msg
-                                                                .content
-                                                                .isNotEmpty)
-                                                          const SizedBox(
-                                                            height: 8,
+                                                  const SizedBox(width: 8),
+                                                ],
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.end,
+                                                  children: [
+                                                    Column(
+                                                      crossAxisAlignment:
+                                                          isMe
+                                                              ? CrossAxisAlignment
+                                                                  .end
+                                                              : CrossAxisAlignment
+                                                                  .start,
+                                                      children: [
+                                                        Container(
+                                                          constraints:
+                                                              const BoxConstraints(
+                                                                maxWidth: 420,
+                                                              ),
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 18,
+                                                                vertical: 14,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color:
+                                                                isMe
+                                                                    ? const Color(
+                                                                      0xFF22C55E,
+                                                                    )
+                                                                    : const Color(
+                                                                      0xFFF3F4F6,
+                                                                    ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
                                                           ),
-                                                      ],
-                                                      // Display text content
-                                                      if (msg.content !=
-                                                              'Sent a file' ||
-                                                          msg.fileAttachment ==
-                                                              null)
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              // Display file attachment with smart rendering (only if not unsent)
+                                                              if (msg.fileAttachment !=
+                                                                      null &&
+                                                                  !msg.isUnsent) ...[
+                                                                _buildFileAttachment(
+                                                                  msg.fileAttachment!,
+                                                                  isMe,
+                                                                ),
+                                                                if (msg.content !=
+                                                                        'Sent a file' &&
+                                                                    msg
+                                                                        .content
+                                                                        .isNotEmpty)
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                              ],
+                                                              // Display text content (or unsent message)
+                                                              if (msg.content !=
+                                                                      'Sent a file' ||
+                                                                  msg.fileAttachment ==
+                                                                      null)
+                                                                Text(
+                                                                  msg.isUnsent
+                                                                      ? 'You unsent a message'
+                                                                      : msg
+                                                                          .content,
+                                                                  style: TextStyle(
+                                                                    color:
+                                                                        isMe
+                                                                            ? Colors.white
+                                                                            : Colors.black87,
+                                                                    fontSize:
+                                                                        15,
+                                                                    fontStyle:
+                                                                        msg.isUnsent
+                                                                            ? FontStyle.italic
+                                                                            : FontStyle.normal,
+                                                                  ),
+                                                                ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 4,
+                                                        ),
                                                         Text(
-                                                          msg.content,
+                                                          _formatTime(
+                                                            msg.timestamp
+                                                                .toDate(),
+                                                          ),
                                                           style: TextStyle(
                                                             color:
                                                                 isMe
-                                                                    ? Colors
-                                                                        .white
+                                                                    ? const Color(
+                                                                      0xFF22C55E,
+                                                                    )
                                                                     : Colors
-                                                                        .black87,
-                                                            fontSize: 15,
+                                                                        .black38,
+                                                            fontSize: 12,
                                                           ),
                                                         ),
+                                                      ],
+                                                    ),
+                                                    // Three-dot menu for own messages (not already unsent)
+                                                    if (isMe &&
+                                                        !msg.isUnsent) ...[
+                                                      const SizedBox(width: 4),
+                                                      PopupMenuButton<String>(
+                                                        icon: Icon(
+                                                          Icons.more_vert,
+                                                          size: 18,
+                                                          color:
+                                                              Colors.grey[600],
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                        ),
+                                                        itemBuilder:
+                                                            (context) => [
+                                                              PopupMenuItem(
+                                                                value: 'delete',
+                                                                child: Row(
+                                                                  children: [
+                                                                    Icon(
+                                                                      Icons
+                                                                          .undo_outlined,
+                                                                      size: 20,
+                                                                      color:
+                                                                          Colors
+                                                                              .orange[400],
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 8,
+                                                                    ),
+                                                                    const Text(
+                                                                      'Unsend',
+                                                                      style: TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                        fontWeight:
+                                                                            FontWeight.w500,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            ],
+                                                        onSelected: (
+                                                          value,
+                                                        ) async {
+                                                          if (value ==
+                                                              'delete') {
+                                                            _showDeleteDialog(
+                                                              context,
+                                                              msg,
+                                                            );
+                                                          }
+                                                        },
+                                                      ),
                                                     ],
-                                                  ),
+                                                  ],
                                                 ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  _formatTime(
-                                                    msg.timestamp.toDate(),
+                                                // Instructor avatar (shown on right for instructor messages)
+                                                if (isMe) ...[
+                                                  const SizedBox(width: 8),
+                                                  Obx(
+                                                    () => CircleAvatar(
+                                                      radius: 16,
+                                                      backgroundColor:
+                                                          const Color(
+                                                            0xFF22C55E,
+                                                          ),
+                                                      backgroundImage:
+                                                          instructorController
+                                                                  .profileImageUrl
+                                                                  .value
+                                                                  .isNotEmpty
+                                                              ? NetworkImage(
+                                                                instructorController
+                                                                    .profileImageUrl
+                                                                    .value,
+                                                              )
+                                                              : null,
+                                                      child:
+                                                          instructorController
+                                                                  .profileImageUrl
+                                                                  .value
+                                                                  .isEmpty
+                                                              ? Text(
+                                                                instructorController
+                                                                    .instructorName
+                                                                    .value
+                                                                    .substring(
+                                                                      0,
+                                                                      1,
+                                                                    )
+                                                                    .toUpperCase(),
+                                                                style: const TextStyle(
+                                                                  color:
+                                                                      Colors
+                                                                          .white,
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                ),
+                                                              )
+                                                              : null,
+                                                    ),
                                                   ),
-                                                  style: TextStyle(
-                                                    color:
-                                                        isMe
-                                                            ? const Color(
-                                                              0xFF22C55E,
-                                                            )
-                                                            : Colors.black38,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
+                                                ],
                                               ],
                                             ),
                                           ),
@@ -543,6 +879,112 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                     ),
                           ),
                         ),
+                        // Show preview if file is selected
+                        if (_previewFile != null) ...[
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                // Preview for images
+                                if (FileTypeUtils.isImageFile(
+                                  _previewFile!.extension ?? '',
+                                )) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child:
+                                        _previewFile!.bytes != null
+                                            ? Image.memory(
+                                              _previewFile!.bytes!,
+                                              width: 80,
+                                              height: 80,
+                                              fit: BoxFit.cover,
+                                            )
+                                            : const SizedBox(
+                                              width: 80,
+                                              height: 80,
+                                              child: Icon(Icons.image),
+                                            ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _previewFile!.name,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${(_previewFile!.size / 1024).toStringAsFixed(1)} KB',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ]
+                                // Preview for other files
+                                else ...[
+                                  Icon(
+                                    Icons.insert_drive_file,
+                                    size: 48,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _previewFile!.name,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${(_previewFile!.size / 1024).toStringAsFixed(1)} KB • ${_previewFile!.extension ?? 'file'}',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                // Remove button
+                                IconButton(
+                                  icon: const Icon(Icons.close, size: 20),
+                                  color: Colors.grey[600],
+                                  onPressed: _clearPreview,
+                                  tooltip: 'Remove attachment',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         Container(
                           margin: const EdgeInsets.only(top: 8),
                           padding: const EdgeInsets.symmetric(
@@ -559,6 +1001,7 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                               Expanded(
                                 child: TextField(
                                   controller: _controller,
+                                  enabled: !_isUploading,
                                   decoration: const InputDecoration(
                                     contentPadding: EdgeInsets.only(left: 10),
                                     hintText: 'Type your message...',
@@ -579,17 +1022,37 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                   width: 22,
                                   color: const Color(0xFFBDBDBD),
                                 ),
-                                onPressed: _pickAndSendFile,
+                                onPressed:
+                                    _isUploading ? null : _pickAndSendFile,
                                 tooltip: 'Attach file',
                               ),
-                              IconButton(
-                                icon: Image.asset(
-                                  'assets/icons/akar-icons_send.png',
-                                  width: 22,
-                                  color: const Color(0xFF22C55E),
-                                ),
-                                onPressed: _sendMessage,
-                              ),
+                              _isUploading
+                                  ? const Padding(
+                                    padding: EdgeInsets.all(12.0),
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF22C55E),
+                                            ),
+                                      ),
+                                    ),
+                                  )
+                                  : IconButton(
+                                    icon: Image.asset(
+                                      'assets/icons/akar-icons_send.png',
+                                      width: 22,
+                                      color: const Color(0xFF22C55E),
+                                    ),
+                                    onPressed:
+                                        (_controller.text.trim().isNotEmpty ||
+                                                _previewFile != null)
+                                            ? _sendMessage
+                                            : null,
+                                  ),
                             ],
                           ),
                         ),

@@ -10,6 +10,7 @@ class MessageModel {
   final bool isRead;
   final String messageType; // 'text', 'image', 'file'
   final FileAttachment? fileAttachment;
+  final bool isUnsent;
 
   MessageModel({
     required this.id,
@@ -21,6 +22,7 @@ class MessageModel {
     this.isRead = false,
     this.messageType = 'text',
     this.fileAttachment,
+    this.isUnsent = false,
   });
 
   // Convert to Map for Firestore
@@ -34,6 +36,7 @@ class MessageModel {
       'isRead': isRead,
       'messageType': messageType,
       'fileAttachment': fileAttachment?.toMap(),
+      'isUnsent': isUnsent,
     };
   }
 
@@ -52,6 +55,7 @@ class MessageModel {
           data['fileAttachment'] != null
               ? FileAttachment.fromMap(data['fileAttachment'])
               : null,
+      isUnsent: data['isUnsent'] ?? false,
     );
   }
 

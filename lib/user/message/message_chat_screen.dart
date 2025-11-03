@@ -10,6 +10,7 @@ import '../../shared/services/file_upload_service.dart';
 import '../../shared/utils/file_type_utils.dart';
 import '../../shared/widgets/file_display_widgets.dart';
 import '../../shared/services/file_download_service.dart';
+import '../../shared/widgets/confirmation_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class MessageChatScreen extends StatefulWidget {
@@ -28,6 +29,10 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
   bool isLoading = true;
   Map<String, dynamic>? currentUserProfile;
 
+  // Preview state for attachments
+  PlatformFile? _previewFile;
+  bool _isUploading = false;
+
   Map<String, dynamic>? get instructor => widget.instructor;
 
   @override
@@ -42,6 +47,52 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _clearPreview() {
+    setState(() {
+      _previewFile = null;
+    });
+  }
+
+  void _showDeleteDialog(BuildContext context, MessageModel message) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => ConfirmationDialog(
+            title: 'Unsend Message',
+            message: 'Are you sure you want to unsend this message?',
+            warningMessage:
+                'This message will be replaced with "You unsent a message".',
+            confirmText: 'Unsend',
+            cancelText: 'Cancel',
+            icon: Icons.undo_outlined,
+            iconColor: Colors.orange,
+            confirmButtonColor: Colors.orange,
+            onConfirm: () async {
+              try {
+                await MessageService.unsendMessage(message.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Message unsent successfully'),
+                      backgroundColor: Color(0xFF34A853),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to unsend message: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+    );
   }
 
   void _loadMessages() {
@@ -159,19 +210,76 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
   }
 
   void _sendMessage(String content) async {
-    if (content.isEmpty || instructor == null) return;
+    final hasContent = content.trim().isNotEmpty;
+    final hasAttachment = _previewFile != null;
+
+    if ((!hasContent && !hasAttachment) || instructor == null) return;
+
+    if (_isUploading) return; // Prevent double sending
 
     try {
-      await MessageService.sendMessage(
-        receiverId: instructor!['id'],
-        content: content,
-        senderType: 'student',
-      );
+      setState(() {
+        _isUploading = true;
+      });
 
-      _controller.clear();
+      // If there's an attachment, upload and send with file
+      if (hasAttachment && _previewFile != null) {
+        final file = _previewFile!;
+
+        if (file.bytes == null) {
+          throw Exception('File bytes are null');
+        }
+
+        // Upload to Cloudinary
+        final fileUploadService = FileUploadService();
+        fileUploadService.initialize();
+
+        final response = await fileUploadService.uploadFile(
+          file: file,
+          folder: 'greenquest/messages',
+        );
+
+        if (response != null) {
+          // Send message with file attachment
+          await MessageService.sendMessageWithFile(
+            receiverId: instructor!['id'],
+            content: content.trim().isEmpty ? 'Sent a file' : content.trim(),
+            fileName: file.name,
+            fileUrl: response.url,
+            fileType: file.extension ?? 'unknown',
+            fileSize: file.size,
+            senderType: 'student',
+          );
+
+          // Clear preview and text
+          setState(() {
+            _previewFile = null;
+          });
+          _controller.clear();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('File sent successfully'),
+                backgroundColor: Color(0xFF34A853),
+              ),
+            );
+          }
+        } else {
+          throw Exception('Upload failed');
+        }
+      } else {
+        // Send text-only message
+        await MessageService.sendMessage(
+          receiverId: instructor!['id'],
+          content: content.trim(),
+          senderType: 'student',
+        );
+
+        _controller.clear();
+      }
     } catch (e) {
       print('Error sending message: $e');
-      // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -180,12 +288,18 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
     }
   }
 
   Future<void> _pickAndSendFile() async {
     try {
-      // Pick file
+      // Pick file - just select, don't upload yet
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
         allowMultiple: false,
@@ -199,56 +313,16 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
         throw Exception('File bytes are null');
       }
 
-      // Show uploading indicator
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Uploading file...'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-
-      // Upload to Cloudinary
-      final fileUploadService = FileUploadService();
-      fileUploadService.initialize();
-
-      final response = await fileUploadService.uploadFile(
-        file: file,
-        folder: 'greenquest/messages',
-      );
-
-      if (response != null) {
-        // Send message with file attachment
-        await MessageService.sendMessageWithFile(
-          receiverId: instructor!['id'],
-          content: _controller.text.trim(),
-          fileName: file.name,
-          fileUrl: response.url,
-          fileType: file.extension ?? 'unknown',
-          fileSize: file.size,
-          senderType: 'student',
-        );
-
-        _controller.clear();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('File sent successfully'),
-              backgroundColor: Color(0xFF22C55E),
-            ),
-          );
-        }
-      } else {
-        throw Exception('Upload failed');
-      }
+      // Store file for preview - don't upload yet
+      setState(() {
+        _previewFile = file;
+      });
     } catch (e) {
-      print('Error sending file: $e');
+      print('Error picking file: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send file: $e'),
+            content: Text('Failed to pick file: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -466,69 +540,142 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                                         radius: 16,
                                       ),
                                     if (!isMe) const SizedBox(width: 8),
-                                    Flexible(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              isMe
-                                                  ? const Color(0xFF34A853)
-                                                  : Colors.white,
-                                          borderRadius: BorderRadius.only(
-                                            topLeft: const Radius.circular(16),
-                                            topRight: const Radius.circular(16),
-                                            bottomLeft: Radius.circular(
-                                              isMe ? 16 : 4,
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Flexible(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
                                             ),
-                                            bottomRight: Radius.circular(
-                                              isMe ? 4 : 16,
-                                            ),
-                                          ),
-                                          boxShadow: [
-                                            if (!isMe)
-                                              const BoxShadow(
-                                                color: Colors.black12,
-                                                blurRadius: 2,
-                                                offset: Offset(0, 1),
-                                              ),
-                                          ],
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            // Display file attachment with smart rendering
-                                            if (message.fileAttachment !=
-                                                null) ...[
-                                              _buildFileAttachment(
-                                                message.fileAttachment!,
-                                                isMe,
-                                              ),
-                                              if (message.content !=
-                                                      'Sent a file' &&
-                                                  message.content.isNotEmpty)
-                                                const SizedBox(height: 8),
-                                            ],
-                                            // Display text content
-                                            if (message.content !=
-                                                    'Sent a file' &&
-                                                message.content.isNotEmpty)
-                                              Text(
-                                                message.content,
-                                                style: TextStyle(
-                                                  color:
-                                                      isMe
-                                                          ? Colors.white
-                                                          : Colors.black87,
-                                                  fontSize: 15,
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  isMe
+                                                      ? const Color(0xFF34A853)
+                                                      : Colors.white,
+                                              borderRadius: BorderRadius.only(
+                                                topLeft: const Radius.circular(
+                                                  16,
+                                                ),
+                                                topRight: const Radius.circular(
+                                                  16,
+                                                ),
+                                                bottomLeft: Radius.circular(
+                                                  isMe ? 16 : 4,
+                                                ),
+                                                bottomRight: Radius.circular(
+                                                  isMe ? 4 : 16,
                                                 ),
                                               ),
-                                          ],
+                                              boxShadow: [
+                                                if (!isMe)
+                                                  const BoxShadow(
+                                                    color: Colors.black12,
+                                                    blurRadius: 2,
+                                                    offset: Offset(0, 1),
+                                                  ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                // Display file attachment with smart rendering (only if not unsent)
+                                                if (message.fileAttachment !=
+                                                        null &&
+                                                    !message.isUnsent) ...[
+                                                  _buildFileAttachment(
+                                                    message.fileAttachment!,
+                                                    isMe,
+                                                  ),
+                                                  if (message.content !=
+                                                          'Sent a file' &&
+                                                      message
+                                                          .content
+                                                          .isNotEmpty)
+                                                    const SizedBox(height: 8),
+                                                ],
+                                                // Display text content (or unsent message)
+                                                if (message.content !=
+                                                        'Sent a file' ||
+                                                    message.content.isNotEmpty)
+                                                  Text(
+                                                    message.isUnsent
+                                                        ? 'You unsent a message'
+                                                        : message.content,
+                                                    style: TextStyle(
+                                                      color:
+                                                          isMe
+                                                              ? Colors.white
+                                                              : Colors.black87,
+                                                      fontSize: 15,
+                                                      fontStyle:
+                                                          message.isUnsent
+                                                              ? FontStyle.italic
+                                                              : FontStyle
+                                                                  .normal,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        // Three-dot menu for own messages (not already unsent)
+                                        if (isMe && !message.isUnsent) ...[
+                                          const SizedBox(width: 4),
+                                          PopupMenuButton<String>(
+                                            icon: Icon(
+                                              Icons.more_vert,
+                                              size: 18,
+                                              color: Colors.grey[600],
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            itemBuilder:
+                                                (context) => [
+                                                  PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.undo_outlined,
+                                                          size: 20,
+                                                          color:
+                                                              Colors
+                                                                  .orange[400],
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        const Text(
+                                                          'Unsend',
+                                                          style: TextStyle(
+                                                            fontSize: 14,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                            onSelected: (value) async {
+                                              if (value == 'delete') {
+                                                _showDeleteDialog(
+                                                  context,
+                                                  message,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                     if (isMe) const SizedBox(width: 8),
                                     if (isMe)
@@ -586,64 +733,195 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                       },
                     ),
           ),
-          Container(
-            color: Colors.white,
-            padding: EdgeInsets.only(
-              left: 12,
-              right: 12,
-              top: 8,
-              bottom: MediaQuery.of(context).padding.bottom + 8,
-            ),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: _pickAndSendFile,
-                  child: Image.asset(
-                    'assets/icons/Vector (8).png',
-                    width: 22,
-                    color: Colors.black45,
+          Column(
+            children: [
+              // Show preview if file is selected
+              if (_previewFile != null) ...[
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      // Preview for images
+                      if (FileTypeUtils.isImageFile(
+                        _previewFile!.extension ?? '',
+                      )) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child:
+                              _previewFile!.bytes != null
+                                  ? Image.memory(
+                                    _previewFile!.bytes!,
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                  )
+                                  : const SizedBox(
+                                    width: 80,
+                                    height: 80,
+                                    child: Icon(Icons.image),
+                                  ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _previewFile!.name,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${(_previewFile!.size / 1024).toStringAsFixed(1)} KB',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ]
+                      // Preview for other files
+                      else ...[
+                        Icon(
+                          Icons.insert_drive_file,
+                          size: 48,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _previewFile!.name,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${(_previewFile!.size / 1024).toStringAsFixed(1)} KB • ${_previewFile!.extension ?? 'file'}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      // Remove button
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        color: Colors.grey[600],
+                        onPressed: _clearPreview,
+                        tooltip: 'Remove attachment',
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxHeight: 100, // Limit max height for multiline
+                const SizedBox(height: 8),
+              ],
+              Container(
+                color: Colors.white,
+                padding: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  top: 8,
+                  bottom: MediaQuery.of(context).padding.bottom + 8,
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: _isUploading ? null : _pickAndSendFile,
+                      child: Image.asset(
+                        'assets/icons/Vector (8).png',
+                        width: 22,
+                        color: _isUploading ? Colors.grey : Colors.black45,
+                      ),
                     ),
-                    child: TextField(
-                      cursorColor: Colors.black54,
-                      controller: _controller,
-                      textInputAction: TextInputAction.send,
-                      keyboardType: TextInputType.multiline,
-                      maxLines: null,
-                      minLines: 1,
-                      decoration: const InputDecoration(
-                        hintText: 'Type a message',
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxHeight: 100, // Limit max height for multiline
+                        ),
+                        child: TextField(
+                          cursorColor: Colors.black54,
+                          controller: _controller,
+                          enabled: !_isUploading,
+                          textInputAction: TextInputAction.send,
+                          keyboardType: TextInputType.multiline,
+                          maxLines: null,
+                          minLines: 1,
+                          decoration: const InputDecoration(
+                            hintText: 'Type a message',
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 8,
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            _sendMessage(value.trim());
+                          },
                         ),
                       ),
-                      onSubmitted: (value) {
-                        _sendMessage(value.trim());
-                      },
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    _isUploading
+                        ? const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF34A853),
+                              ),
+                            ),
+                          ),
+                        )
+                        : GestureDetector(
+                          onTap:
+                              (_controller.text.trim().isNotEmpty ||
+                                      _previewFile != null)
+                                  ? () {
+                                    _sendMessage(_controller.text.trim());
+                                  }
+                                  : null,
+                          child: Image.asset(
+                            'assets/icons/akar-icons_send.png',
+                            width: 24,
+                            color:
+                                (_controller.text.trim().isNotEmpty ||
+                                        _previewFile != null)
+                                    ? const Color(0xFF34A853)
+                                    : Colors.grey,
+                          ),
+                        ),
+                  ],
                 ),
-                GestureDetector(
-                  onTap: () {
-                    _sendMessage(_controller.text.trim());
-                  },
-                  child: Image.asset(
-                    'assets/icons/akar-icons_send.png',
-                    width: 24,
-                    color: const Color(0xFF34A853),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

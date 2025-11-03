@@ -511,4 +511,18 @@ class MessageService {
       rethrow;
     }
   }
+
+  /// Unsend a message (replace with "You unsent a message" text)
+  static Future<void> unsendMessage(String messageId) async {
+    try {
+      await _firestore.collection('messages').doc(messageId).update({
+        'content': 'You unsent a message',
+        'isUnsent': true,
+        'fileAttachment': null, // Remove file attachment when unsent
+      });
+    } catch (e) {
+      print('Error unsending message: $e');
+      rethrow;
+    }
+  }
 }
