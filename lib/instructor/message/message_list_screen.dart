@@ -6,6 +6,7 @@ import '../instructor_dashboard_controller.dart';
 import 'message_screen.dart';
 import 'package:get/get.dart';
 import '../../shared/services/message_service.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 
 class InstructorMessageListScreen extends StatefulWidget {
   const InstructorMessageListScreen({super.key});
@@ -16,12 +17,34 @@ class InstructorMessageListScreen extends StatefulWidget {
 }
 
 class _InstructorMessageListScreenState
-    extends State<InstructorMessageListScreen> {
+    extends State<InstructorMessageListScreen>
+    with WidgetsBindingObserver {
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.messages;
   final InstructorController instructorController = Get.put(
     InstructorController(),
   );
   String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Refresh when app comes back to foreground
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(() {});
+    }
+  }
 
   void _onNavigationSelect(InstructorNavigationItem item) {
     setState(() => _selectedItem = item);
@@ -47,10 +70,20 @@ class _InstructorMessageListScreenState
         student['image'] != null && (student['image'] as String).isNotEmpty;
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
         // Mark messages as read when clicking on student
         MessageService.markMessagesAsRead(student['id']);
-        Get.to(() => InstructorMessageScreen(student: student));
+        // Use Navigator.push instead of Get.to() to ensure proper refresh on back
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => InstructorMessageScreen(student: student),
+          ),
+        );
+        // Force rebuild when returning from conversation
+        if (mounted) {
+          setState(() {});
+        }
       },
       child: Padding(
         padding: const EdgeInsets.only(right: 200),
@@ -215,10 +248,13 @@ class _InstructorMessageListScreenState
                             builder: (context, snapshot) {
                               if (snapshot.connectionState ==
                                   ConnectionState.waiting) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    color: Color(0xFF22C55E),
-                                  ),
+                                return ListView.separated(
+                                  itemCount: 5,
+                                  separatorBuilder:
+                                      (_, __) => const SizedBox(height: 18),
+                                  itemBuilder: (context, i) {
+                                    return const SkeletonInstructorStudentItem();
+                                  },
                                 );
                               }
 

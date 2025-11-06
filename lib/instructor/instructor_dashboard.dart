@@ -6,6 +6,7 @@ import '../shared/instructor/instructor_appbar.dart';
 import '../shared/instructor/instructor_sidebar.dart';
 import '../shared/instructor/instructor_navigation_constants.dart';
 import '../shared/widgets/safe_asset_image.dart';
+import '../shared/widgets/skeleton_loading.dart';
 import 'package:get/get.dart';
 
 class InstructorDashboardScreen extends StatefulWidget {
@@ -37,16 +38,10 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Refresh created items and submissions when dashboard loads
+    // Removed auto-loading - data will load only when user explicitly requests it
+    // Set up real-time listener for all submissions (this is lightweight)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      createController.loadCreatedItems();
-      submissionsController.loadInstructorSubmissions();
-      // Set up real-time listener for all submissions
       submissionsController.setupAllSubmissionsRealtimeListener();
-      // Load dashboard statistics
-      instructorController.loadDashboardStats();
-      // Load leaderboard data
-      instructorController.loadLeaderboardData();
     });
   }
 
@@ -96,12 +91,14 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                         Obx(
                           () =>
                               instructorController.isLoadingStats.value
-                                  ? const Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF34A853),
-                                      ),
-                                    ),
+                                  ? const Row(
+                                    children: [
+                                      SkeletonInstructorStatCard(),
+                                      SizedBox(width: 18),
+                                      SkeletonInstructorStatCard(),
+                                      SizedBox(width: 18),
+                                      SkeletonInstructorStatCard(),
+                                    ],
                                   )
                                   : Row(
                                     children: [
@@ -151,13 +148,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                         Obx(
                           () =>
                               instructorController.isLoadingLeaderboard.value
-                                  ? const Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF34A853),
-                                      ),
-                                    ),
-                                  )
+                                  ? const SkeletonInstructorLeaderboardCard()
                                   : _LeaderboardCard(),
                         ),
                         const SizedBox(height: 32),

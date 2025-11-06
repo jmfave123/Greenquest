@@ -11,6 +11,7 @@ import '../instructor_dashboard_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'models/class_schedule.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 
 class ClassScreen extends StatefulWidget {
   const ClassScreen({super.key});
@@ -538,15 +539,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // Use addPostFrameCallback to prevent setState during build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          // Refresh classes when app comes back to foreground
-          _classController.loadClasses();
-        }
-      });
-    }
+    // Removed auto-loading on app resume - data will load only when user explicitly requests it
   }
 
   @override
@@ -731,16 +724,48 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                             // Class Cards Grid
                             Expanded(
                               child: Obx(() {
-                                // COMMENTED OUT: Loading feature disabled
-                                // if (_classController.isLoading.value) {
-                                //   return const Center(
-                                //     child: CircularProgressIndicator(
-                                //       valueColor: AlwaysStoppedAnimation<Color>(
-                                //         Color(0xFF34A853),
-                                //       ),
-                                //     ),
-                                //   );
-                                // }
+                                if (_classController.isLoading.value) {
+                                  return LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      // Determine grid layout based on screen width
+                                      double screenWidth =
+                                          MediaQuery.of(context).size.width;
+                                      int crossAxisCount;
+                                      double childAspectRatio;
+
+                                      if (screenWidth < 768) {
+                                        crossAxisCount = 1;
+                                        childAspectRatio = 1.4;
+                                      } else if (screenWidth < 1024) {
+                                        crossAxisCount = 2;
+                                        childAspectRatio = 1.6;
+                                      } else if (screenWidth < 1440) {
+                                        crossAxisCount = 3;
+                                        childAspectRatio = 1.5;
+                                      } else {
+                                        crossAxisCount = 4;
+                                        childAspectRatio = 1.4;
+                                      }
+
+                                      return GridView.builder(
+                                        gridDelegate:
+                                            SliverGridDelegateWithFixedCrossAxisCount(
+                                              crossAxisCount: crossAxisCount,
+                                              crossAxisSpacing:
+                                                  screenWidth < 768 ? 16 : 20,
+                                              mainAxisSpacing:
+                                                  screenWidth < 768 ? 16 : 20,
+                                              childAspectRatio:
+                                                  childAspectRatio,
+                                            ),
+                                        itemCount: 6,
+                                        itemBuilder: (context, index) {
+                                          return const SkeletonInstructorClassCard();
+                                        },
+                                      );
+                                    },
+                                  );
+                                }
 
                                 final classesToShow = _getFilteredClasses();
 

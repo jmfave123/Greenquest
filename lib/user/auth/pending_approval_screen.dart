@@ -823,15 +823,24 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: MediaQuery.of(context).size.width * 0.06,
-              vertical: MediaQuery.of(context).size.height * 0.02,
-            ),
-            child: _buildContent(context),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width * 0.06,
+                      vertical: MediaQuery.of(context).size.height * 0.02,
+                    ),
+                    child: _buildContent(context),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

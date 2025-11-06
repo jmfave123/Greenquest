@@ -22,7 +22,9 @@ class ClassController extends GetxController {
   void onInit() {
     super.onInit();
     loadInstructor();
-    loadClasses();
+    // Load classes once when controller is first created (when screen is first shown)
+    // This is NOT auto-loading on every lifecycle change - it only happens once
+    loadClasses(); // Load classes once when screen first appears
     // Delete the "4D" class on initialization
     delete4DClass();
   }

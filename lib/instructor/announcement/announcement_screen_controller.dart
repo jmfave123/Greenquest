@@ -51,9 +51,11 @@ class AnnouncementScreenController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadAnnouncements();
-    loadInstructor();
-    loadInstructorSections();
+    // Load data once when controller is first created (when screen is first shown)
+    // This is NOT auto-loading on every lifecycle change - it only happens once
+    loadInstructor(); // Keep lightweight instructor loading
+    loadAnnouncements(); // Load announcements once when screen first appears
+    loadInstructorSections(); // Load sections once when screen first appears
     _fileUploadService.initialize();
   }
 

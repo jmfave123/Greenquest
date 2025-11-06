@@ -14,6 +14,8 @@ import '../../shared/widgets/file_display_widgets.dart';
 import '../../shared/services/file_download_service.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 
 class InstructorMessageScreen extends StatefulWidget {
   final Map<String, dynamic> student;
@@ -31,16 +33,15 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
   );
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  List<MessageModel> messages = [];
 
   // Preview state for attachments
   PlatformFile? _previewFile;
   bool _isUploading = false;
+  bool _hasMarkedAsRead = false;
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
   }
 
   @override
@@ -96,34 +97,6 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
     );
   }
 
-  void _loadMessages() {
-    if (widget.student['id'] == null) return;
-
-    MessageService.getBidirectionalMessages(widget.student['id']).listen((
-      messageList,
-    ) {
-      if (mounted) {
-        setState(() {
-          messages = messageList;
-        });
-
-        // Mark messages as read when opening chat
-        MessageService.markMessagesAsRead(widget.student['id']);
-
-        // Auto-scroll to bottom
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            _scrollController.animateTo(
-              _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      }
-    });
-  }
-
   String _formatTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
@@ -161,6 +134,32 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
         'Dec',
       ];
       return '${months[dateTime.month - 1]} ${dateTime.day}';
+    }
+  }
+
+  String _formatLastSeen(DateTime lastSeenTime) {
+    final now = DateTime.now();
+    final difference = now.difference(lastSeenTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Active just now';
+    } else if (difference.inMinutes < 60) {
+      final minutes = difference.inMinutes;
+      return 'Active $minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
+    } else if (difference.inHours < 24) {
+      final hours = difference.inHours;
+      return 'Active $hours ${hours == 1 ? 'hour' : 'hours'} ago';
+    } else if (difference.inDays < 7) {
+      final days = difference.inDays;
+      return 'Active $days ${days == 1 ? 'day' : 'days'} ago';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return 'Active $weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
+    } else if (difference.inDays < 365) {
+      final months = (difference.inDays / 30).floor();
+      return 'Active $months ${months == 1 ? 'month' : 'months'} ago';
+    } else {
+      return 'Active a long time ago';
     }
   }
 
@@ -463,55 +462,161 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                           child: Row(
                             children: [
                               // Profile Avatar with Online Indicator
-                              Stack(
-                                children: [
-                                  (student['image'] != null &&
-                                          (student['image'] as String)
-                                              .isNotEmpty)
-                                      ? CircleAvatar(
-                                        radius: 28,
-                                        backgroundImage: NetworkImage(
-                                          student['image'],
-                                        ),
-                                        backgroundColor: const Color(
-                                          0xFF22C55E,
-                                        ),
-                                      )
-                                      : CircleAvatar(
-                                        radius: 28,
-                                        backgroundColor: const Color(
-                                          0xFF22C55E,
-                                        ),
-                                        child: Text(
-                                          _getInitials(student['name']),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
+                              widget.student['id'] != null
+                                  ? StreamBuilder<DocumentSnapshot>(
+                                    stream:
+                                        FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(widget.student['id'])
+                                            .snapshots(),
+                                    builder: (context, snapshot) {
+                                      final isOnline =
+                                          snapshot.hasData &&
+                                          snapshot.data!.exists &&
+                                          (snapshot.data!.data()
+                                                  as Map<
+                                                    String,
+                                                    dynamic
+                                                  >?)?['isOnline'] ==
+                                              true;
+                                      dynamic lastSeen;
+                                      if (snapshot.hasData &&
+                                          snapshot.data!.exists) {
+                                        final data =
+                                            snapshot.data!.data()
+                                                as Map<String, dynamic>?;
+                                        lastSeen = data?['lastSeen'];
+                                      } else {
+                                        lastSeen = null;
+                                      }
+
+                                      // Check if online based on lastSeen (within 5 minutes)
+                                      bool isActuallyOnline = isOnline;
+                                      if (!isOnline && lastSeen != null) {
+                                        try {
+                                          DateTime? lastSeenTime;
+                                          if (lastSeen is Timestamp) {
+                                            lastSeenTime = lastSeen.toDate();
+                                          } else if (lastSeen is DateTime) {
+                                            lastSeenTime = lastSeen;
+                                          }
+
+                                          if (lastSeenTime != null) {
+                                            final now = DateTime.now();
+                                            final difference =
+                                                now
+                                                    .difference(lastSeenTime)
+                                                    .inMinutes;
+                                            isActuallyOnline =
+                                                difference <=
+                                                5; // Online if last seen within 5 minutes
+                                          }
+                                        } catch (e) {
+                                          isActuallyOnline = false;
+                                        }
+                                      }
+
+                                      return Stack(
+                                        children: [
+                                          (student['image'] != null &&
+                                                  (student['image'] as String)
+                                                      .isNotEmpty)
+                                              ? CircleAvatar(
+                                                radius: 28,
+                                                backgroundImage: NetworkImage(
+                                                  student['image'],
+                                                ),
+                                                backgroundColor: const Color(
+                                                  0xFF22C55E,
+                                                ),
+                                              )
+                                              : CircleAvatar(
+                                                radius: 28,
+                                                backgroundColor: const Color(
+                                                  0xFF22C55E,
+                                                ),
+                                                child: Text(
+                                                  _getInitials(student['name']),
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                          // Online Status Indicator
+                                          if (isActuallyOnline)
+                                            Positioned(
+                                              right: 0,
+                                              bottom: 0,
+                                              child: Container(
+                                                width: 14,
+                                                height: 14,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFF34A853,
+                                                  ),
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color: Colors.white,
+                                                    width: 2,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  )
+                                  : Stack(
+                                    children: [
+                                      (student['image'] != null &&
+                                              (student['image'] as String)
+                                                  .isNotEmpty)
+                                          ? CircleAvatar(
+                                            radius: 28,
+                                            backgroundImage: NetworkImage(
+                                              student['image'],
+                                            ),
+                                            backgroundColor: const Color(
+                                              0xFF22C55E,
+                                            ),
+                                          )
+                                          : CircleAvatar(
+                                            radius: 28,
+                                            backgroundColor: const Color(
+                                              0xFF22C55E,
+                                            ),
+                                            child: Text(
+                                              _getInitials(student['name']),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                      // Online Status Indicator
+                                      if (student['online'] == true ||
+                                          student['isOnline'] == true)
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: Container(
+                                            width: 14,
+                                            height: 14,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF34A853),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 2,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                  // Online Status Indicator
-                                  if (student['online'] == true ||
-                                      student['isOnline'] == true)
-                                    Positioned(
-                                      right: 0,
-                                      bottom: 0,
-                                      child: Container(
-                                        width: 14,
-                                        height: 14,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF34A853),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                                    ],
+                                  ),
                               const SizedBox(width: 16),
                               // Profile Info
                               Expanded(
@@ -534,44 +639,207 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        // Online Status or Email
-                                        if (student['online'] == true ||
-                                            student['isOnline'] == true)
-                                          Row(
-                                            children: [
-                                              Container(
-                                                width: 8,
-                                                height: 8,
-                                                decoration: const BoxDecoration(
-                                                  color: Color(0xFF34A853),
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              const Text(
-                                                'Online',
-                                                style: TextStyle(
-                                                  color: Color(0xFF34A853),
+                                    widget.student['id'] != null
+                                        ? StreamBuilder<DocumentSnapshot>(
+                                          stream:
+                                              FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(widget.student['id'])
+                                                  .snapshots(),
+                                          builder: (context, snapshot) {
+                                            final isOnline =
+                                                snapshot.hasData &&
+                                                snapshot.data!.exists &&
+                                                (snapshot.data!.data()
+                                                        as Map<
+                                                          String,
+                                                          dynamic
+                                                        >?)?['isOnline'] ==
+                                                    true;
+                                            dynamic lastSeen;
+                                            if (snapshot.hasData &&
+                                                snapshot.data!.exists) {
+                                              final data =
+                                                  snapshot.data!.data()
+                                                      as Map<String, dynamic>?;
+                                              lastSeen = data?['lastSeen'];
+                                            } else {
+                                              lastSeen = null;
+                                            }
+
+                                            // Check if online based on lastSeen (within 5 minutes)
+                                            bool isActuallyOnline = isOnline;
+                                            if (!isOnline && lastSeen != null) {
+                                              try {
+                                                DateTime? lastSeenTime;
+                                                if (lastSeen is Timestamp) {
+                                                  lastSeenTime =
+                                                      lastSeen.toDate();
+                                                } else if (lastSeen
+                                                    is DateTime) {
+                                                  lastSeenTime = lastSeen;
+                                                }
+
+                                                if (lastSeenTime != null) {
+                                                  final now = DateTime.now();
+                                                  final difference =
+                                                      now
+                                                          .difference(
+                                                            lastSeenTime,
+                                                          )
+                                                          .inMinutes;
+                                                  isActuallyOnline =
+                                                      difference <=
+                                                      5; // Online if last seen within 5 minutes
+                                                }
+                                              } catch (e) {
+                                                isActuallyOnline = false;
+                                              }
+                                            }
+
+                                            return Row(
+                                              children: [
+                                                // Online Status or Last Seen
+                                                if (isActuallyOnline)
+                                                  Row(
+                                                    children: [
+                                                      Container(
+                                                        width: 8,
+                                                        height: 8,
+                                                        decoration:
+                                                            const BoxDecoration(
+                                                              color: Color(
+                                                                0xFF34A853,
+                                                              ),
+                                                              shape:
+                                                                  BoxShape
+                                                                      .circle,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      const Text(
+                                                        'Online',
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFF34A853,
+                                                          ),
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  )
+                                                else if (lastSeen != null)
+                                                  Builder(
+                                                    builder: (context) {
+                                                      DateTime? lastSeenTime;
+                                                      try {
+                                                        if (lastSeen
+                                                            is Timestamp) {
+                                                          lastSeenTime =
+                                                              lastSeen.toDate();
+                                                        } else if (lastSeen
+                                                            is DateTime) {
+                                                          lastSeenTime =
+                                                              lastSeen;
+                                                        }
+                                                      } catch (e) {
+                                                        lastSeenTime = null;
+                                                      }
+
+                                                      if (lastSeenTime !=
+                                                          null) {
+                                                        return Text(
+                                                          _formatLastSeen(
+                                                            lastSeenTime,
+                                                          ),
+                                                          style: const TextStyle(
+                                                            color:
+                                                                Colors.black54,
+                                                            fontSize: 13,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        );
+                                                      } else {
+                                                        return Text(
+                                                          student['email'] ??
+                                                              'Offline',
+                                                          style: const TextStyle(
+                                                            color:
+                                                                Colors.black54,
+                                                            fontSize: 13,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                        );
+                                                      }
+                                                    },
+                                                  )
+                                                else
+                                                  Text(
+                                                    student['email'] ??
+                                                        'Offline',
+                                                    style: const TextStyle(
+                                                      color: Colors.black54,
+                                                      fontSize: 13,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                              ],
+                                            );
+                                          },
+                                        )
+                                        : Row(
+                                          children: [
+                                            // Online Status or Email
+                                            if (student['online'] == true ||
+                                                student['isOnline'] == true)
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    width: 8,
+                                                    height: 8,
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          color: Color(
+                                                            0xFF34A853,
+                                                          ),
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Online',
+                                                    style: TextStyle(
+                                                      color: Color(0xFF34A853),
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            else
+                                              Text(
+                                                student['email'] ?? 'Offline',
+                                                style: const TextStyle(
+                                                  color: Colors.black54,
                                                   fontSize: 13,
-                                                  fontWeight: FontWeight.w500,
                                                 ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                            ],
-                                          )
-                                        else
-                                          Text(
-                                            student['email'] ?? 'Offline',
-                                            style: const TextStyle(
-                                              color: Colors.black54,
-                                              fontSize: 13,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                      ],
-                                    ),
+                                          ],
+                                        ),
                                   ],
                                 ),
                               ),
@@ -580,315 +848,426 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                         ),
                         const SizedBox(height: 18),
                         Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 0,
-                              vertical: 18,
-                            ),
-                            child:
-                                messages.isEmpty
-                                    ? const Center(
-                                      child: Text(
-                                        'No messages yet',
-                                        style: TextStyle(
-                                          color: Colors.black38,
-                                          fontSize: 16,
+                          child:
+                              widget.student['id'] != null
+                                  ? StreamBuilder<List<MessageModel>>(
+                                    stream:
+                                        MessageService.getBidirectionalMessages(
+                                          widget.student['id'],
                                         ),
-                                      ),
-                                    )
-                                    : ListView.builder(
-                                      controller: _scrollController,
-                                      itemCount: messages.length,
-                                      itemBuilder: (context, index) {
-                                        final msg = messages[index];
-                                        final isMe =
-                                            msg.senderType == 'instructor';
-                                        return Align(
-                                          alignment:
-                                              isMe
-                                                  ? Alignment.centerRight
-                                                  : Alignment.centerLeft,
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 6,
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  isMe
-                                                      ? MainAxisAlignment.end
-                                                      : MainAxisAlignment.start,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.end,
-                                              children: [
-                                                // Student avatar (shown on left for student messages)
-                                                if (!isMe) ...[
-                                                  CircleAvatar(
-                                                    radius: 16,
-                                                    backgroundColor:
-                                                        const Color(0xFF22C55E),
-                                                    backgroundImage:
-                                                        (student['image'] !=
-                                                                    null &&
-                                                                (student['image']
-                                                                        as String)
-                                                                    .isNotEmpty)
-                                                            ? NetworkImage(
-                                                              student['image'],
-                                                            )
-                                                            : null,
-                                                    child:
-                                                        (student['image'] ==
-                                                                    null ||
-                                                                (student['image']
-                                                                        as String)
-                                                                    .isEmpty)
-                                                            ? Text(
-                                                              _getInitials(
-                                                                student['name'],
-                                                              ),
-                                                              style: const TextStyle(
-                                                                color:
-                                                                    Colors
-                                                                        .white,
-                                                                fontSize: 12,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            )
-                                                            : null,
+                                    builder: (context, snapshot) {
+                                      // Mark messages as read on first load
+                                      if (snapshot.hasData &&
+                                          !_hasMarkedAsRead) {
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                              MessageService.markMessagesAsRead(
+                                                widget.student['id'],
+                                              );
+                                              _hasMarkedAsRead = true;
+                                            });
+                                      }
+
+                                      // Auto-scroll to bottom when new messages arrive
+                                      if (snapshot.hasData) {
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                              if (_scrollController
+                                                  .hasClients) {
+                                                _scrollController.animateTo(
+                                                  _scrollController
+                                                      .position
+                                                      .maxScrollExtent,
+                                                  duration: const Duration(
+                                                    milliseconds: 300,
                                                   ),
-                                                  const SizedBox(width: 8),
-                                                ],
-                                                Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
+                                                  curve: Curves.easeOut,
+                                                );
+                                              }
+                                            });
+                                      }
+
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 0,
+                                            vertical: 18,
+                                          ),
+                                          child: ListView.builder(
+                                            itemCount: 6,
+                                            itemBuilder: (context, index) {
+                                              // Alternate between sent and received messages
+                                              final isMe = index % 2 == 0;
+                                              return SkeletonMessageBubble(
+                                                isMe: isMe,
+                                              );
+                                            },
+                                          ),
+                                        );
+                                      }
+
+                                      if (snapshot.hasError) {
+                                        return Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.error_outline,
+                                                size: 64,
+                                                color: Colors.red[400],
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Text(
+                                                'Error loading messages',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+
+                                      final messages = snapshot.data ?? [];
+
+                                      if (messages.isEmpty) {
+                                        return const Center(
+                                          child: Text(
+                                            'No messages yet',
+                                            style: TextStyle(
+                                              color: Colors.black38,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 0,
+                                          vertical: 18,
+                                        ),
+                                        child: ListView.builder(
+                                          controller: _scrollController,
+                                          itemCount: messages.length,
+                                          itemBuilder: (context, index) {
+                                            final msg = messages[index];
+                                            final isMe =
+                                                msg.senderType == 'instructor';
+                                            return Align(
+                                              alignment:
+                                                  isMe
+                                                      ? Alignment.centerRight
+                                                      : Alignment.centerLeft,
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 6,
+                                                    ),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      isMe
+                                                          ? MainAxisAlignment
+                                                              .end
+                                                          : MainAxisAlignment
+                                                              .start,
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment.end,
                                                   children: [
-                                                    Column(
-                                                      crossAxisAlignment:
-                                                          isMe
-                                                              ? CrossAxisAlignment
-                                                                  .end
-                                                              : CrossAxisAlignment
-                                                                  .start,
-                                                      children: [
-                                                        Container(
-                                                          constraints:
-                                                              const BoxConstraints(
-                                                                maxWidth: 420,
-                                                              ),
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 18,
-                                                                vertical: 14,
-                                                              ),
-                                                          decoration: BoxDecoration(
-                                                            color:
-                                                                isMe
-                                                                    ? const Color(
-                                                                      0xFF22C55E,
-                                                                    )
-                                                                    : const Color(
-                                                                      0xFFF3F4F6,
-                                                                    ),
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  12,
-                                                                ),
-                                                          ),
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              // Display file attachment with smart rendering (only if not unsent)
-                                                              if (msg.fileAttachment !=
-                                                                      null &&
-                                                                  !msg.isUnsent) ...[
-                                                                _buildFileAttachment(
-                                                                  msg.fileAttachment!,
-                                                                  isMe,
-                                                                ),
-                                                                if (msg.content !=
-                                                                        'Sent a file' &&
-                                                                    msg
-                                                                        .content
+                                                    // Student avatar (shown on left for student messages)
+                                                    if (!isMe) ...[
+                                                      CircleAvatar(
+                                                        radius: 16,
+                                                        backgroundColor:
+                                                            const Color(
+                                                              0xFF22C55E,
+                                                            ),
+                                                        backgroundImage:
+                                                            (student['image'] !=
+                                                                        null &&
+                                                                    (student['image']
+                                                                            as String)
                                                                         .isNotEmpty)
-                                                                  const SizedBox(
-                                                                    height: 8,
+                                                                ? NetworkImage(
+                                                                  student['image'],
+                                                                )
+                                                                : null,
+                                                        child:
+                                                            (student['image'] ==
+                                                                        null ||
+                                                                    (student['image']
+                                                                            as String)
+                                                                        .isEmpty)
+                                                                ? Text(
+                                                                  _getInitials(
+                                                                    student['name'],
                                                                   ),
-                                                              ],
-                                                              // Display text content (or unsent message)
-                                                              if (msg.content !=
-                                                                      'Sent a file' ||
-                                                                  msg.fileAttachment ==
-                                                                      null)
-                                                                Text(
-                                                                  msg.isUnsent
-                                                                      ? (isMe
-                                                                          ? 'You unsent a message'
-                                                                          : '${_getFirstName(student['name'] ?? 'Student')} unsent a message')
-                                                                      : msg
-                                                                          .content,
-                                                                  style: TextStyle(
+                                                                  style: const TextStyle(
                                                                     color:
-                                                                        isMe
-                                                                            ? Colors.white
-                                                                            : Colors.black87,
+                                                                        Colors
+                                                                            .white,
                                                                     fontSize:
-                                                                        15,
-                                                                    fontStyle:
-                                                                        msg.isUnsent
-                                                                            ? FontStyle.italic
-                                                                            : FontStyle.normal,
+                                                                        12,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
                                                                   ),
-                                                                ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 4,
-                                                        ),
-                                                        Text(
-                                                          _formatTime(
-                                                            msg.timestamp
-                                                                .toDate(),
-                                                          ),
-                                                          style: TextStyle(
-                                                            color:
-                                                                isMe
-                                                                    ? const Color(
-                                                                      0xFF22C55E,
-                                                                    )
-                                                                    : Colors
-                                                                        .black38,
-                                                            fontSize: 12,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    // Three-dot menu for own messages (not already unsent)
-                                                    if (isMe &&
-                                                        !msg.isUnsent) ...[
-                                                      const SizedBox(width: 4),
-                                                      PopupMenuButton<String>(
-                                                        icon: Icon(
-                                                          Icons.more_vert,
-                                                          size: 18,
-                                                          color:
-                                                              Colors.grey[600],
-                                                        ),
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
+                                                                )
+                                                                : null,
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                    ],
+                                                    Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .end,
+                                                      children: [
+                                                        Column(
+                                                          crossAxisAlignment:
+                                                              isMe
+                                                                  ? CrossAxisAlignment
+                                                                      .end
+                                                                  : CrossAxisAlignment
+                                                                      .start,
+                                                          children: [
+                                                            Container(
+                                                              constraints:
+                                                                  const BoxConstraints(
+                                                                    maxWidth:
+                                                                        420,
+                                                                  ),
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        18,
+                                                                    vertical:
+                                                                        14,
+                                                                  ),
+                                                              decoration: BoxDecoration(
+                                                                color:
+                                                                    isMe
+                                                                        ? const Color(
+                                                                          0xFF22C55E,
+                                                                        )
+                                                                        : const Color(
+                                                                          0xFFF3F4F6,
+                                                                        ),
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
                                                               ),
-                                                        ),
-                                                        itemBuilder:
-                                                            (context) => [
-                                                              PopupMenuItem(
-                                                                value: 'delete',
-                                                                child: Row(
-                                                                  children: [
-                                                                    Icon(
-                                                                      Icons
-                                                                          .undo_outlined,
-                                                                      size: 20,
-                                                                      color:
-                                                                          Colors
-                                                                              .orange[400],
+                                                              child: Column(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .start,
+                                                                children: [
+                                                                  // Display file attachment with smart rendering (only if not unsent)
+                                                                  if (msg.fileAttachment !=
+                                                                          null &&
+                                                                      !msg.isUnsent) ...[
+                                                                    _buildFileAttachment(
+                                                                      msg.fileAttachment!,
+                                                                      isMe,
                                                                     ),
-                                                                    const SizedBox(
-                                                                      width: 8,
-                                                                    ),
-                                                                    const Text(
-                                                                      'Unsend',
+                                                                    if (msg.content !=
+                                                                            'Sent a file' &&
+                                                                        msg
+                                                                            .content
+                                                                            .isNotEmpty)
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            8,
+                                                                      ),
+                                                                  ],
+                                                                  // Display text content (or unsent message)
+                                                                  if (msg.content !=
+                                                                          'Sent a file' ||
+                                                                      msg.fileAttachment ==
+                                                                          null)
+                                                                    Text(
+                                                                      msg.isUnsent
+                                                                          ? (isMe
+                                                                              ? 'You unsent a message'
+                                                                              : '${_getFirstName(student['name'] ?? 'Student')} unsent a message')
+                                                                          : msg
+                                                                              .content,
                                                                       style: TextStyle(
+                                                                        color:
+                                                                            isMe
+                                                                                ? Colors.white
+                                                                                : Colors.black87,
                                                                         fontSize:
-                                                                            14,
-                                                                        fontWeight:
-                                                                            FontWeight.w500,
+                                                                            15,
+                                                                        fontStyle:
+                                                                            msg.isUnsent
+                                                                                ? FontStyle.italic
+                                                                                : FontStyle.normal,
                                                                       ),
                                                                     ),
-                                                                  ],
-                                                                ),
+                                                                ],
                                                               ),
-                                                            ],
-                                                        onSelected: (
-                                                          value,
-                                                        ) async {
-                                                          if (value ==
-                                                              'delete') {
-                                                            _showDeleteDialog(
-                                                              context,
-                                                              msg,
-                                                            );
-                                                          }
-                                                        },
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 4,
+                                                            ),
+                                                            Text(
+                                                              _formatTime(
+                                                                msg.timestamp
+                                                                    .toDate(),
+                                                              ),
+                                                              style: TextStyle(
+                                                                color:
+                                                                    isMe
+                                                                        ? const Color(
+                                                                          0xFF22C55E,
+                                                                        )
+                                                                        : Colors
+                                                                            .black38,
+                                                                fontSize: 12,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        // Three-dot menu for own messages (not already unsent)
+                                                        if (isMe &&
+                                                            !msg.isUnsent) ...[
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
+                                                          PopupMenuButton<
+                                                            String
+                                                          >(
+                                                            icon: Icon(
+                                                              Icons.more_vert,
+                                                              size: 18,
+                                                              color:
+                                                                  Colors
+                                                                      .grey[600],
+                                                            ),
+                                                            padding:
+                                                                EdgeInsets.zero,
+                                                            shape: RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    8,
+                                                                  ),
+                                                            ),
+                                                            itemBuilder:
+                                                                (context) => [
+                                                                  PopupMenuItem(
+                                                                    value:
+                                                                        'delete',
+                                                                    child: Row(
+                                                                      children: [
+                                                                        Icon(
+                                                                          Icons
+                                                                              .undo_outlined,
+                                                                          size:
+                                                                              20,
+                                                                          color:
+                                                                              Colors.orange[400],
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          width:
+                                                                              8,
+                                                                        ),
+                                                                        const Text(
+                                                                          'Unsend',
+                                                                          style: TextStyle(
+                                                                            fontSize:
+                                                                                14,
+                                                                            fontWeight:
+                                                                                FontWeight.w500,
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                            onSelected: (
+                                                              value,
+                                                            ) async {
+                                                              if (value ==
+                                                                  'delete') {
+                                                                _showDeleteDialog(
+                                                                  context,
+                                                                  msg,
+                                                                );
+                                                              }
+                                                            },
+                                                          ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                    // Instructor avatar (shown on right for instructor messages)
+                                                    if (isMe) ...[
+                                                      const SizedBox(width: 8),
+                                                      Obx(
+                                                        () => CircleAvatar(
+                                                          radius: 16,
+                                                          backgroundColor:
+                                                              const Color(
+                                                                0xFF22C55E,
+                                                              ),
+                                                          backgroundImage:
+                                                              instructorController
+                                                                      .profileImageUrl
+                                                                      .value
+                                                                      .isNotEmpty
+                                                                  ? NetworkImage(
+                                                                    instructorController
+                                                                        .profileImageUrl
+                                                                        .value,
+                                                                  )
+                                                                  : null,
+                                                          child:
+                                                              instructorController
+                                                                      .profileImageUrl
+                                                                      .value
+                                                                      .isEmpty
+                                                                  ? Text(
+                                                                    instructorController
+                                                                        .instructorName
+                                                                        .value
+                                                                        .substring(
+                                                                          0,
+                                                                          1,
+                                                                        )
+                                                                        .toUpperCase(),
+                                                                    style: const TextStyle(
+                                                                      color:
+                                                                          Colors
+                                                                              .white,
+                                                                      fontSize:
+                                                                          12,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                    ),
+                                                                  )
+                                                                  : null,
+                                                        ),
                                                       ),
                                                     ],
                                                   ],
                                                 ),
-                                                // Instructor avatar (shown on right for instructor messages)
-                                                if (isMe) ...[
-                                                  const SizedBox(width: 8),
-                                                  Obx(
-                                                    () => CircleAvatar(
-                                                      radius: 16,
-                                                      backgroundColor:
-                                                          const Color(
-                                                            0xFF22C55E,
-                                                          ),
-                                                      backgroundImage:
-                                                          instructorController
-                                                                  .profileImageUrl
-                                                                  .value
-                                                                  .isNotEmpty
-                                                              ? NetworkImage(
-                                                                instructorController
-                                                                    .profileImageUrl
-                                                                    .value,
-                                                              )
-                                                              : null,
-                                                      child:
-                                                          instructorController
-                                                                  .profileImageUrl
-                                                                  .value
-                                                                  .isEmpty
-                                                              ? Text(
-                                                                instructorController
-                                                                    .instructorName
-                                                                    .value
-                                                                    .substring(
-                                                                      0,
-                                                                      1,
-                                                                    )
-                                                                    .toUpperCase(),
-                                                                style: const TextStyle(
-                                                                  color:
-                                                                      Colors
-                                                                          .white,
-                                                                  fontSize: 12,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
-                                                                ),
-                                                              )
-                                                              : null,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                          ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  )
+                                  : const Center(
+                                    child: Text('No student selected'),
+                                  ),
                         ),
                         // Show preview if file is selected
                         if (_previewFile != null) ...[

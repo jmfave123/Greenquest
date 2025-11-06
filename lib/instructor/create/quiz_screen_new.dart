@@ -5,6 +5,7 @@ import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/responsive/responsive_layout.dart';
 import '../../shared/controllers/file_submission_controller.dart';
 import '../../shared/services/instructor_class_service.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'create_controller.dart';
 
 class QuizzesScreen extends StatefulWidget {
@@ -510,10 +511,15 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
                       _isLoadingClasses
                           ? const Padding(
                             padding: EdgeInsets.all(16),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: Color(0xFF34A853),
-                              ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SkeletonListItem(),
+                                SizedBox(height: 8),
+                                SkeletonListItem(),
+                                SizedBox(height: 8),
+                                SkeletonListItem(),
+                              ],
                             ),
                           )
                           : _classes.isEmpty

@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'announcement_screen_controller.dart';
 import '../instructor_dashboard_controller.dart';
 
@@ -229,13 +230,16 @@ class InstructorAnnouncementScreen extends StatelessWidget {
                                                   borderRadius:
                                                       BorderRadius.circular(8),
                                                 ),
-                                                child: const Center(
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        color: Color(
-                                                          0xFF34A853,
-                                                        ),
-                                                      ),
+                                                child: const Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    SkeletonListItem(),
+                                                    SizedBox(height: 8),
+                                                    SkeletonListItem(),
+                                                    SizedBox(height: 8),
+                                                    SkeletonListItem(),
+                                                  ],
                                                 ),
                                               );
                                             }
@@ -605,13 +609,92 @@ class InstructorAnnouncementScreen extends StatelessWidget {
 
                                   if (controller.isLoading.value &&
                                       controller.announcements.isEmpty) {
-                                    return const SizedBox(
-                                      height: 200,
-                                      child: Center(
-                                        child: CircularProgressIndicator(
-                                          color: Color(0xFF34A853),
-                                        ),
-                                      ),
+                                    return ListView.separated(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      itemCount: 3,
+                                      separatorBuilder:
+                                          (_, __) => const SizedBox(height: 18),
+                                      itemBuilder: (context, i) {
+                                        return Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.all(24),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE5E7EB),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  SkeletonBox(
+                                                    width: 20,
+                                                    height: 20,
+                                                    borderRadius: 4,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: SkeletonText(
+                                                      width: 200,
+                                                      height: 18,
+                                                    ),
+                                                  ),
+                                                  SkeletonBox(
+                                                    width: 60,
+                                                    height: 24,
+                                                    borderRadius: 8,
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              SkeletonText(
+                                                width: double.infinity,
+                                                height: 15,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              SkeletonText(
+                                                width: 300,
+                                                height: 15,
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Row(
+                                                children: [
+                                                  SkeletonText(
+                                                    width: 100,
+                                                    height: 14,
+                                                  ),
+                                                  const Spacer(),
+                                                  SkeletonBox(
+                                                    width: 40,
+                                                    height: 40,
+                                                    borderRadius: 8,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  SkeletonBox(
+                                                    width: 40,
+                                                    height: 40,
+                                                    borderRadius: 8,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  SkeletonBox(
+                                                    width: 40,
+                                                    height: 40,
+                                                    borderRadius: 8,
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
                                     );
                                   }
 

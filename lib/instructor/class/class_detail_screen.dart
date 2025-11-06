@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import '../create/create_controller.dart';
 import '../submissions/student_submissions_screen.dart';
 import '../submissions/submission_detail_screen.dart';
@@ -731,10 +732,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 Expanded(
                   child: Obx(() {
                     if (_createController.isLoading.value) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF34A853),
-                        ),
+                      return ListView.builder(
+                        itemCount: 5,
+                        itemBuilder: (context, i) {
+                          return const Padding(
+                            padding: EdgeInsets.only(bottom: 16),
+                            child: SkeletonInstructorCreateItemCard(),
+                          );
+                        },
                       );
                     }
 
@@ -1139,6 +1144,54 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               String currentSection = widget.classData['section'] ?? '';
               List<Map<String, dynamic>> sectionStudents = _classController
                   .getStudentsForSection(currentSection);
+
+              // Show skeleton loading if students are being loaded and list is empty
+              if (_classController.isLoading.value && sectionStudents.isEmpty) {
+                return ListView.builder(
+                  itemCount: 5,
+                  itemBuilder: (context, i) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.grey.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          SkeletonAvatar(radius: 24),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SkeletonText(width: 200, height: 16),
+                                const SizedBox(height: 4),
+                                SkeletonText(width: 150, height: 13),
+                              ],
+                            ),
+                          ),
+                          SkeletonBox(width: 60, height: 24, borderRadius: 12),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              }
 
               // Apply enrollment status filter
               List<Map<String, dynamic>> filteredStudents = sectionStudents;
@@ -1943,10 +1996,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 Expanded(
                   child: Obx(() {
                     if (_submissionsController.isLoading.value) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF34A853),
-                        ),
+                      return ListView.builder(
+                        itemCount: 5,
+                        itemBuilder: (context, i) {
+                          return const Padding(
+                            padding: EdgeInsets.only(bottom: 16),
+                            child: SkeletonInstructorCreateItemCard(),
+                          );
+                        },
                       );
                     }
 
@@ -2789,8 +2846,47 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               future: _loadTreesForClass(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF34A853)),
+                  return ListView.builder(
+                    itemCount: 4,
+                    itemBuilder: (context, i) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.grey.withOpacity(0.3),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            SkeletonBox(width: 60, height: 60, borderRadius: 8),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SkeletonText(width: 200, height: 18),
+                                  const SizedBox(height: 8),
+                                  SkeletonText(width: 150, height: 14),
+                                  const SizedBox(height: 4),
+                                  SkeletonText(width: 100, height: 12),
+                                ],
+                              ),
+                            ),
+                            SkeletonBox(width: 24, height: 24, borderRadius: 4),
+                          ],
+                        ),
+                      );
+                    },
                   );
                 }
 

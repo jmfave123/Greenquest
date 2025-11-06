@@ -27,9 +27,11 @@ class CreateController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Use addPostFrameCallback to ensure operations run after build is complete
+    // Load data once when controller is first created (when screen is first shown)
+    // This is NOT auto-loading on every lifecycle change - it only happens once
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeData();
+      loadInstructor(); // Load instructor name (lightweight operation)
+      loadCreatedItems(); // Load created items once when screen first appears
     });
   }
 
@@ -38,23 +40,6 @@ class CreateController extends GetxController {
     // Mark as disposed to prevent further operations
     _isDisposed = true;
     super.onClose();
-  }
-
-  /// Initialize data without blocking the UI
-  Future<void> _initializeData() async {
-    try {
-      // Check if controller is still mounted before starting operations
-      if (!isMounted) return;
-
-      // Run both operations concurrently
-      await Future.wait([loadCreatedItems(), loadInstructor()]);
-    } catch (e) {
-      // Only update error if controller is still mounted
-      if (isMounted) {
-        print('Error initializing CreateController: $e');
-        errorMessage.value = 'Error initializing data: $e';
-      }
-    }
   }
 
   // Create Assignment

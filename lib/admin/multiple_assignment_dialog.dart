@@ -452,12 +452,12 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
 
           if (duplicateCheck != null) {
             print(
-              '✗ VALIDATION FAILED: Section ${sectionCode} already assigned to ${duplicateCheck['instructorName']}',
+              '✗ VALIDATION FAILED: Section $sectionCode already assigned to ${duplicateCheck['instructorName']}',
             );
             if (mounted) {
               Get.snackbar(
                 'Cannot Save',
-                'Section ${sectionCode} is already assigned to ${duplicateCheck['instructorName']}. Each section can only be assigned to one instructor. Please remove this assignment and try again.',
+                'Section $sectionCode is already assigned to ${duplicateCheck['instructorName']}. Each section can only be assigned to one instructor. Please remove this assignment and try again.',
                 snackPosition: SnackPosition.TOP,
                 backgroundColor: Colors.red,
                 colorText: Colors.white,

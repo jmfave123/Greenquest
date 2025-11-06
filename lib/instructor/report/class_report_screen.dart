@@ -6,6 +6,7 @@ import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/class_record/class_record_table.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'class_report_controller.dart';
 import '../../shared/services/export_service.dart';
 
@@ -51,16 +52,18 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
   void initState() {
     super.initState();
     _classReportController = Get.put(ClassReportController());
-    _loadSemesters();
-    _fetchClassStandingItems();
-    _fetchQuizPrelimItems();
-    _fetchMidtermExamItems();
-    _fetchPitItems();
-    // Finals
-    _fetchFinalClassStandingItems();
-    _fetchFinalQuizItems();
-    _fetchFinalExamItems();
-    _fetchFinalPitItems();
+    _loadSemesters().then((_) {
+      // After loading semesters, fetch items with the selected semester filter
+      _fetchClassStandingItems();
+      _fetchQuizPrelimItems();
+      _fetchMidtermExamItems();
+      _fetchPitItems();
+      // Finals
+      _fetchFinalClassStandingItems();
+      _fetchFinalQuizItems();
+      _fetchFinalExamItems();
+      _fetchFinalPitItems();
+    });
   }
 
   @override
@@ -105,15 +108,20 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
 
   // Build semester filter dropdown
   Widget _buildSemesterFilter() {
-    final List<DropdownMenuItem<String?>> items = [
-      const DropdownMenuItem<String?>(value: null, child: Text('All')),
-      ..._semesters.map(
-        (s) => DropdownMenuItem<String?>(
-          value: s['id'] as String,
-          child: Text(s['displayName']?.toString() ?? 'Unnamed Semester'),
-        ),
-      ),
-    ];
+    // Only show assigned semesters (no "All" option)
+    final List<DropdownMenuItem<String?>> items =
+        _semesters
+            .map(
+              (s) => DropdownMenuItem<String?>(
+                value: s['id'] as String,
+                child: Text(s['displayName']?.toString() ?? 'Unnamed Semester'),
+              ),
+            )
+            .toList();
+
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -125,9 +133,9 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           items: items,
           onChanged: (val) {
             setState(() {
-              _selectedSemesterId = val; // null => All
+              _selectedSemesterId = val;
             });
-            // Re-fetch all item groups with new filter with loading overlay
+            // Re-fetch all item groups with new filter
             _refetchAllItems();
           },
         ),
@@ -161,26 +169,90 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
 
   Future<void> _loadSemesters() async {
     try {
-      final snapshot =
-          await _firestore
-              .collection('semesters')
-              .orderBy('createdAt', descending: true)
-              .get();
+      final user = _auth.currentUser;
+      if (user == null) return;
 
+      // Get instructor's assigned semesters from their document
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(user.uid).get();
+
+      if (!instructorDoc.exists) {
+        print('⚠️ Instructor document not found');
+        return;
+      }
+
+      final instructorData = instructorDoc.data();
+      final assignedSemesters =
+          (instructorData?['assignedSemesters'] as List<dynamic>?) ?? [];
+
+      if (assignedSemesters.isEmpty) {
+        print('⚠️ No assigned semesters found for instructor');
+        _semesters = [];
+        setState(() {});
+        return;
+      }
+
+      // Convert assigned semesters to list format
       _semesters =
-          snapshot.docs
-              .map((d) {
-                final data = d.data();
+          assignedSemesters
+              .map((sem) {
+                final semesterData = sem as Map<String, dynamic>;
                 return {
-                  'id': d.id,
-                  'displayName': data['displayName'] ?? '',
-                  'year': data['year'] ?? '',
-                  'semester': data['semester'] ?? '',
-                  'isActive': data['isActive'] ?? true,
+                  'id': semesterData['semesterId'] as String? ?? '',
+                  'displayName': semesterData['displayName'] ?? '',
+                  'year': semesterData['year'] ?? '',
+                  'semester': semesterData['semester'] ?? '',
+                  'isActive': semesterData['isActive'] ?? true,
                 };
               })
-              .where((s) => (s['displayName'] as String).trim().isNotEmpty)
+              .where((s) => (s['id'] as String).isNotEmpty)
               .toList();
+
+      // Sort by year (newest first) and then by semester (1st semester first)
+      _semesters.sort((a, b) {
+        final yearA = a['year'] as String? ?? '';
+        final yearB = b['year'] as String? ?? '';
+        final semesterA = (a['semester'] as String? ?? '').toLowerCase();
+        final semesterB = (b['semester'] as String? ?? '').toLowerCase();
+
+        // First compare by year (newest first)
+        if (yearA != yearB) {
+          return yearB.compareTo(yearA); // Descending (newest first)
+        }
+
+        // Then compare by semester (1st semester comes before 2nd)
+        final isFirstA =
+            semesterA.contains('1st') ||
+            semesterA.contains('first') ||
+            semesterA == '1';
+        final isFirstB =
+            semesterB.contains('1st') ||
+            semesterB.contains('first') ||
+            semesterB == '1';
+
+        if (isFirstA && !isFirstB) {
+          return -1; // A is 1st, B is not - A comes first
+        }
+        if (!isFirstA && isFirstB) {
+          return 1; // B is 1st, A is not - B comes first
+        }
+
+        // Both are 1st or both are not 1st, compare normally
+        return semesterA.compareTo(semesterB);
+      });
+
+      // Set default to 1st semester (first in the list after sorting)
+      // If no 1st semester found, use the first semester in the list
+      if (_semesters.isNotEmpty && _selectedSemesterId == null) {
+        // Try to find a 1st semester first
+        final firstSemester = _semesters.firstWhere((sem) {
+          final semester = (sem['semester'] as String? ?? '').toLowerCase();
+          return semester.contains('1st') ||
+              semester.contains('first') ||
+              semester == '1';
+        }, orElse: () => _semesters.first);
+        _selectedSemesterId = firstSemester['id'] as String;
+      }
 
       setState(() {});
     } catch (e) {
@@ -1616,11 +1688,16 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                                             .isLoadingStudents
                                             .value) {
                                           return const Center(
-                                            child: CircularProgressIndicator(
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    Color(0xFF34A853),
-                                                  ),
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                SkeletonListItem(),
+                                                SizedBox(height: 12),
+                                                SkeletonListItem(),
+                                                SizedBox(height: 12),
+                                                SkeletonListItem(),
+                                              ],
                                             ),
                                           );
                                         }
@@ -1679,8 +1756,17 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
                                                     ConnectionState.waiting &&
                                                 !snapshot.hasData) {
                                               return const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
+                                                child: Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    SkeletonListItem(),
+                                                    SizedBox(height: 12),
+                                                    SkeletonListItem(),
+                                                    SizedBox(height: 12),
+                                                    SkeletonListItem(),
+                                                  ],
+                                                ),
                                               );
                                             }
 

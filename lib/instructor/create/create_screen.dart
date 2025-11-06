@@ -6,6 +6,7 @@ import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/widgets/safe_asset_image.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'assignment_screen.dart';
 import 'activity_screen.dart';
 import 'quiz_screen_new.dart';
@@ -51,12 +52,7 @@ class _CreateScreenState extends State<CreateScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Initial data load after build completes
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _refreshData();
-      }
-    });
+    // Removed auto-loading - data will load only when user explicitly requests it
   }
 
   @override
@@ -67,23 +63,9 @@ class _CreateScreenState extends State<CreateScreen>
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Refresh data when screen becomes visible
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _refreshData();
-      }
-    });
-  }
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      // Refresh data when app becomes active
-      _refreshData();
-    }
+    // Removed auto-loading on app resume
   }
 
   void _refreshData() {
@@ -387,25 +369,11 @@ class _CreateScreenState extends State<CreateScreen>
             height: 600, // Fixed height for the list area
             child:
                 _createController.isLoading.value
-                    ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF34A853),
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Loading your items...',
-                            style: TextStyle(
-                              color: Colors.black54,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
+                    ? ListView.builder(
+                      itemCount: 5,
+                      itemBuilder: (context, index) {
+                        return const SkeletonInstructorCreateItemCard();
+                      },
                     )
                     : _getFilteredItems().isEmpty
                     ? _buildEmptyState(_searchQuery.isNotEmpty)

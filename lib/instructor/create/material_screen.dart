@@ -5,6 +5,7 @@ import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/controllers/file_submission_controller.dart';
 import '../../shared/services/instructor_class_service.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import '../instructor_dashboard_controller.dart';
 import 'create_controller.dart';
 
@@ -576,9 +577,15 @@ class _MaterialScreenState extends State<MaterialScreen> {
                                         _isLoadingClasses
                                             ? const Padding(
                                               padding: EdgeInsets.all(16),
-                                              child: Center(
-                                                child:
-                                                    CircularProgressIndicator(),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  SkeletonListItem(),
+                                                  SizedBox(height: 8),
+                                                  SkeletonListItem(),
+                                                  SizedBox(height: 8),
+                                                  SkeletonListItem(),
+                                                ],
                                               ),
                                             )
                                             : Column(

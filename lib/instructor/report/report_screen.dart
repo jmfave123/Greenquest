@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'report_controller.dart';
 
 class InstructorReportScreen extends StatefulWidget {
@@ -127,12 +128,41 @@ class _InstructorReportScreenState extends State<InstructorReportScreen> {
                         Expanded(
                           child: Obx(() {
                             if (_reportController.isLoading.value) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Color(0xFF34A853),
-                                  ),
-                                ),
+                              return LayoutBuilder(
+                                builder: (context, constraints) {
+                                  // Calculate responsive grid parameters
+                                  final screenWidth = constraints.maxWidth;
+                                  int crossAxisCount;
+                                  double childAspectRatio;
+
+                                  if (screenWidth > 1400) {
+                                    crossAxisCount = 4;
+                                    childAspectRatio = 2.2;
+                                  } else if (screenWidth > 1200) {
+                                    crossAxisCount = 3;
+                                    childAspectRatio = 2.1;
+                                  } else if (screenWidth > 900) {
+                                    crossAxisCount = 2;
+                                    childAspectRatio = 2.0;
+                                  } else {
+                                    crossAxisCount = 1;
+                                    childAspectRatio = 3.8;
+                                  }
+
+                                  return GridView.builder(
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: crossAxisCount,
+                                          crossAxisSpacing: 20,
+                                          mainAxisSpacing: 20,
+                                          childAspectRatio: childAspectRatio,
+                                        ),
+                                    itemCount: 6,
+                                    itemBuilder: (context, i) {
+                                      return const SkeletonInstructorReportClassCard();
+                                    },
+                                  );
+                                },
                               );
                             }
 

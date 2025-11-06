@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:greenquest/user/profile/profile_controller.dart';
 import 'package:greenquest/user/notification/notifications_list_screen.dart';
 import 'package:greenquest/user/notification/notification_controller.dart';
+import 'package:greenquest/user/home_screen_controller.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String? title;
@@ -79,9 +80,21 @@ class _CustomAppBarState extends State<CustomAppBar> {
             ),
           ),
           const Spacer(),
-          // Notification Icon
-          Obx(
-            () => Stack(
+          // Notification Icon - only show if user is approved
+          Obx(() {
+            // Check if user is approved before showing notifications
+            try {
+              final homeController = Get.find<HomeScreenController>();
+              if (!homeController.isApproved.value) {
+                return const SizedBox.shrink(); // Hide notification icon if not approved
+              }
+            } catch (e) {
+              // If HomeScreenController is not found, hide notification icon
+              return const SizedBox.shrink();
+            }
+
+            // User is approved, show notification icon
+            return Stack(
               children: [
                 IconButton(
                   icon: Icon(
@@ -121,8 +134,8 @@ class _CustomAppBarState extends State<CustomAppBar> {
                     ),
                   ),
               ],
-            ),
-          ),
+            );
+          }),
         ],
       ),
       toolbarHeight: 70,

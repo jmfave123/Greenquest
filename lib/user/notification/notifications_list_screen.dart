@@ -354,6 +354,11 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     Map<String, dynamic> announcementData,
     String instructorId,
   ) async {
+    // Mark notification as read when opening dialog
+    final notificationId = announcementData['id']?.toString();
+    if (notificationId != null && notificationId.isNotEmpty) {
+      await _markNotificationAsRead(announcementData);
+    }
     // Update views for the announcement
     try {
       final announcementId = announcementData['id']?.toString();
@@ -722,9 +727,12 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                             ],
                           ),
                         ),
-                        // Bottom button
+                        // Footer with buttons
                         Container(
-                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 20,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.grey[50],
                             borderRadius: const BorderRadius.only(
@@ -733,31 +741,75 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                             ),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              Flexible(
-                                child: OutlinedButton.icon(
+                              Expanded(
+                                child: OutlinedButton(
                                   onPressed: () => Navigator.of(context).pop(),
-                                  icon: const Icon(
-                                    Icons.check_circle_outline,
-                                    size: 18,
-                                  ),
-                                  label: const Text(
-                                    'Mark as Read',
-                                    style: TextStyle(fontSize: 14),
-                                  ),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF34A853),
-                                    side: const BorderSide(
-                                      color: Color(0xFF34A853),
-                                    ),
+                                    foregroundColor: Colors.grey[700],
+                                    side: BorderSide(color: Colors.grey[300]!),
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 12,
+                                      vertical: 14,
                                     ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
+                                  ),
+                                  child: const Text(
+                                    'Close',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () async {
+                                    // Mark notification as read
+                                    await _markNotificationAsRead(announcement);
+                                    Navigator.of(context).pop();
+                                    Get.snackbar(
+                                      'Marked as Read',
+                                      'Announcement has been marked as read',
+                                      snackPosition: SnackPosition.BOTTOM,
+                                      backgroundColor: const Color(0xFF34A853),
+                                      colorText: Colors.white,
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF34A853),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                  child: const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle_outline,
+                                        size: 18,
+                                      ),
+                                      SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'Mark as Read',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -776,48 +828,26 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     );
   }
 
-  // Build instructor avatar
-  Widget _buildInstructorAvatar(String profileUrl, String instructorName) {
-    if (profileUrl.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          profileUrl,
-          width: 48,
-          height: 48,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return _buildInitialsAvatar(instructorName);
-          },
-        ),
-      );
-    }
-    return _buildInitialsAvatar(instructorName);
-  }
+  // Build instructor avatar (matching announcement_screen_wrapper)
+  Widget _buildInstructorAvatar(String profileUrl, String name) {
+    final hasImage = profileUrl.isNotEmpty;
+    final initials = name.isNotEmpty ? name[0].toUpperCase() : 'I';
 
-  // Build initials avatar
-  Widget _buildInitialsAvatar(String name) {
-    final initials =
-        name.isNotEmpty
-            ? name.split(' ').map((e) => e[0]).take(2).join().toUpperCase()
-            : 'I';
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: const Color(0xFF34A853),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Text(
-          initials,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-      ),
+    return CircleAvatar(
+      radius: 24,
+      backgroundColor: const Color(0xFF34A853),
+      backgroundImage: hasImage ? NetworkImage(profileUrl) : null,
+      child:
+          hasImage
+              ? null
+              : Text(
+                initials,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
     );
   }
 
@@ -1006,6 +1036,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
+          constraints: const BoxConstraints(minHeight: 80),
           decoration: BoxDecoration(
             color: isRead ? Colors.grey[50] : Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -1030,6 +1061,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     // Icon container
                     Container(
@@ -1046,12 +1078,13 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           // Title and unread indicator
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
+                              Flexible(
                                 child: Text(
                                   title,
                                   style: TextStyle(
@@ -1075,6 +1108,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                                 Container(
                                   width: 8,
                                   height: 8,
+                                  margin: const EdgeInsets.only(top: 4),
                                   decoration: const BoxDecoration(
                                     color: Color(0xFF34A853),
                                     shape: BoxShape.circle,
@@ -1101,15 +1135,19 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                           ],
                           const SizedBox(height: 8),
                           // Footer info
-                          Wrap(
+                          Row(
                             children: [
                               if (instructorName.isNotEmpty) ...[
-                                Text(
-                                  'From: $instructorName',
-                                  style: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
+                                Flexible(
+                                  child: Text(
+                                    'From: $instructorName',
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(width: 6),
@@ -1130,6 +1168,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
                                   ),
+                                  maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),

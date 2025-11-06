@@ -25,8 +25,10 @@ class InstructorController extends GetxController {
   void onInit() {
     super.onInit();
     loadInstructor();
-    loadDashboardStats();
-    loadLeaderboardData();
+    // Load dashboard data once when controller is first created (when screen is first shown)
+    // This is NOT auto-loading on every lifecycle change - it only happens once
+    loadDashboardStats(); // Load stats once when screen first appears
+    loadLeaderboardData(); // Load leaderboard once when screen first appears
   }
 
   /// Load instructor name using email query (same pattern as login flow)
