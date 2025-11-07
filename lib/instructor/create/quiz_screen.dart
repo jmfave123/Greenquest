@@ -39,8 +39,6 @@ class _QuizScreenState extends State<QuizScreen> {
   );
   final TextEditingController _dueDateController = TextEditingController();
 
-  final TextEditingController _typeController = TextEditingController();
-
   List<Map<String, dynamic>> _questions = [];
   String? _currentInstructorId;
 
@@ -75,7 +73,6 @@ class _QuizScreenState extends State<QuizScreen> {
     _titleController.text = data['title'] ?? '';
     _instructionController.text = data['instruction'] ?? '';
     _dueDateController.text = data['dueDate'] ?? '';
-    _typeController.text = data['topic'] ?? '';
 
     if (data['questions'] != null) {
       _questions = List<Map<String, dynamic>>.from(data['questions']);
@@ -91,7 +88,6 @@ class _QuizScreenState extends State<QuizScreen> {
     _instructionController.dispose();
     _pointsController.dispose();
     _dueDateController.dispose();
-    _typeController.dispose();
     super.dispose();
   }
 
@@ -181,7 +177,6 @@ class _QuizScreenState extends State<QuizScreen> {
     final instruction = _instructionController.text.trim();
     final pointsText = _pointsController.text.trim();
     final dueDate = _dueDateController.text.trim();
-    final topic = _typeController.text.trim();
 
     if (title.isEmpty ||
         pointsText.isEmpty ||
@@ -210,7 +205,6 @@ class _QuizScreenState extends State<QuizScreen> {
         instruction: instruction,
         points: points,
         dueDate: dueDate,
-        topic: topic,
         period: widget.period,
         questions: _questions,
       );
@@ -221,7 +215,6 @@ class _QuizScreenState extends State<QuizScreen> {
         instruction: instruction,
         points: points,
         dueDate: dueDate,
-        topic: topic,
         period: widget.period,
         questions: _questions,
       );
@@ -472,26 +465,6 @@ class _QuizScreenState extends State<QuizScreen> {
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 20),
-                                          // Type
-                                          const Text(
-                                            'Type',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: _typeController,
-                                            cursorColor: const Color(
-                                              0xFF34A853,
-                                            ),
-                                            decoration: _inputDecoration(
-                                              'Enter type',
                                             ),
                                           ),
                                           const SizedBox(height: 20),

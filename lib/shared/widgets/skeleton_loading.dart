@@ -1069,3 +1069,79 @@ class SkeletonInstructorReportClassCard extends StatelessWidget {
     );
   }
 }
+
+/// Skeleton for instructor profile page
+class SkeletonInstructorProfile extends StatelessWidget {
+  const SkeletonInstructorProfile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmallScreen = constraints.maxWidth < 800;
+        return Flex(
+          direction: isSmallScreen ? Axis.vertical : Axis.horizontal,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              flex: isSmallScreen ? 0 : 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Profile Picture
+                  Stack(
+                    children: [
+                      SkeletonAvatar(radius: 48),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: SkeletonBox(
+                          width: 32,
+                          height: 32,
+                          borderRadius: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  // Name
+                  SkeletonText(width: 200, height: 22),
+                  const SizedBox(height: 18),
+                  // Email
+                  Row(
+                    children: [
+                      SkeletonBox(width: 20, height: 20, borderRadius: 4),
+                      const SizedBox(width: 8),
+                      SkeletonText(width: 250, height: 15),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Phone
+                  Row(
+                    children: [
+                      SkeletonBox(width: 20, height: 20, borderRadius: 4),
+                      const SizedBox(width: 8),
+                      SkeletonText(width: 150, height: 15),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (!isSmallScreen) const SizedBox(width: 32),
+            if (isSmallScreen) const SizedBox(height: 20),
+            Flexible(
+              flex: 0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Edit Profile Button
+                  SkeletonBox(width: 150, height: 48, borderRadius: 8),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

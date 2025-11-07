@@ -228,66 +228,142 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     super.dispose();
   }
 
-  /// Build online status widget with error handling
+  /// Format last seen time (same as message screen)
+  String _formatLastSeen(DateTime lastSeenTime) {
+    final now = DateTime.now();
+    final difference = now.difference(lastSeenTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Active just now';
+    } else if (difference.inMinutes < 60) {
+      final minutes = difference.inMinutes;
+      return 'Active $minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
+    } else if (difference.inHours < 24) {
+      final hours = difference.inHours;
+      return 'Active $hours ${hours == 1 ? 'hour' : 'hours'} ago';
+    } else if (difference.inDays < 7) {
+      final days = difference.inDays;
+      return 'Active $days ${days == 1 ? 'day' : 'days'} ago';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return 'Active $weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
+    } else if (difference.inDays < 365) {
+      final months = (difference.inDays / 30).floor();
+      return 'Active $months ${months == 1 ? 'month' : 'months'} ago';
+    } else {
+      return 'Active a long time ago';
+    }
+  }
+
+  /// Build online status widget with real-time updates (matching message screen logic)
   Widget _buildOnlineStatusWidget(Map<String, dynamic> student) {
-    try {
-      final isOnline = _classController.isStudentOnline(student);
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        decoration: BoxDecoration(
-          color:
-              isOnline
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color:
-                isOnline
-                    ? Colors.green.withOpacity(0.3)
-                    : Colors.grey.withOpacity(0.3),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: isOnline ? Colors.green : Colors.grey,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 3),
-            Text(
-              isOnline ? 'Online' : 'Offline',
-              style: TextStyle(
-                fontSize: 9,
-                color: isOnline ? Colors.green : Colors.grey,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      print('Error building online status widget: $e');
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          'Offline',
-          style: TextStyle(
-            fontSize: 9,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+    final studentId = student['studentId'];
+
+    // If no studentId, show offline
+    if (studentId == null) {
+      return Text(
+        'Offline',
+        style: const TextStyle(color: Colors.black54, fontSize: 11),
       );
     }
+
+    // Use StreamBuilder for real-time updates (same as message screen)
+    return StreamBuilder<DocumentSnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(studentId)
+              .snapshots(),
+      builder: (context, snapshot) {
+        final isOnline =
+            snapshot.hasData &&
+            snapshot.data!.exists &&
+            (snapshot.data!.data() as Map<String, dynamic>?)?['isOnline'] ==
+                true;
+
+        dynamic lastSeen;
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>?;
+          lastSeen = data?['lastSeen'];
+        } else {
+          lastSeen = null;
+        }
+
+        // Check if online based on lastSeen (within 5 minutes)
+        bool isActuallyOnline = isOnline;
+        if (!isOnline && lastSeen != null) {
+          try {
+            DateTime? lastSeenTime;
+            if (lastSeen is Timestamp) {
+              lastSeenTime = lastSeen.toDate();
+            } else if (lastSeen is DateTime) {
+              lastSeenTime = lastSeen;
+            }
+
+            if (lastSeenTime != null) {
+              final now = DateTime.now();
+              final difference = now.difference(lastSeenTime).inMinutes;
+              isActuallyOnline =
+                  difference <= 5; // Online if last seen within 5 minutes
+            }
+          } catch (e) {
+            isActuallyOnline = false;
+          }
+        }
+
+        // Display: "Online" with green dot or "Active X ago"
+        if (isActuallyOnline) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF34A853),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Online',
+                style: TextStyle(
+                  color: Color(0xFF34A853),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          );
+        } else if (lastSeen != null) {
+          try {
+            DateTime? lastSeenTime;
+            if (lastSeen is Timestamp) {
+              lastSeenTime = lastSeen.toDate();
+            } else if (lastSeen is DateTime) {
+              lastSeenTime = lastSeen;
+            }
+
+            if (lastSeenTime != null) {
+              return Text(
+                _formatLastSeen(lastSeenTime),
+                style: const TextStyle(color: Colors.black54, fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+            }
+          } catch (e) {
+            // Fall through to offline
+          }
+        }
+
+        // Default: Offline
+        return Text(
+          'Offline',
+          style: const TextStyle(color: Colors.black54, fontSize: 11),
+        );
+      },
+    );
   }
 
   void _handleNavigationSelect(InstructorNavigationItem item) {
@@ -1390,28 +1466,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                // Online/Offline Status for approved students
-                                if (enrollmentStatus == 'approved') ...[
+                                // Active Status for approved students (real-time updates)
+                                if (enrollmentStatus == 'approved')
                                   _buildOnlineStatusWidget(student),
-                                  const SizedBox(width: 3),
-                                  // Last seen tooltip
-                                  Tooltip(
-                                    message:
-                                        'Last seen: ${_classController.getLastSeenTime(student)}',
-                                    child: Container(
-                                      padding: const EdgeInsets.all(3),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                      child: Icon(
-                                        Icons.access_time,
-                                        size: 12,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
                             const SizedBox(height: 4),

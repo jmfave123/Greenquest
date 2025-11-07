@@ -95,7 +95,6 @@ class QuizController extends GetxController {
           'instruction': quizData['instruction'] ?? '',
           'points': quizData['points'] ?? 0,
           'dueDate': quizData['dueDate'] ?? '',
-          'topic': quizData['topic'] ?? 'No Topic',
           'period': quizData['period'] ?? '',
           'questions': quizData['questions'] ?? [],
           'createdAt': quizData['createdAt'] ?? Timestamp.now(),
@@ -180,7 +179,6 @@ class QuizController extends GetxController {
     required String instruction,
     required int points,
     required String dueDate,
-    required String topic,
     required String period,
     required List<Map<String, dynamic>> questions,
   }) async {
@@ -210,7 +208,6 @@ class QuizController extends GetxController {
         'instruction': instruction.trim(),
         'points': points,
         'dueDate': dueDate,
-        'topic': topic.trim(),
         'period': period.trim(),
         'questions': questions,
         'createdAt': Timestamp.now(),
@@ -271,7 +268,6 @@ class QuizController extends GetxController {
     required String instruction,
     required int points,
     required String dueDate,
-    required String topic,
     required String period,
     required List<Map<String, dynamic>> questions,
   }) async {
@@ -298,7 +294,6 @@ class QuizController extends GetxController {
         'instruction': instruction.trim(),
         'points': points,
         'dueDate': dueDate,
-        'topic': topic.trim(),
         'period': period.trim(),
         'questions': questions,
         'updatedAt': Timestamp.now(),
@@ -464,12 +459,10 @@ class QuizController extends GetxController {
     return quizzes.where((quiz) {
       final title = (quiz['title'] ?? '').toLowerCase();
       final instructorName = (quiz['instructorName'] ?? '').toLowerCase();
-      final topic = (quiz['topic'] ?? '').toLowerCase();
       final searchQuery = query.toLowerCase();
 
       return title.contains(searchQuery) ||
-          instructorName.contains(searchQuery) ||
-          topic.contains(searchQuery);
+          instructorName.contains(searchQuery);
     }).toList();
   }
 
@@ -479,7 +472,6 @@ class QuizController extends GetxController {
     required String instruction,
     required int points,
     required String dueDate,
-    required String topic,
     required String period,
     required List<Map<String, dynamic>> questions,
   }) async {
@@ -495,7 +487,6 @@ class QuizController extends GetxController {
         instruction: instruction,
         points: points,
         dueDate: dueDate,
-        topic: topic,
         period: period,
         questions: questions,
       );
@@ -518,7 +509,6 @@ class QuizController extends GetxController {
     String? instruction,
     int? points,
     String? dueDate,
-    String? topic,
     String? period,
     List<Map<String, dynamic>>? questions,
   }) {
@@ -531,7 +521,6 @@ class QuizController extends GetxController {
       'Points: $points (null: ${points == null}, <=0: ${points != null && points <= 0})',
     );
     print('DueDate: "$dueDate" (null: ${dueDate == null})');
-    print('Topic: "$topic" (null: ${topic == null}, empty: ${topic?.isEmpty})');
     print(
       'Period: "$period" (null: ${period == null}, empty: ${period?.isEmpty})',
     );

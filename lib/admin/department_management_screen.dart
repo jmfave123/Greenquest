@@ -2627,48 +2627,6 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                                               ],
                                             ),
                                           ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  semester['isActive'] == true
-                                                      ? const Color(
-                                                        0xFF34A853,
-                                                      ).withOpacity(0.1)
-                                                      : Colors.grey.withOpacity(
-                                                        0.1,
-                                                      ),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color:
-                                                    semester['isActive'] == true
-                                                        ? const Color(
-                                                          0xFF34A853,
-                                                        )
-                                                        : Colors.grey,
-                                                width: 1,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              semester['isActive'] == true
-                                                  ? 'Active'
-                                                  : 'Inactive',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color:
-                                                    semester['isActive'] == true
-                                                        ? const Color(
-                                                          0xFF34A853,
-                                                        )
-                                                        : Colors.grey,
-                                              ),
-                                            ),
-                                          ),
                                           const SizedBox(width: 12),
                                           IconButton(
                                             onPressed:
@@ -2822,11 +2780,58 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
           final data = instructorSnapshot.data()!;
           final name = data['name'] ?? '';
           if (name.trim().isNotEmpty && name.toLowerCase() != 'unknown') {
+            // Resolve department names from assignments
+            final assignments = data['assignments'];
+            final Set<String> departmentNames = {};
+            if (assignments != null &&
+                assignments is List &&
+                assignments.isNotEmpty) {
+              for (var assignment in assignments) {
+                if (assignment is Map) {
+                  final departmentId = assignment['departmentId']?.toString();
+                  if (departmentId != null && departmentId.isNotEmpty) {
+                    try {
+                      final deptDoc =
+                          await widget.firestore
+                              .collection('departments')
+                              .doc(departmentId)
+                              .get();
+                      if (deptDoc.exists) {
+                        final deptData = deptDoc.data();
+                        final deptName =
+                            deptData?['displayName'] ??
+                            deptData?['name'] ??
+                            deptData?['code'];
+                        if (deptName != null &&
+                            deptName.toString().trim().isNotEmpty) {
+                          final code = (deptData?['code'] ?? '').toString();
+                          if (code.isNotEmpty && code != deptName) {
+                            departmentNames.add(
+                              '${deptName.toString()} ($code)',
+                            );
+                          } else {
+                            departmentNames.add(deptName.toString());
+                          }
+                        }
+                      }
+                    } catch (e) {
+                      // Ignore per-department fetch errors
+                    }
+                  }
+                }
+              }
+            }
+
+            final resolvedDepartment =
+                departmentNames.isNotEmpty
+                    ? departmentNames.join(', ')
+                    : (data['department']?.toString() ?? 'N/A');
+
             _instructors.add({
               'id': instructorSnapshot.id,
               'name': name,
               'email': data['email'] ?? 'N/A',
-              'department': data['department'] ?? 'N/A',
+              'department': resolvedDepartment,
             });
           }
         }
@@ -3649,21 +3654,66 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
       // Load instructors
       final instructorsSnapshot =
           await widget.firestore.collection('instructors').get();
-      _instructors =
-          instructorsSnapshot.docs
-              .map((doc) {
-                final data = doc.data();
-                return {
-                  'id': doc.id,
-                  'name': data['name'] ?? '',
-                  'email': data['email'] ?? 'N/A',
-                  'department': data['department'] ?? 'N/A',
-                };
-              })
-              .where(
-                (instructor) => instructor['name'].toString().trim().isNotEmpty,
-              )
-              .toList();
+      // Enrich instructors with department names resolved from assignments
+      _instructors = [];
+      for (var doc in instructorsSnapshot.docs) {
+        final data = doc.data();
+        final name = (data['name'] ?? '').toString();
+        if (name.trim().isEmpty) continue;
+
+        // Collect department names from assignments → departments collection
+        final assignments = data['assignments'];
+        final Set<String> departmentNames = {};
+        if (assignments != null &&
+            assignments is List &&
+            assignments.isNotEmpty) {
+          for (var assignment in assignments) {
+            if (assignment is Map) {
+              final departmentId = assignment['departmentId']?.toString();
+              if (departmentId != null && departmentId.isNotEmpty) {
+                try {
+                  final deptDoc =
+                      await widget.firestore
+                          .collection('departments')
+                          .doc(departmentId)
+                          .get();
+                  if (deptDoc.exists) {
+                    final deptData = deptDoc.data();
+                    final deptName =
+                        deptData?['displayName'] ??
+                        deptData?['name'] ??
+                        deptData?['code'];
+                    if (deptName != null &&
+                        deptName.toString().trim().isNotEmpty) {
+                      final code = (deptData?['code'] ?? '').toString();
+                      // Prefer "Name (CODE)" if code is available and different
+                      if (code.isNotEmpty && code != deptName) {
+                        departmentNames.add('${deptName.toString()} ($code)');
+                      } else {
+                        departmentNames.add(deptName.toString());
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // Ignore individual department fetch errors
+                }
+              }
+            }
+          }
+        }
+
+        final resolvedDepartment =
+            departmentNames.isNotEmpty
+                ? departmentNames.join(', ')
+                : (data['department']?.toString() ?? 'N/A');
+
+        _instructors.add({
+          'id': doc.id,
+          'name': name,
+          'email': data['email'] ?? 'N/A',
+          'department': resolvedDepartment,
+        });
+      }
 
       // Load classes from all instructors
       _classes.clear();

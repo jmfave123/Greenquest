@@ -9,6 +9,8 @@ import '../../shared/class_record/class_record_table.dart';
 import '../../shared/widgets/skeleton_loading.dart';
 import 'class_report_controller.dart';
 import '../../shared/services/export_service.dart';
+import '../../shared/widgets/excel_export_preview_dialog.dart';
+import '../../shared/widgets/excel_preview_table.dart';
 
 class ClassReportScreen extends StatefulWidget {
   const ClassReportScreen({super.key});
@@ -1434,7 +1436,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
     }
   }
 
-  /// Export class report data
+  /// Export class report data with preview
   Future<void> _exportData() async {
     try {
       // Snapshot current data
@@ -1444,8 +1446,27 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       final instructorName = _classReportController.instructorName.value;
       final departmentName = _classReportController.departmentName.value;
 
-      // Invoke export (ExportService handles success/error messages)
-      await ExportService().exportCompleteClassRecord(
+      // Generate preview data matching actual Excel structure
+      final exportService = ExportService();
+      final previewResult = exportService.generateExcelPreviewData(
+        students: students,
+        classStandingItems: _classStandingItems,
+        quizPrelimItems: _quizPrelimItems,
+        midtermExamItems: _midtermExamItems,
+        pitItems: _pitItems,
+        finalClassStandingItems: _finalClassStandingItems,
+        finalQuizItems: _finalQuizItems,
+        finalExamItems: _finalExamItems,
+        finalPitItems: _finalPitItems,
+        previewRowCount: 10,
+      );
+
+      final previewData =
+          previewResult['previewData'] as List<Map<String, dynamic>>;
+      final columnHeaders = previewResult['columnHeaders'] as List<String>;
+
+      // Get export summary
+      final summary = exportService.getExportSummary(
         students: students,
         classStandingItems: _classStandingItems,
         quizPrelimItems: _quizPrelimItems,
@@ -1457,12 +1478,56 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         finalPitItems: _finalPitItems,
         sectionName: sectionName,
         courseName: courseName,
-        instructorName: instructorName,
-        departmentName:
-            departmentName.isNotEmpty
-                ? departmentName
-                : 'Department of NATIONAL SERVICE TRAINING PROGRAM',
       );
+
+      // Generate filename
+      final now = DateTime.now();
+      final timestamp =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}';
+      final fileName = '${sectionName}_ClassRecord_$timestamp.xlsx';
+
+      // Build summary text
+      final summaryText =
+          '${summary['studentCount']} students • ${summary['totalColumns']} columns • ${sectionName}';
+
+      // Show preview dialog
+      final shouldExport = await ExcelExportPreviewDialog.show(
+        context: context,
+        title: 'Class Record Export',
+        fileName: fileName,
+        summaryText: summaryText,
+        previewContent: ExcelPreviewTable(
+          previewData: previewData,
+          columnHeaders: columnHeaders,
+        ),
+        exportOptions: const [],
+        onExport: () async {
+          // Perform actual export
+          await exportService.exportCompleteClassRecord(
+            students: students,
+            classStandingItems: _classStandingItems,
+            quizPrelimItems: _quizPrelimItems,
+            midtermExamItems: _midtermExamItems,
+            pitItems: _pitItems,
+            finalClassStandingItems: _finalClassStandingItems,
+            finalQuizItems: _finalQuizItems,
+            finalExamItems: _finalExamItems,
+            finalPitItems: _finalPitItems,
+            sectionName: sectionName,
+            courseName: courseName,
+            instructorName: instructorName,
+            departmentName:
+                departmentName.isNotEmpty
+                    ? departmentName
+                    : 'Department of NATIONAL SERVICE TRAINING PROGRAM',
+          );
+        },
+      );
+
+      // If user cancelled, do nothing
+      if (shouldExport != true) {
+        return;
+      }
     } catch (e) {
       // Show error message
       Get.snackbar(

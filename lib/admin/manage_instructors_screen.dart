@@ -1703,10 +1703,129 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
 }
 
 // Instructor Profile View Widget
-class InstructorProfileView extends StatelessWidget {
+class InstructorProfileView extends StatefulWidget {
   final Map<String, dynamic> instructor;
 
   const InstructorProfileView({super.key, required this.instructor});
+
+  @override
+  State<InstructorProfileView> createState() => _InstructorProfileViewState();
+}
+
+class _InstructorProfileViewState extends State<InstructorProfileView> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool _isLoadingDepartments = true;
+  List<Map<String, dynamic>> _departments = [];
+  String _errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDepartments();
+  }
+
+  Future<void> _loadDepartments() async {
+    try {
+      setState(() {
+        _isLoadingDepartments = true;
+        _errorMessage = '';
+      });
+
+      final instructorId = widget.instructor['id'];
+      if (instructorId == null || instructorId.toString().isEmpty) {
+        setState(() {
+          _isLoadingDepartments = false;
+        });
+        return;
+      }
+
+      // Fetch instructor document to get assignments
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(instructorId).get();
+
+      if (!instructorDoc.exists) {
+        setState(() {
+          _isLoadingDepartments = false;
+        });
+        return;
+      }
+
+      final instructorData = instructorDoc.data();
+      final assignments = instructorData?['assignments'] as List<dynamic>?;
+
+      if (assignments == null || assignments.isEmpty) {
+        setState(() {
+          _isLoadingDepartments = false;
+        });
+        return;
+      }
+
+      // Extract unique department IDs from assignments
+      final Set<String> uniqueDepartmentIds = {};
+      for (var assignment in assignments) {
+        if (assignment is Map<String, dynamic>) {
+          final departmentId = assignment['departmentId']?.toString();
+          if (departmentId != null && departmentId.isNotEmpty) {
+            uniqueDepartmentIds.add(departmentId);
+          }
+        }
+      }
+
+      if (uniqueDepartmentIds.isEmpty) {
+        setState(() {
+          _isLoadingDepartments = false;
+        });
+        return;
+      }
+
+      // Fetch department details for each unique department
+      final List<Map<String, dynamic>> departments = [];
+      for (var departmentId in uniqueDepartmentIds) {
+        try {
+          final departmentDoc =
+              await _firestore
+                  .collection('departments')
+                  .doc(departmentId)
+                  .get();
+
+          if (departmentDoc.exists) {
+            final departmentData = departmentDoc.data();
+            if (departmentData != null) {
+              final departmentName =
+                  departmentData['displayName'] ??
+                  departmentData['name'] ??
+                  departmentData['code'] ??
+                  'Unknown';
+              final departmentCode = departmentData['code'] ?? '';
+
+              departments.add({
+                'id': departmentId,
+                'name': departmentName.toString(),
+                'code': departmentCode.toString(),
+              });
+            }
+          }
+        } catch (e) {
+          print('Error fetching department $departmentId: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _departments = departments;
+          _isLoadingDepartments = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading departments: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load departments';
+          _isLoadingDepartments = false;
+        });
+      }
+    }
+  }
 
   String getInitials(String name) {
     if (name.isEmpty) return '?';
@@ -1718,11 +1837,43 @@ class InstructorProfileView extends StatelessWidget {
         .toUpperCase();
   }
 
+  String _getDepartmentDisplayText() {
+    if (_isLoadingDepartments) {
+      return 'Loading...';
+    }
+
+    if (_errorMessage.isNotEmpty) {
+      return _errorMessage;
+    }
+
+    if (_departments.isEmpty) {
+      // Fallback to instructor's department field if no assignments
+      final fallbackDept = widget.instructor['department']?.toString();
+      if (fallbackDept != null && fallbackDept.isNotEmpty) {
+        return fallbackDept;
+      }
+      return 'Not assigned';
+    }
+
+    // Display all departments, format: "Name (Code)" or just "Name"
+    return _departments
+        .map((dept) {
+          final name = dept['name'] ?? 'Unknown';
+          final code = dept['code']?.toString() ?? '';
+          if (code.isNotEmpty && code != name) {
+            return '$name ($code)';
+          }
+          return name;
+        })
+        .join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final initials = getInitials(instructor['name'] ?? '');
-    final hasImage = (instructor['profileUrl']?.toString() ?? '').isNotEmpty;
-    final profileImageUrl = instructor['profileUrl']?.toString() ?? '';
+    final initials = getInitials(widget.instructor['name'] ?? '');
+    final hasImage =
+        (widget.instructor['profileUrl']?.toString() ?? '').isNotEmpty;
+    final profileImageUrl = widget.instructor['profileUrl']?.toString() ?? '';
 
     return SingleChildScrollView(
       child: Column(
@@ -1791,7 +1942,7 @@ class InstructorProfileView extends StatelessWidget {
 
                 // Name
                 Text(
-                  instructor['name'] ?? 'Unknown',
+                  widget.instructor['name'] ?? 'Unknown',
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -1828,23 +1979,22 @@ class InstructorProfileView extends StatelessWidget {
                     _buildInfoRow(
                       Icons.email_outlined,
                       'Email',
-                      instructor['email'] ?? 'N/A',
+                      widget.instructor['email'] ?? 'N/A',
                     ),
                     const SizedBox(height: 16),
                     _buildInfoRow(
                       Icons.phone_outlined,
                       'Phone',
-                      instructor['phone']?.toString().isEmpty ?? true
+                      widget.instructor['phone']?.toString().isEmpty ?? true
                           ? 'Not provided'
-                          : instructor['phone'],
+                          : widget.instructor['phone'],
                     ),
                     const SizedBox(height: 16),
                     _buildInfoRow(
                       Icons.business_outlined,
                       'Department',
-                      instructor['department']?.toString().isEmpty ?? true
-                          ? 'Not specified'
-                          : instructor['department'],
+                      _getDepartmentDisplayText(),
+                      isLoading: _isLoadingDepartments,
                     ),
                   ],
                 ),
@@ -1891,8 +2041,8 @@ class InstructorProfileView extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  (instructor['about']?.toString().isNotEmpty ?? false)
-                      ? instructor['about']
+                  (widget.instructor['about']?.toString().isNotEmpty ?? false)
+                      ? widget.instructor['about']
                       : 'No information provided yet.',
                   style: TextStyle(
                     fontSize: 15,
@@ -1909,7 +2059,12 @@ class InstructorProfileView extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool isLoading = false,
+  }) {
     return Row(
       children: [
         Container(
@@ -1934,14 +2089,38 @@ class InstructorProfileView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              isLoading
+                  ? Row(
+                    children: [
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            const Color(0xFF34A853),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  )
+                  : Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
             ],
           ),
         ),

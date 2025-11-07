@@ -35,6 +35,8 @@ class _CreateScreenState extends State<CreateScreen>
   bool _showPeriodDropdown = false;
   String? _selectedType;
   String? _selectedPeriod;
+  String? _hoveredType; // Track which type is being hovered
+  String? _hoveredPeriod; // Track which period is being hovered
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -62,12 +64,6 @@ class _CreateScreenState extends State<CreateScreen>
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // Removed auto-loading on app resume
-  }
-
   void _refreshData() {
     // Refresh both controllers to ensure data is up to date
     _createController.forceRefresh();
@@ -90,8 +86,7 @@ class _CreateScreenState extends State<CreateScreen>
     }
     setState(() {
       _showTypeDropdown = true;
-      _showPeriodDropdown =
-          true; // Show both dropdowns when Create button is clicked
+      _showPeriodDropdown = false; // Only show type dropdown initially
     });
   }
 
@@ -127,6 +122,19 @@ class _CreateScreenState extends State<CreateScreen>
     setState(() {
       _showTypeDropdown = false;
       _showPeriodDropdown = false;
+      _selectedType = null; // Reset selection
+      _selectedPeriod = null; // Reset selection
+      _hoveredType = null; // Reset hover state
+      _hoveredPeriod = null; // Reset hover state
+    });
+  }
+
+  void _closePeriodDropdown() {
+    setState(() {
+      _showPeriodDropdown = false;
+      _selectedPeriod = null; // Reset period selection
+      _hoveredPeriod = null; // Reset hover state
+      // Keep type dropdown open
     });
   }
 
@@ -516,25 +524,6 @@ class _CreateScreenState extends State<CreateScreen>
                 ],
                 Row(
                   children: [
-                    if (item['topic'] != null &&
-                        item['topic'].toString().isNotEmpty) ...[
-                      Text(
-                        'Topic: ',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                        ),
-                      ),
-                      Text(
-                        item['topic'].toString(),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                    ],
                     if (item['points'] != null &&
                         item['points'].toString().isNotEmpty &&
                         item['points'] != '0') ...[
@@ -784,8 +773,18 @@ class _CreateScreenState extends State<CreateScreen>
           if (_showTypeDropdown || _showPeriodDropdown)
             Positioned.fill(
               child: GestureDetector(
-                onTap: _closeDropdowns,
-                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  // Don't close on outside tap - keep dialog open
+                  // Only close when explicitly selecting an option
+                },
+                behavior:
+                    HitTestBehavior
+                        .opaque, // Block all interactions behind the dialog
+                child: Container(
+                  color:
+                      Colors
+                          .transparent, // Transparent - keep original background
+                ),
               ),
             ),
           Row(
@@ -915,6 +914,7 @@ class _CreateScreenState extends State<CreateScreen>
                       ? null
                       : 24, // Ensure dropdown doesn't go off-screen on mobile
               child: Material(
+                elevation: 8,
                 color: Colors.transparent,
                 child: GestureDetector(
                   onTap: () {
@@ -943,15 +943,27 @@ class _CreateScreenState extends State<CreateScreen>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text(
-                            'Select Type',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Select Type',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: _closeDropdowns,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Close',
+                              ),
+                            ],
                           ),
                         ),
                         Flexible(
@@ -961,53 +973,72 @@ class _CreateScreenState extends State<CreateScreen>
                               children:
                                   _types
                                       .map(
-                                        (type) => GestureDetector(
-                                          onTap: () => _selectType(type),
-                                          child: Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                            margin: const EdgeInsets.only(
-                                              bottom: 8,
-                                              left: 8,
-                                              right: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  _selectedType == type
-                                                      ? const Color(
-                                                        0xFF34A853,
-                                                      ).withOpacity(0.1)
-                                                      : Colors.transparent,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                SafeAssetImage(
-                                                  assetPath:
-                                                      type == 'Material'
-                                                          ? 'assets/instructor/images/arcticons_onlyoffice-documents.png'
-                                                          : 'assets/instructor/images/arcticons_documents.png',
-                                                  width: 20,
-                                                  height: 20,
-                                                  color: Colors.black,
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Text(
-                                                  type,
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                    color:
-                                                        _selectedType == type
-                                                            ? Colors.black
-                                                            : Colors.black45,
+                                        (type) => MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          onEnter: (_) {
+                                            setState(() {
+                                              _hoveredType = type;
+                                            });
+                                          },
+                                          onExit: (_) {
+                                            setState(() {
+                                              _hoveredType = null;
+                                            });
+                                          },
+                                          child: GestureDetector(
+                                            onTap: () => _selectType(type),
+                                            child: Container(
+                                              width: double.infinity,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
                                                   ),
-                                                ),
-                                              ],
+                                              margin: const EdgeInsets.only(
+                                                bottom: 8,
+                                                left: 8,
+                                                right: 8,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    _selectedType == type ||
+                                                            _hoveredType == type
+                                                        ? const Color(
+                                                          0xFF34A853,
+                                                        ).withOpacity(0.1)
+                                                        : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  SafeAssetImage(
+                                                    assetPath:
+                                                        type == 'Material'
+                                                            ? 'assets/instructor/images/arcticons_onlyoffice-documents.png'
+                                                            : 'assets/instructor/images/arcticons_documents.png',
+                                                    width: 20,
+                                                    height: 20,
+                                                    color: Colors.black,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Text(
+                                                    type,
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 14,
+                                                      color:
+                                                          _selectedType ==
+                                                                      type ||
+                                                                  _hoveredType ==
+                                                                      type
+                                                              ? Colors.black
+                                                              : Colors.black45,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -1044,6 +1075,7 @@ class _CreateScreenState extends State<CreateScreen>
                       ? null
                       : 24, // Ensure dropdown doesn't go off-screen on mobile
               child: Material(
+                elevation: 8,
                 color: Colors.transparent,
                 child: GestureDetector(
                   onTap: () {
@@ -1072,15 +1104,27 @@ class _CreateScreenState extends State<CreateScreen>
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text(
-                            'Select Period',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Select Period',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: _closePeriodDropdown,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Close',
+                              ),
+                            ],
                           ),
                         ),
                         Flexible(
@@ -1092,45 +1136,64 @@ class _CreateScreenState extends State<CreateScreen>
                                           ? _pitPeriods
                                           : _periods)
                                       .map(
-                                        (period) => GestureDetector(
-                                          onTap: () => _selectPeriod(period),
-                                          child: Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                            margin: const EdgeInsets.only(
-                                              bottom: 8,
-                                              left: 8,
-                                              right: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  _selectedPeriod == period
-                                                      ? const Color(
-                                                        0xFF34A853,
-                                                      ).withOpacity(0.1)
-                                                      : Colors.transparent,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const SizedBox(width: 12),
-                                                Text(
-                                                  period,
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                    color:
-                                                        _selectedPeriod ==
-                                                                period
-                                                            ? Colors.black
-                                                            : Colors.black45,
+                                        (period) => MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          onEnter: (_) {
+                                            setState(() {
+                                              _hoveredPeriod = period;
+                                            });
+                                          },
+                                          onExit: (_) {
+                                            setState(() {
+                                              _hoveredPeriod = null;
+                                            });
+                                          },
+                                          child: GestureDetector(
+                                            onTap: () => _selectPeriod(period),
+                                            child: Container(
+                                              width: double.infinity,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
                                                   ),
-                                                ),
-                                              ],
+                                              margin: const EdgeInsets.only(
+                                                bottom: 8,
+                                                left: 8,
+                                                right: 8,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    _selectedPeriod == period ||
+                                                            _hoveredPeriod ==
+                                                                period
+                                                        ? const Color(
+                                                          0xFF34A853,
+                                                        ).withOpacity(0.1)
+                                                        : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const SizedBox(width: 12),
+                                                  Text(
+                                                    period,
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 14,
+                                                      color:
+                                                          _selectedPeriod ==
+                                                                      period ||
+                                                                  _hoveredPeriod ==
+                                                                      period
+                                                              ? Colors.black
+                                                              : Colors.black45,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),

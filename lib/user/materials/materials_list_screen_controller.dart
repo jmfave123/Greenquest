@@ -191,7 +191,6 @@ class MaterialsListScreenController extends GetxController {
             'description':
                 materialData['description']?.toString() ??
                 'No description available',
-            'topic': materialData['topic']?.toString() ?? 'No Topic',
             'instructorName':
                 instructorName, // Use instructor name from instructor document
             'instructorId': instructorUid,
@@ -203,14 +202,12 @@ class MaterialsListScreenController extends GetxController {
             'type': materialData['type']?.toString() ?? 'Material',
           };
 
-          print(
-            '📄 Processed material: ${materialMap['title']} - ${materialMap['topic']}',
-          );
+          print('📄 Processed material: ${materialMap['title']}');
           print('📄 Instructor name: ${materialMap['instructorName']}');
           print('📄 Material status: ${materialMap['status']}');
           print('📄 Created date: ${materialMap['createdAt']}');
 
-          // Only add if material has valid data for UI display (require title, topic is optional)
+          // Only add if material has valid data for UI display
           if (materialMap['title'] != null &&
               materialMap['title'] != 'No Title') {
             instructorMaterials.add(materialMap);
@@ -231,7 +228,7 @@ class MaterialsListScreenController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid materials before setting (require title, topic is optional)
+      // Filter out any invalid materials before setting
       final validMaterials =
           instructorMaterials
               .where(
@@ -312,7 +309,6 @@ class MaterialsListScreenController extends GetxController {
               'description':
                   materialData['description']?.toString() ??
                   'No description available',
-              'topic': materialData['topic']?.toString() ?? 'No Topic',
               'instructorName':
                   instructorName, // Use instructor name from instructor document
               'instructorId': instructorId,
@@ -343,7 +339,7 @@ class MaterialsListScreenController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid materials before setting (require title, topic is optional)
+      // Filter out any invalid materials before setting
       final validMaterials =
           allMaterials
               .where(
@@ -416,7 +412,6 @@ class MaterialsListScreenController extends GetxController {
           'description':
               materialData['description']?.toString() ??
               'No description available',
-          'topic': materialData['topic']?.toString() ?? 'No Topic',
           'instructorName':
               instructorName, // Use instructor name from instructor document
           'instructorId': instructorId,
@@ -428,7 +423,7 @@ class MaterialsListScreenController extends GetxController {
           'type': materialData['type']?.toString() ?? 'Material',
         };
 
-        // Only add if material has valid data for UI display (require title, topic is optional)
+        // Only add if material has valid data for UI display
         if (materialMap['title'] != null &&
             materialMap['title'] != 'No Title') {
           instructorMaterials.add(materialMap);
@@ -442,7 +437,7 @@ class MaterialsListScreenController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid materials before setting (require title, topic is optional)
+      // Filter out any invalid materials before setting
       final validMaterials =
           instructorMaterials
               .where(
@@ -473,17 +468,6 @@ class MaterialsListScreenController extends GetxController {
     }
   }
 
-  /// Get materials by topic
-  List<Map<String, dynamic>> getMaterialsByTopic(String topic) {
-    return materials
-        .where(
-          (material) => (material['topic']?.toString() ?? '')
-              .toLowerCase()
-              .contains(topic.toLowerCase()),
-        )
-        .toList();
-  }
-
   /// Get materials by instructor
   List<Map<String, dynamic>> getMaterialsByInstructor(String instructorId) {
     return materials
@@ -503,24 +487,9 @@ class MaterialsListScreenController extends GetxController {
               ) ||
               (material['description']?.toString() ?? '')
                   .toLowerCase()
-                  .contains(query.toLowerCase()) ||
-              (material['topic']?.toString() ?? '').toLowerCase().contains(
-                query.toLowerCase(),
-              ),
+                  .contains(query.toLowerCase()),
         )
         .toList();
-  }
-
-  /// Get unique topics
-  List<String> getUniqueTopics() {
-    Set<String> topics = {};
-    for (var material in materials) {
-      final topic = material['topic']?.toString();
-      if (topic != null && topic.isNotEmpty) {
-        topics.add(topic);
-      }
-    }
-    return topics.toList()..sort();
   }
 
   /// Get unique instructors

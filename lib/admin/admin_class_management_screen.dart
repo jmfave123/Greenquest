@@ -1037,6 +1037,9 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
   bool _isLoading = true;
   int _expandedSectionIndex = -1;
   Map<String, dynamic> _instructorData = {};
+  bool _isLoadingDepartments = true;
+  List<Map<String, dynamic>> _departments = [];
+  String _departmentError = '';
 
   // Helper function to get initials from name (e.g., "Jv P. Tenefrancia" -> "JT")
   String _getInitials(String name) {
@@ -1103,6 +1106,10 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
       }
 
       if (!mounted) return;
+      // Load departments from assignments
+      await _loadDepartments(instructorId);
+
+      if (!mounted) return;
       // Load assignments
       await _loadAssignments(instructorId);
 
@@ -1136,6 +1143,137 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
     }
   }
 
+  Future<void> _loadDepartments(String instructorId) async {
+    try {
+      setState(() {
+        _isLoadingDepartments = true;
+        _departmentError = '';
+      });
+
+      // Fetch instructor document to get assignments
+      final instructorDoc =
+          await widget.firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .get();
+
+      if (!instructorDoc.exists) {
+        setState(() {
+          _isLoadingDepartments = false;
+        });
+        return;
+      }
+
+      final instructorData = instructorDoc.data();
+      final assignments = instructorData?['assignments'] as List<dynamic>?;
+
+      if (assignments == null || assignments.isEmpty) {
+        setState(() {
+          _isLoadingDepartments = false;
+        });
+        return;
+      }
+
+      // Extract unique department IDs from assignments
+      final Set<String> uniqueDepartmentIds = {};
+      for (var assignment in assignments) {
+        if (assignment is Map<String, dynamic>) {
+          final departmentId = assignment['departmentId']?.toString();
+          if (departmentId != null && departmentId.isNotEmpty) {
+            uniqueDepartmentIds.add(departmentId);
+          }
+        }
+      }
+
+      if (uniqueDepartmentIds.isEmpty) {
+        setState(() {
+          _isLoadingDepartments = false;
+        });
+        return;
+      }
+
+      // Fetch department details for each unique department
+      final List<Map<String, dynamic>> departments = [];
+      for (var departmentId in uniqueDepartmentIds) {
+        try {
+          final departmentDoc =
+              await widget.firestore
+                  .collection('departments')
+                  .doc(departmentId)
+                  .get();
+
+          if (departmentDoc.exists) {
+            final departmentData = departmentDoc.data();
+            if (departmentData != null) {
+              final departmentName =
+                  departmentData['displayName'] ??
+                  departmentData['name'] ??
+                  departmentData['code'] ??
+                  'Unknown';
+              final departmentCode = departmentData['code'] ?? '';
+
+              departments.add({
+                'id': departmentId,
+                'name': departmentName.toString(),
+                'code': departmentCode.toString(),
+              });
+            }
+          }
+        } catch (e) {
+          print('Error fetching department $departmentId: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _departments = departments;
+          _isLoadingDepartments = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading departments: $e');
+      if (mounted) {
+        setState(() {
+          _departmentError = 'Failed to load departments';
+          _isLoadingDepartments = false;
+        });
+      }
+    }
+  }
+
+  String _getDepartmentDisplayText() {
+    if (_isLoadingDepartments) {
+      return 'Loading...';
+    }
+
+    if (_departmentError.isNotEmpty) {
+      return _departmentError;
+    }
+
+    if (_departments.isEmpty) {
+      // Fallback to instructor's department field if no assignments
+      final fallbackDept =
+          _instructorData['department']?.toString() ??
+          widget.instructor['department']?.toString();
+      if (fallbackDept != null && fallbackDept.isNotEmpty) {
+        return fallbackDept;
+      }
+      return 'Not assigned';
+    }
+
+    // Display all departments, format: "Name (Code)" or just "Name"
+    return _departments
+        .map((dept) {
+          final name = dept['name'] ?? 'Unknown';
+          final code = dept['code']?.toString() ?? '';
+          if (code.isNotEmpty && code != name) {
+            return '$name ($code)';
+          }
+          return name;
+        })
+        .join(', ');
+  }
+
   Future<void> _loadAssignments(String instructorId) async {
     try {
       final snapshot =
@@ -1155,7 +1293,6 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
               'instruction': data['instruction'] ?? '',
               'points': data['points']?.toString() ?? '0',
               'dueDate': _formatDate(data['dueDate']),
-              'topic': data['topic'] ?? 'No Topic',
               'selectedClasses': data['selectedClasses'] ?? [],
               'status': data['status'] ?? 'active',
               'createdAt': _formatDate(data['createdAt']),
@@ -1185,7 +1322,6 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
               'instruction': data['instruction'] ?? '',
               'points': data['points']?.toString() ?? '0',
               'dueDate': _formatDate(data['dueDate']),
-              'topic': data['topic'] ?? 'No Topic',
               'selectedClasses': data['selectedClasses'] ?? [],
               'status': data['status'] ?? 'active',
               'createdAt': _formatDate(data['createdAt']),
@@ -1215,7 +1351,6 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
               'instruction': data['instruction'] ?? '',
               'points': data['points']?.toString() ?? '0',
               'dueDate': _formatDate(data['dueDate']),
-              'topic': data['topic'] ?? 'No Topic',
               'selectedClasses': data['selectedClasses'] ?? [],
               'status': data['status'] ?? 'active',
               'createdAt': _formatDate(data['createdAt']),
@@ -1245,7 +1380,6 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
               'instruction': data['instruction'] ?? '',
               'points': data['points']?.toString() ?? '0',
               'dueDate': _formatDate(data['dueDate']),
-              'topic': data['topic'] ?? 'No Topic',
               'selectedClasses': data['selectedClasses'] ?? [],
               'status': data['status'] ?? 'active',
               'createdAt': _formatDate(data['createdAt']),
@@ -1496,8 +1630,8 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                     style: const TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   Text(
-                    'Department: ${widget.instructor['department']}',
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    'Department: ${_getDepartmentDisplayText()}',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                 ],
               ),
@@ -1678,16 +1812,8 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                     _buildInfoRow(
                       Icons.business_outlined,
                       'Department',
-                      ((_instructorData.isNotEmpty
-                                      ? _instructorData['department']
-                                      : widget.instructor['department'])
-                                  ?.toString()
-                                  .isEmpty ??
-                              true)
-                          ? 'Not specified'
-                          : (_instructorData.isNotEmpty
-                              ? _instructorData['department']
-                              : widget.instructor['department']),
+                      _getDepartmentDisplayText(),
+                      isLoading: _isLoadingDepartments,
                     ),
                   ],
                 ),
@@ -1752,7 +1878,12 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool isLoading = false,
+  }) {
     return Row(
       children: [
         Container(
@@ -1777,14 +1908,38 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              isLoading
+                  ? Row(
+                    children: [
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            const Color(0xFF34A853),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.black87,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  )
+                  : Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
             ],
           ),
         ),

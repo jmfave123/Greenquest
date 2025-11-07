@@ -227,7 +227,6 @@ class AssignmentController extends GetxController {
           Map<String, dynamic> assignmentMap = {
             'id': assignmentDoc.id,
             'title': assignmentData['title']?.toString() ?? 'No Title',
-            'topic': assignmentData['topic']?.toString() ?? 'No Topic',
             'instruction':
                 assignmentData['instruction']?.toString() ??
                 'No instructions available',
@@ -235,7 +234,9 @@ class AssignmentController extends GetxController {
                 instructorName, // Use instructor name from instructor document
             'instructorId': instructorUid,
             'points': assignmentData['points'] ?? 0,
-            'dueDate': assignmentData['dueDate'], // Pass raw date data
+            'dueDate': _formatDueDate(
+              assignmentData['dueDate'],
+            ), // Format with time
             'createdAt': assignmentData['createdAt'], // Pass raw date data
             'status': assignmentData['status']?.toString() ?? 'active',
             'type': assignmentData['type']?.toString() ?? 'Assignment',
@@ -245,13 +246,11 @@ class AssignmentController extends GetxController {
             'category': assignmentData['category']?.toString() ?? '',
           };
 
-          print(
-            '📄 Processed assignment: ${assignmentMap['title']} - ${assignmentMap['topic']}',
-          );
+          print('📄 Processed assignment: ${assignmentMap['title']}');
           print('📄 Instructor name: ${assignmentMap['instructorName']}');
           print('📄 Assignment status: ${assignmentMap['status']}');
 
-          // Only add valid assignments (require title, topic is optional)
+          // Only add valid assignments
           if (assignmentMap['title'] != 'No Title' &&
               assignmentMap['title'] != null) {
             instructorAssignments.add(assignmentMap);
@@ -272,7 +271,7 @@ class AssignmentController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid assignments before setting (require title, topic is optional)
+      // Filter out any invalid assignments before setting
       final validAssignments =
           instructorAssignments
               .where(
@@ -341,7 +340,6 @@ class AssignmentController extends GetxController {
             Map<String, dynamic> assignmentMap = {
               'id': assignmentDoc.id,
               'title': assignmentData['title']?.toString() ?? 'No Title',
-              'topic': assignmentData['topic']?.toString() ?? 'No Topic',
               'instruction':
                   assignmentData['instruction']?.toString() ??
                   'No instructions available',
@@ -349,7 +347,9 @@ class AssignmentController extends GetxController {
                   instructorName, // Use instructor name from instructor document
               'instructorId': instructorId,
               'points': assignmentData['points'] ?? 0,
-              'dueDate': assignmentData['dueDate'], // Pass raw date data
+              'dueDate': _formatDueDate(
+                assignmentData['dueDate'],
+              ), // Format with time
               'createdAt': assignmentData['createdAt'], // Pass raw date data
               'status': assignmentData['status']?.toString() ?? 'active',
               'type': assignmentData['type']?.toString() ?? 'Assignment',
@@ -359,8 +359,7 @@ class AssignmentController extends GetxController {
             };
 
             // Only add valid assignments
-            if (assignmentMap['title'] != 'No Title' &&
-                assignmentMap['topic'] != 'No Topic') {
+            if (assignmentMap['title'] != 'No Title') {
               allAssignments.add(assignmentMap);
             }
           }
@@ -383,9 +382,7 @@ class AssignmentController extends GetxController {
                 (assignment) =>
                     assignment.isNotEmpty &&
                     assignment['title'] != null &&
-                    assignment['title'] != 'No Title' &&
-                    assignment['topic'] != null &&
-                    assignment['topic'] != 'No Topic',
+                    assignment['title'] != 'No Title',
               )
               .toList();
 
@@ -837,6 +834,60 @@ class AssignmentController extends GetxController {
     } catch (e) {
       print('❌ Error setting instructor for testing: $e');
       errorMessage.value = 'Error setting instructor: $e';
+    }
+  }
+
+  /// Format due date with time
+  String _formatDueDate(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown Date';
+
+    try {
+      DateTime date;
+      if (timestamp is Timestamp) {
+        date = timestamp.toDate();
+      } else if (timestamp is DateTime) {
+        date = timestamp;
+      } else if (timestamp is String) {
+        date = DateTime.parse(timestamp);
+      } else {
+        return 'Unknown Date';
+      }
+
+      // Format as "MMM dd, yyyy hh:mm AM/PM"
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      final month = months[date.month - 1];
+      final day = date.day.toString().padLeft(2, '0');
+      final year = date.year;
+
+      // Format time in 12-hour format
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
+    } catch (e) {
+      print('Error formatting due date: $e');
+      return 'Unknown Date';
     }
   }
 }

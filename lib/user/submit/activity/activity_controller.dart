@@ -205,7 +205,6 @@ class ActivityController extends GetxController {
           final activityMap = <String, dynamic>{
             'id': activityDoc.id,
             'title': activityData['title']?.toString() ?? 'No Title',
-            'topic': activityData['topic']?.toString() ?? 'No Topic',
             'instruction':
                 activityData['instruction']?.toString() ??
                 'No instructions available',
@@ -213,7 +212,7 @@ class ActivityController extends GetxController {
                 instructorName, // Use instructor name from instructor document
             'instructorId': instructorUid,
             'points': activityData['points'] ?? 0,
-            'dueDate': activityData['dueDate'],
+            'dueDate': _formatDueDate(activityData['dueDate']),
             'createdAt': activityData['createdAt'],
             'updatedAt': _formatDate(activityData['updatedAt']),
             'status': activityData['status']?.toString() ?? 'active',
@@ -223,14 +222,12 @@ class ActivityController extends GetxController {
             'attachments': activityData['attachments'] ?? [],
           };
 
-          print(
-            '📄 Processed activity: ${activityMap['title']} - ${activityMap['topic']}',
-          );
+          print('📄 Processed activity: ${activityMap['title']}');
           print('📄 Instructor name: ${activityMap['instructorName']}');
           print('📄 Activity status: ${activityMap['status']}');
           print('📄 Created date: ${activityMap['createdAt']}');
 
-          // Only add if activity has valid data for UI display (require title, topic is optional)
+          // Only add if activity has valid data for UI display
           if (activityMap['title'] != null &&
               activityMap['title'] != 'No Title') {
             instructorActivities.add(activityMap);
@@ -251,7 +248,7 @@ class ActivityController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      // Filter out any invalid activities before setting (require title, topic is optional)
+      // Filter out any invalid activities before setting
       final validActivities =
           instructorActivities
               .where(
@@ -330,7 +327,6 @@ class ActivityController extends GetxController {
             final activityMap = <String, dynamic>{
               'id': activityDoc.id,
               'title': activityData['title']?.toString() ?? 'No Title',
-              'topic': activityData['topic']?.toString() ?? 'No Topic',
               'instruction':
                   activityData['instruction']?.toString() ??
                   'No instructions available',
@@ -338,7 +334,7 @@ class ActivityController extends GetxController {
                   instructorName, // Use instructor name from instructor document
               'instructorId': instructorId,
               'points': activityData['points'] ?? 0,
-              'dueDate': activityData['dueDate'],
+              'dueDate': _formatDueDate(activityData['dueDate']),
               'createdAt': activityData['createdAt'],
               'updatedAt': _formatDate(activityData['updatedAt']),
               'status': activityData['status']?.toString() ?? 'active',
@@ -348,7 +344,7 @@ class ActivityController extends GetxController {
               'attachments': activityData['attachments'] ?? [],
             };
 
-            // Only add if activity has valid data for UI display (require title, topic is optional)
+            // Only add if activity has valid data for UI display
             if (activityMap['title'] != null &&
                 activityMap['title'] != 'No Title') {
               allActivities.add(activityMap);
@@ -373,9 +369,7 @@ class ActivityController extends GetxController {
                 (activity) =>
                     activity.isNotEmpty &&
                     activity['title'] != null &&
-                    activity['title'] != 'No Title' &&
-                    activity['topic'] != null &&
-                    activity['topic'] != 'No Topic',
+                    activity['title'] != 'No Title',
               )
               .toList();
 
@@ -685,5 +679,59 @@ class ActivityController extends GetxController {
   /// Clear error message
   void clearError() {
     errorMessage.value = '';
+  }
+
+  /// Format due date with time
+  String _formatDueDate(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown Date';
+
+    try {
+      DateTime date;
+      if (timestamp is Timestamp) {
+        date = timestamp.toDate();
+      } else if (timestamp is DateTime) {
+        date = timestamp;
+      } else if (timestamp is String) {
+        date = DateTime.parse(timestamp);
+      } else {
+        return 'Unknown Date';
+      }
+
+      // Format as "MMM dd, yyyy hh:mm AM/PM"
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      final month = months[date.month - 1];
+      final day = date.day.toString().padLeft(2, '0');
+      final year = date.year;
+
+      // Format time in 12-hour format
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
+    } catch (e) {
+      print('Error formatting due date: $e');
+      return 'Unknown Date';
+    }
   }
 }

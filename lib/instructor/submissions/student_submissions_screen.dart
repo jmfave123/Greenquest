@@ -297,13 +297,6 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    'Topic: ${widget.activityData['topic'] ?? 'No topic'}',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),

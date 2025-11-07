@@ -17,8 +17,7 @@ class InstructorMessageListScreen extends StatefulWidget {
 }
 
 class _InstructorMessageListScreenState
-    extends State<InstructorMessageListScreen>
-    with WidgetsBindingObserver {
+    extends State<InstructorMessageListScreen> {
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.messages;
   final InstructorController instructorController = Get.put(
     InstructorController(),
@@ -28,22 +27,11 @@ class _InstructorMessageListScreenState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // Refresh when app comes back to foreground
-    if (state == AppLifecycleState.resumed && mounted) {
-      setState(() {});
-    }
   }
 
   void _onNavigationSelect(InstructorNavigationItem item) {
@@ -80,10 +68,7 @@ class _InstructorMessageListScreenState
             builder: (_) => InstructorMessageScreen(student: student),
           ),
         );
-        // Force rebuild when returning from conversation
-        if (mounted) {
-          setState(() {});
-        }
+        // No manual refresh; StreamBuilder handles real-time updates
       },
       child: Padding(
         padding: const EdgeInsets.only(right: 200),
@@ -269,15 +254,34 @@ class _InstructorMessageListScreenState
                                 );
                               }
 
-                              final students = snapshot.data ?? [];
+                              final allStudents = (snapshot.data ?? []);
+
+                              // Base list: if searching, allow all students; otherwise only those with messages
+                              final baseList =
+                                  _search.trim().isEmpty
+                                      ? allStudents
+                                          .where(
+                                            (s) =>
+                                                (s['hasMessages'] ?? false) ==
+                                                true,
+                                          )
+                                          .toList()
+                                      : allStudents;
+
+                              final query = _search.toLowerCase();
                               final filtered =
-                                  students
-                                      .where(
-                                        (s) => s['name'].toLowerCase().contains(
-                                          _search.toLowerCase(),
-                                        ),
-                                      )
-                                      .toList();
+                                  baseList.where((s) {
+                                    final name =
+                                        (s['name'] ?? '')
+                                            .toString()
+                                            .toLowerCase();
+                                    final email =
+                                        (s['email'] ?? '')
+                                            .toString()
+                                            .toLowerCase();
+                                    return name.contains(query) ||
+                                        email.contains(query);
+                                  }).toList();
 
                               if (filtered.isEmpty) {
                                 return Center(

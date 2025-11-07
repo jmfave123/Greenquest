@@ -1206,56 +1206,6 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                                         ],
                                                       ],
                                                     ),
-                                                    // Instructor avatar (shown on right for instructor messages)
-                                                    if (isMe) ...[
-                                                      const SizedBox(width: 8),
-                                                      Obx(
-                                                        () => CircleAvatar(
-                                                          radius: 16,
-                                                          backgroundColor:
-                                                              const Color(
-                                                                0xFF22C55E,
-                                                              ),
-                                                          backgroundImage:
-                                                              instructorController
-                                                                      .profileImageUrl
-                                                                      .value
-                                                                      .isNotEmpty
-                                                                  ? NetworkImage(
-                                                                    instructorController
-                                                                        .profileImageUrl
-                                                                        .value,
-                                                                  )
-                                                                  : null,
-                                                          child:
-                                                              instructorController
-                                                                      .profileImageUrl
-                                                                      .value
-                                                                      .isEmpty
-                                                                  ? Text(
-                                                                    instructorController
-                                                                        .instructorName
-                                                                        .value
-                                                                        .substring(
-                                                                          0,
-                                                                          1,
-                                                                        )
-                                                                        .toUpperCase(),
-                                                                    style: const TextStyle(
-                                                                      color:
-                                                                          Colors
-                                                                              .white,
-                                                                      fontSize:
-                                                                          12,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                    ),
-                                                                  )
-                                                                  : null,
-                                                        ),
-                                                      ),
-                                                    ],
                                                   ],
                                                 ),
                                               ),

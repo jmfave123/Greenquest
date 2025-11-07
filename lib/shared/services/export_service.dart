@@ -28,6 +28,306 @@ class ExportService {
     return '${lastName.toUpperCase()}, ${firstMiddleName.toUpperCase()}';
   }
 
+  /// Generate preview data that matches the actual Excel structure
+  /// Returns both preview data and column headers matching Excel output
+  Map<String, dynamic> generateExcelPreviewData({
+    required List<Map<String, dynamic>> students,
+    required List<Map<String, dynamic>> classStandingItems,
+    required List<Map<String, dynamic>> quizPrelimItems,
+    required List<Map<String, dynamic>> midtermExamItems,
+    required List<Map<String, dynamic>> pitItems,
+    required List<Map<String, dynamic>> finalClassStandingItems,
+    required List<Map<String, dynamic>> finalQuizItems,
+    required List<Map<String, dynamic>> finalExamItems,
+    required List<Map<String, dynamic>> finalPitItems,
+    int previewRowCount = 10,
+  }) {
+    // Take first N students for preview
+    final previewStudents = students.take(previewRowCount).toList();
+
+    // Build column headers matching Excel structure
+    final columnHeaders = <String>['No.', 'ID Number', 'Name'];
+
+    // Class Standing items
+    for (var item in classStandingItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('Total Score (SRC)');
+    columnHeaders.add('CPA');
+
+    // Quiz/Prelim items
+    for (var item in quizPrelimItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('Total Score (SRQ)');
+    columnHeaders.add('QA');
+
+    // Midterm Exam items
+    for (var item in midtermExamItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('M');
+
+    // PIT items
+    for (var item in pitItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('Total Score (PIT)');
+    columnHeaders.add('PIT%');
+
+    // Midterm Lecture
+    columnHeaders.add('MGA');
+    columnHeaders.add('Mid Lec Grade Point');
+    columnHeaders.add('Mid Grade Point');
+    columnHeaders.add('Midterm Grade');
+
+    // Final Class Standing items
+    for (var item in finalClassStandingItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('Total Score (SRC)');
+    columnHeaders.add('CPA');
+
+    // Final Quiz items
+    for (var item in finalQuizItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('Total Score (SRQ)');
+    columnHeaders.add('QA');
+
+    // Final Exam items
+    for (var item in finalExamItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('F');
+
+    // Final PIT items
+    for (var item in finalPitItems) {
+      columnHeaders.add(item['title']?.toString() ?? '');
+    }
+    columnHeaders.add('Total Score (PIT)');
+    columnHeaders.add('PIT%');
+
+    // Final Lecture
+    columnHeaders.add('FGA');
+    columnHeaders.add('Fin Lec Grade Point');
+    columnHeaders.add('Fin Grade Point');
+    columnHeaders.add('Final Period Grade');
+
+    // Computed Final Grade
+    columnHeaders.add('1/2 MTG + 1/2 FTG');
+    columnHeaders.add('1/2 MTG + 1/2 FTG (For Removal)');
+    columnHeaders.add('1/2 MTG + 1/2 FTG (After Removal)');
+    columnHeaders.add('Description');
+    columnHeaders.add('1/3 MTG + 2/3 FTG');
+    columnHeaders.add('1/3 MTG + 2/3 FTG (For Removal)');
+    columnHeaders.add('1/3 MTG + 2/3 FTG (After Removal)');
+    columnHeaders.add('Description');
+
+    // Build preview data matching Excel structure
+    final previewData =
+        previewStudents.asMap().entries.map((entry) {
+          final index = entry.key;
+          final student = entry.value;
+          final previewRow = <String, dynamic>{
+            'No.': index + 1,
+            'ID Number': student['idNumber'] ?? '',
+            'Name': _formatStudentName(student['name'] ?? ''),
+          };
+
+          int colIndex = 3; // Start after No., ID Number, Name
+
+          // Class Standing items
+          for (var item in classStandingItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final csTotal = _calculateGroupTotal(student, classStandingItems);
+          final csPct = _calculateGroupPercent(student, classStandingItems);
+          previewRow[columnHeaders[colIndex++]] = csTotal.toString();
+          previewRow[columnHeaders[colIndex++]] = '${csPct.round()}%';
+
+          // Quiz/Prelim items
+          for (var item in quizPrelimItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final qpTotal = _calculateGroupTotal(student, quizPrelimItems);
+          final qpPct = _calculateGroupPercent(student, quizPrelimItems);
+          previewRow[columnHeaders[colIndex++]] = qpTotal.toString();
+          previewRow[columnHeaders[colIndex++]] = '${qpPct.round()}%';
+
+          // Midterm Exam items
+          for (var item in midtermExamItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final mPct = _calculateGroupPercent(student, midtermExamItems);
+          previewRow[columnHeaders[colIndex++]] = '${mPct.round()}%';
+
+          // PIT items
+          for (var item in pitItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final pitTotal = _calculateGroupTotal(student, pitItems);
+          final pitPct = _calculateGroupPercent(student, pitItems);
+          previewRow[columnHeaders[colIndex++]] = pitTotal.toString();
+          previewRow[columnHeaders[colIndex++]] = '${pitPct.round()}%';
+
+          // Midterm Lecture
+          final mga = _calculateRawMGAFromGroups(
+            student,
+            classStandingItems,
+            quizPrelimItems,
+            midtermExamItems,
+            pitItems,
+          );
+          previewRow[columnHeaders[colIndex++]] = '${(mga * 100).round()}%';
+          final midLec = _gradePointFromRatio(mga);
+          previewRow[columnHeaders[colIndex++]] = midLec.toStringAsFixed(3);
+          previewRow[columnHeaders[colIndex++]] = midLec.toStringAsFixed(3);
+          previewRow[columnHeaders[colIndex++]] = _mapGradePointToEquivalent(
+            midLec,
+          );
+
+          // Final Class Standing items
+          for (var item in finalClassStandingItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final fcsTotal = _calculateGroupTotal(
+            student,
+            finalClassStandingItems,
+          );
+          final fcsPct = _calculateGroupPercent(
+            student,
+            finalClassStandingItems,
+          );
+          previewRow[columnHeaders[colIndex++]] = fcsTotal.toString();
+          previewRow[columnHeaders[colIndex++]] = '${fcsPct.round()}%';
+
+          // Final Quiz items
+          for (var item in finalQuizItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final fqTotal = _calculateGroupTotal(student, finalQuizItems);
+          final fqPct = _calculateGroupPercent(student, finalQuizItems);
+          previewRow[columnHeaders[colIndex++]] = fqTotal.toString();
+          previewRow[columnHeaders[colIndex++]] = '${fqPct.round()}%';
+
+          // Final Exam items
+          for (var item in finalExamItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final fPct = _calculateGroupPercent(student, finalExamItems);
+          previewRow[columnHeaders[colIndex++]] = '${fPct.round()}%';
+
+          // Final PIT items
+          for (var item in finalPitItems) {
+            final key = _makeItemKey(item);
+            previewRow[columnHeaders[colIndex]] = _readScore(student, key);
+            colIndex++;
+          }
+          final fpitTotal = _calculateGroupTotal(student, finalPitItems);
+          final fpitPct = _calculateGroupPercent(student, finalPitItems);
+          previewRow[columnHeaders[colIndex++]] = fpitTotal.toString();
+          previewRow[columnHeaders[colIndex++]] = '${fpitPct.round()}%';
+
+          // Final Lecture
+          final fga = _calculateRawMGAFromGroups(
+            student,
+            finalClassStandingItems,
+            finalQuizItems,
+            finalExamItems,
+            finalPitItems,
+          );
+          previewRow[columnHeaders[colIndex++]] = '${(fga * 100).round()}%';
+          final finLec = _gradePointFromRatio(fga);
+          previewRow[columnHeaders[colIndex++]] = finLec.toStringAsFixed(3);
+          previewRow[columnHeaders[colIndex++]] = finLec.toStringAsFixed(3);
+          previewRow[columnHeaders[colIndex++]] = _mapGradePointToEquivalent(
+            finLec,
+          );
+
+          // Computed Final Grade
+          final mtg = _mapGradePointToEquivalentAsNumber(midLec);
+          final ftgNum = _mapGradePointToEquivalentAsNumber(finLec);
+          double comp12 = 0.5 * mtg + 0.5 * ftgNum;
+          double comp13 = (1.0 / 3.0) * mtg + (2.0 / 3.0) * ftgNum;
+          final comp12Mapped = _gradeLadder(comp12);
+          final comp13Mapped = _gradeLadder(comp13);
+
+          previewRow[columnHeaders[colIndex++]] = comp12.toStringAsFixed(2);
+          previewRow[columnHeaders[colIndex++]] =
+              comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2);
+          previewRow[columnHeaders[colIndex++]] =
+              comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2);
+          previewRow[columnHeaders[colIndex++]] = _descFromNumeric(comp12);
+
+          previewRow[columnHeaders[colIndex++]] = comp13.toStringAsFixed(2);
+          previewRow[columnHeaders[colIndex++]] =
+              comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2);
+          previewRow[columnHeaders[colIndex++]] =
+              comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2);
+          previewRow[columnHeaders[colIndex++]] = _descFromNumeric(comp13);
+
+          return previewRow;
+        }).toList();
+
+    return {'previewData': previewData, 'columnHeaders': columnHeaders};
+  }
+
+  /// Get export summary information
+  Map<String, dynamic> getExportSummary({
+    required List<Map<String, dynamic>> students,
+    required List<Map<String, dynamic>> classStandingItems,
+    required List<Map<String, dynamic>> quizPrelimItems,
+    required List<Map<String, dynamic>> midtermExamItems,
+    required List<Map<String, dynamic>> pitItems,
+    required List<Map<String, dynamic>> finalClassStandingItems,
+    required List<Map<String, dynamic>> finalQuizItems,
+    required List<Map<String, dynamic>> finalExamItems,
+    required List<Map<String, dynamic>> finalPitItems,
+    required String sectionName,
+    required String courseName,
+  }) {
+    final totalColumns = _totalColumnCount(
+      classStandingItems,
+      quizPrelimItems,
+      midtermExamItems,
+      pitItems,
+      finalClassStandingItems,
+      finalQuizItems,
+      finalExamItems,
+      finalPitItems,
+    );
+
+    return {
+      'studentCount': students.length,
+      'totalColumns': totalColumns,
+      'sectionName': sectionName,
+      'courseName': courseName,
+      'classStandingItems': classStandingItems.length,
+      'quizPrelimItems': quizPrelimItems.length,
+      'midtermExamItems': midtermExamItems.length,
+      'pitItems': pitItems.length,
+      'finalClassStandingItems': finalClassStandingItems.length,
+      'finalQuizItems': finalQuizItems.length,
+      'finalExamItems': finalExamItems.length,
+      'finalPitItems': finalPitItems.length,
+    };
+  }
+
   /// Export the complete Class Record (Midterm, Final, Computed) for testing
   Future<void> exportCompleteClassRecord({
     required List<Map<String, dynamic>> students,

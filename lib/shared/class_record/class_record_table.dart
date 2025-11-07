@@ -81,8 +81,8 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
         controller: _dataGridController,
         source: _dataSource,
         frozenColumnsCount: 3, // Keep No., ID, Name always visible
-        allowSorting: true,
-        allowMultiColumnSorting: true,
+        allowSorting: false,
+        allowMultiColumnSorting: false,
         allowColumnsResizing: true,
         columnResizeMode: ColumnResizeMode.onResize,
         gridLinesVisibility: GridLinesVisibility.both,

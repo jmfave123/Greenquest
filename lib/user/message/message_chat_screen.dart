@@ -128,22 +128,6 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
     }
   }
 
-  String _getInitials(String name) {
-    if (name.isEmpty) return 'S'; // Default to 'S' for Student
-
-    final words = name.trim().split(' ');
-    if (words.length >= 2) {
-      // Get first letter of first name and first letter of last name
-      return '${words[0][0].toUpperCase()}${words[words.length - 1][0].toUpperCase()}';
-    } else if (words.length == 1) {
-      // If only one name, use first two letters
-      return words[0].length >= 2
-          ? words[0].substring(0, 2).toUpperCase()
-          : words[0][0].toUpperCase();
-    }
-    return 'S';
-  }
-
   String _getFirstName(String fullName) {
     if (fullName.isEmpty) return 'Instructor';
     final nameParts = fullName.trim().split(' ');
@@ -962,43 +946,6 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                                             ],
                                           ],
                                         ),
-                                        if (isMe) const SizedBox(width: 8),
-                                        if (isMe)
-                                          CircleAvatar(
-                                            radius: 16,
-                                            backgroundColor: const Color(
-                                              0xFF34A853,
-                                            ),
-                                            backgroundImage:
-                                                currentUserProfile?['profileImage'] !=
-                                                            null &&
-                                                        currentUserProfile!['profileImage']
-                                                            .toString()
-                                                            .isNotEmpty
-                                                    ? NetworkImage(
-                                                      currentUserProfile!['profileImage'],
-                                                    )
-                                                    : null,
-                                            child:
-                                                currentUserProfile?['profileImage'] ==
-                                                            null ||
-                                                        currentUserProfile!['profileImage']
-                                                            .toString()
-                                                            .isEmpty
-                                                    ? Text(
-                                                      _getInitials(
-                                                        currentUserProfile?['name'] ??
-                                                            'Student',
-                                                      ),
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    )
-                                                    : null,
-                                          ),
                                       ],
                                     ),
                                     const SizedBox(height: 4),

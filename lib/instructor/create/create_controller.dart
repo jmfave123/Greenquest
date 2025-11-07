@@ -685,7 +685,6 @@ class CreateController extends GetxController {
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']),
             'points': data['points']?.toString() ?? '0',
-            'topic': data['topic'] ?? 'No Topic',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
@@ -723,7 +722,6 @@ class CreateController extends GetxController {
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']),
             'points': data['points']?.toString() ?? '0',
-            'topic': data['topic'] ?? 'No Topic',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
@@ -761,7 +759,6 @@ class CreateController extends GetxController {
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']),
             'points': data['points']?.toString() ?? '0',
-            'topic': data['topic'] ?? 'No Topic',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
@@ -799,7 +796,6 @@ class CreateController extends GetxController {
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']),
             'points': data['points']?.toString() ?? '0',
-            'topic': data['topic'] ?? 'No Topic',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
@@ -874,21 +870,55 @@ class CreateController extends GetxController {
     if (timestamp == null) return null;
 
     try {
+      DateTime date;
       if (timestamp is Timestamp) {
-        final date = timestamp.toDate();
-        return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        date = timestamp.toDate();
       } else if (timestamp is DateTime) {
-        return '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+        date = timestamp;
       } else if (timestamp is String) {
         // If it's already a string, try to parse and format it
         try {
-          final date = DateTime.parse(timestamp);
-          return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+          date = DateTime.parse(timestamp);
         } catch (e) {
           // If parsing fails, return the original string
           return timestamp;
         }
+      } else {
+        return null;
       }
+
+      // Format as "MMM dd, yyyy hh:mm AM/PM"
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      final month = months[date.month - 1];
+      final day = date.day.toString().padLeft(2, '0');
+      final year = date.year;
+
+      // Format time in 12-hour format
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
     } catch (e) {
       print('Error formatting date: $e');
     }

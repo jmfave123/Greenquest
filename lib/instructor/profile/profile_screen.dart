@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'profile_screen_controller.dart';
 
 class InstructorProfileScreen extends StatefulWidget {
@@ -200,14 +201,16 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                           const SizedBox(height: 32),
                           Obx(() {
                             if (_controller == null) {
-                              return const Center(
-                                child: CircularProgressIndicator(),
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 40),
+                                child: SkeletonInstructorProfile(),
                               );
                             }
 
                             if (_controller!.isLoading.value) {
-                              return const Center(
-                                child: CircularProgressIndicator(),
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 40),
+                                child: SkeletonInstructorProfile(),
                               );
                             }
 

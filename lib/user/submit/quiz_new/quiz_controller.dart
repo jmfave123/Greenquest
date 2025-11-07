@@ -153,7 +153,6 @@ class QuizController extends GetxController {
         Map<String, dynamic> quizMap = {
           'id': doc.id,
           'title': quizData['title']?.toString() ?? 'No Title',
-          'topic': quizData['topic']?.toString() ?? 'No Topic',
           'instruction':
               quizData['instruction']?.toString() ??
               'No instructions available',
@@ -169,7 +168,7 @@ class QuizController extends GetxController {
           'type': 'Quiz',
         };
 
-        log('📚 Processed quiz: ${quizMap['title']} - ${quizMap['topic']}');
+        log('📚 Processed quiz: ${quizMap['title']}');
         loadedQuizzes.add(quizMap);
       }
 
@@ -231,10 +230,21 @@ class QuizController extends GetxController {
       ];
 
       final month = months[date.month - 1];
-      final day = date.day;
+      final day = date.day.toString().padLeft(2, '0');
       final year = date.year;
 
-      return '$month $day, $year';
+      // Format time in 12-hour format
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
     } catch (e) {
       log('Error formatting date: $e');
       return 'Unknown Date';
