@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
@@ -23,15 +24,45 @@ class _InstructorMessageListScreenState
     InstructorController(),
   );
   String _search = '';
+  List<Map<String, dynamic>> _students = [];
+  StreamSubscription<List<Map<String, dynamic>>>? _studentsSubscription;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _loadStudents();
   }
 
   @override
   void dispose() {
+    _studentsSubscription?.cancel();
     super.dispose();
+  }
+
+  void _loadStudents() {
+    // Cancel previous subscription
+    _studentsSubscription?.cancel();
+
+    // Subscribe to students with messages - REAL-TIME
+    _studentsSubscription = MessageService.getStudentsWithMessages().listen(
+      (students) {
+        if (mounted) {
+          setState(() {
+            _students = students;
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (error) {
+        print('Error loading students: $error');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      },
+    );
   }
 
   void _onNavigationSelect(InstructorNavigationItem item) {
@@ -228,109 +259,98 @@ class _InstructorMessageListScreenState
                         ),
                         const SizedBox(height: 24),
                         Expanded(
-                          child: StreamBuilder<List<Map<String, dynamic>>>(
-                            stream: MessageService.getStudentsWithMessages(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return ListView.separated(
-                                  itemCount: 5,
-                                  separatorBuilder:
-                                      (_, __) => const SizedBox(height: 18),
-                                  itemBuilder: (context, i) {
-                                    return const SkeletonInstructorStudentItem();
-                                  },
-                                );
-                              }
+                          child:
+                              _isLoading
+                                  ? ListView.separated(
+                                    itemCount: 5,
+                                    separatorBuilder:
+                                        (_, __) => const SizedBox(height: 18),
+                                    itemBuilder: (context, i) {
+                                      return const SkeletonInstructorStudentItem();
+                                    },
+                                  )
+                                  : Builder(
+                                    builder: (context) {
+                                      final allStudents = _students;
 
-                              if (snapshot.hasError) {
-                                return Center(
-                                  child: Text(
-                                    'Error loading messages',
-                                    style: TextStyle(
-                                      color: Colors.red.shade400,
-                                    ),
+                                      // Base list: if searching, allow all students; otherwise only those with messages
+                                      final baseList =
+                                          _search.trim().isEmpty
+                                              ? allStudents
+                                                  .where(
+                                                    (s) =>
+                                                        (s['hasMessages'] ??
+                                                            false) ==
+                                                        true,
+                                                  )
+                                                  .toList()
+                                              : allStudents;
+
+                                      final query = _search.toLowerCase();
+                                      final filtered =
+                                          baseList.where((s) {
+                                            final name =
+                                                (s['name'] ?? '')
+                                                    .toString()
+                                                    .toLowerCase();
+                                            final email =
+                                                (s['email'] ?? '')
+                                                    .toString()
+                                                    .toLowerCase();
+                                            return name.contains(query) ||
+                                                email.contains(query);
+                                          }).toList();
+
+                                      if (filtered.isEmpty) {
+                                        return Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.message_outlined,
+                                                size: 64,
+                                                color: Colors.grey.shade400,
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Text(
+                                                _search.isEmpty
+                                                    ? 'No messages yet'
+                                                    : 'No matching students',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                _search.isEmpty
+                                                    ? 'Messages from your students will appear here'
+                                                    : 'Try a different search term',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey.shade500,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }
+
+                                      return ListView.separated(
+                                        itemCount: filtered.length,
+                                        separatorBuilder:
+                                            (_, __) =>
+                                                const SizedBox(height: 18),
+                                        itemBuilder: (context, i) {
+                                          final s = filtered[i];
+                                          return _buildStudentItem(s);
+                                        },
+                                      );
+                                    },
                                   ),
-                                );
-                              }
-
-                              final allStudents = (snapshot.data ?? []);
-
-                              // Base list: if searching, allow all students; otherwise only those with messages
-                              final baseList =
-                                  _search.trim().isEmpty
-                                      ? allStudents
-                                          .where(
-                                            (s) =>
-                                                (s['hasMessages'] ?? false) ==
-                                                true,
-                                          )
-                                          .toList()
-                                      : allStudents;
-
-                              final query = _search.toLowerCase();
-                              final filtered =
-                                  baseList.where((s) {
-                                    final name =
-                                        (s['name'] ?? '')
-                                            .toString()
-                                            .toLowerCase();
-                                    final email =
-                                        (s['email'] ?? '')
-                                            .toString()
-                                            .toLowerCase();
-                                    return name.contains(query) ||
-                                        email.contains(query);
-                                  }).toList();
-
-                              if (filtered.isEmpty) {
-                                return Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.message_outlined,
-                                        size: 64,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        _search.isEmpty
-                                            ? 'No messages yet'
-                                            : 'No matching students',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _search.isEmpty
-                                            ? 'Messages from your students will appear here'
-                                            : 'Try a different search term',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey.shade500,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-
-                              return ListView.separated(
-                                itemCount: filtered.length,
-                                separatorBuilder:
-                                    (_, __) => const SizedBox(height: 18),
-                                itemBuilder: (context, i) {
-                                  final s = filtered[i];
-                                  return _buildStudentItem(s);
-                                },
-                              );
-                            },
-                          ),
                         ),
                       ],
                     ),

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/message_model.dart';
 import '../utils/file_type_utils.dart';
+import 'notify_service.dart';
 
 class MessageService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -29,6 +30,16 @@ class MessageService {
       );
 
       await _firestore.collection('messages').add(message.toMap());
+
+      // Send push notification if instructor is sending to student
+      if (senderType == 'instructor') {
+        _sendPushNotification(
+          receiverId: receiverId,
+          senderId: user.uid,
+          content: content,
+          messageType: 'text',
+        );
+      }
     } catch (e) {
       print('Error sending message: $e');
       rethrow;
@@ -69,6 +80,17 @@ class MessageService {
       );
 
       await _firestore.collection('messages').add(message.toMap());
+
+      // Send push notification if instructor is sending to student
+      if (senderType == 'instructor') {
+        _sendPushNotification(
+          receiverId: receiverId,
+          senderId: user.uid,
+          content: content.isEmpty ? 'Sent a file' : content,
+          messageType: 'file',
+          fileType: fileType,
+        );
+      }
     } catch (e) {
       print('Error sending file message: $e');
       rethrow;
@@ -130,39 +152,69 @@ class MessageService {
     final user = _auth.currentUser;
     if (user == null) return Stream.value([]);
 
-    return _firestore
-        .collection('instructors')
-        .doc(user.uid)
-        .collection('students')
-        .snapshots()
-        .asyncMap((studentsSnapshot) async {
-          final students = <Map<String, dynamic>>[];
-          final conversationData = <String, Map<String, dynamic>>{};
+    // Combine streams: students collection + messages collection for real-time updates
+    // Listen to messages collection to trigger updates when messages are sent/received
+    final studentsStream =
+        _firestore
+            .collection('instructors')
+            .doc(user.uid)
+            .collection('students')
+            .snapshots();
 
-          // Get all messages where instructor is involved (bidirectional)
-          // Get messages sent by instructor to students
-          final sentMessagesSnapshot =
-              await _firestore
-                  .collection('messages')
-                  .where('senderId', isEqualTo: user.uid)
-                  .where('senderType', isEqualTo: 'instructor')
-                  .get();
+    // Listen to all messages - when any message changes, it will trigger an update
+    final messagesStream = _firestore.collection('messages').snapshots();
 
-          // Get messages received by instructor from students
-          final receivedMessagesSnapshot =
-              await _firestore
-                  .collection('messages')
-                  .where('receiverId', isEqualTo: user.uid)
-                  .where('senderType', isEqualTo: 'student')
-                  .get();
+    // Combine both streams - when either students or messages change, update the list
+    // Use asyncExpand to combine streams properly
+    return studentsStream.asyncExpand((studentsSnapshot) {
+      // Every time students change, also listen to message changes
+      return messagesStream.asyncMap((_) async {
+        // Re-fetch messages when stream triggers
+        final students = <Map<String, dynamic>>[];
+        final conversationData = <String, Map<String, dynamic>>{};
 
-          // Process sent messages (from instructor)
-          for (var doc in sentMessagesSnapshot.docs) {
-            final data = doc.data();
-            final receiverId = data['receiverId'] as String;
+        // Get all messages where instructor is involved (bidirectional) - REAL-TIME
+        // Get messages sent by instructor to students
+        final sentMessagesSnapshot =
+            await _firestore
+                .collection('messages')
+                .where('senderId', isEqualTo: user.uid)
+                .where('senderType', isEqualTo: 'instructor')
+                .get();
 
-            // Store latest message data per conversation
-            if (!conversationData.containsKey(receiverId)) {
+        // Get messages received by instructor from students
+        final receivedMessagesSnapshot =
+            await _firestore
+                .collection('messages')
+                .where('receiverId', isEqualTo: user.uid)
+                .where('senderType', isEqualTo: 'student')
+                .get();
+
+        // Process sent messages (from instructor)
+        for (var doc in sentMessagesSnapshot.docs) {
+          final data = doc.data();
+          final receiverId = data['receiverId'] as String;
+
+          // Store latest message data per conversation
+          if (!conversationData.containsKey(receiverId)) {
+            conversationData[receiverId] = {
+              'lastMessage': _formatMessagePreview(
+                data,
+                'You', // Use "You" when instructor sends message
+                true, // isFromInstructor
+              ),
+              'timestamp': data['timestamp'],
+              'isRead': true, // Messages sent by instructor are always "read"
+              'hasMessages': true,
+              'senderType': 'instructor',
+              'senderName': 'You',
+            };
+          } else {
+            final existing = conversationData[receiverId]!;
+            if ((data['timestamp'] as Timestamp).compareTo(
+                  existing['timestamp'],
+                ) >
+                0) {
               conversationData[receiverId] = {
                 'lastMessage': _formatMessagePreview(
                   data,
@@ -170,40 +222,57 @@ class MessageService {
                   true, // isFromInstructor
                 ),
                 'timestamp': data['timestamp'],
-                'isRead': true, // Messages sent by instructor are always "read"
+                'isRead': true,
                 'hasMessages': true,
                 'senderType': 'instructor',
                 'senderName': 'You',
               };
-            } else {
-              final existing = conversationData[receiverId]!;
-              if ((data['timestamp'] as Timestamp).compareTo(
-                    existing['timestamp'],
-                  ) >
-                  0) {
-                conversationData[receiverId] = {
-                  'lastMessage': _formatMessagePreview(
-                    data,
-                    'You', // Use "You" when instructor sends message
-                    true, // isFromInstructor
-                  ),
-                  'timestamp': data['timestamp'],
-                  'isRead': true,
-                  'hasMessages': true,
-                  'senderType': 'instructor',
-                  'senderName': 'You',
-                };
-              }
             }
           }
+        }
 
-          // Process received messages (from students)
-          for (var doc in receivedMessagesSnapshot.docs) {
-            final data = doc.data();
-            final senderId = data['senderId'] as String;
+        // Process received messages (from students)
+        for (var doc in receivedMessagesSnapshot.docs) {
+          final data = doc.data();
+          final senderId = data['senderId'] as String;
 
-            // Store latest message data per conversation
-            if (!conversationData.containsKey(senderId)) {
+          // Store latest message data per conversation
+          if (!conversationData.containsKey(senderId)) {
+            // Get student name for message preview
+            String studentName = 'Student';
+            try {
+              final studentDoc =
+                  await _firestore.collection('users').doc(senderId).get();
+              if (studentDoc.exists) {
+                final studentData = studentDoc.data();
+                studentName =
+                    studentData?['name'] ??
+                    studentData?['fullName'] ??
+                    studentData?['studentName'] ??
+                    'Student';
+              }
+            } catch (e) {
+              print('Error fetching student name: $e');
+            }
+
+            conversationData[senderId] = {
+              'lastMessage': _formatMessagePreview(
+                data,
+                studentName,
+                false, // isFromInstructor
+              ),
+              'timestamp': data['timestamp'],
+              'isRead': data['isRead'] ?? false,
+              'hasMessages': true,
+              'senderType': 'student',
+              'senderName': studentName,
+            };
+          } else {
+            final existing = conversationData[senderId]!;
+            if ((data['timestamp'] as Timestamp).compareTo(
+                  existing['timestamp'],
+                ) >
+                0) {
               // Get student name for message preview
               String studentName = 'Student';
               try {
@@ -233,111 +302,76 @@ class MessageService {
                 'senderType': 'student',
                 'senderName': studentName,
               };
-            } else {
-              final existing = conversationData[senderId]!;
-              if ((data['timestamp'] as Timestamp).compareTo(
-                    existing['timestamp'],
-                  ) >
-                  0) {
-                // Get student name for message preview
-                String studentName = 'Student';
-                try {
-                  final studentDoc =
-                      await _firestore.collection('users').doc(senderId).get();
-                  if (studentDoc.exists) {
-                    final studentData = studentDoc.data();
-                    studentName =
-                        studentData?['name'] ??
-                        studentData?['fullName'] ??
-                        studentData?['studentName'] ??
-                        'Student';
-                  }
-                } catch (e) {
-                  print('Error fetching student name: $e');
-                }
-
-                conversationData[senderId] = {
-                  'lastMessage': _formatMessagePreview(
-                    data,
-                    studentName,
-                    false, // isFromInstructor
-                  ),
-                  'timestamp': data['timestamp'],
-                  'isRead': data['isRead'] ?? false,
-                  'hasMessages': true,
-                  'senderType': 'student',
-                  'senderName': studentName,
-                };
-              }
             }
           }
+        }
 
-          // Process all enrolled students
-          for (var doc in studentsSnapshot.docs) {
-            final studentId = doc.id;
-            final studentDocData = doc.data();
+        // Process all enrolled students
+        for (var doc in studentsSnapshot.docs) {
+          final studentId = doc.id;
+          final studentDocData = doc.data();
 
-            // Get conversation data if student has messages
-            final conversationInfo = conversationData[studentId];
+          // Get conversation data if student has messages
+          final conversationInfo = conversationData[studentId];
 
-            // Fetch profile image from users collection
-            String profileImageUrl = '';
-            try {
-              final userDoc =
-                  await _firestore.collection('users').doc(studentId).get();
-              if (userDoc.exists) {
-                final userData = userDoc.data() as Map<String, dynamic>;
-                profileImageUrl =
-                    userData['profileImage'] ??
-                    userData['profileImageUrl'] ??
-                    userData['profileUrl'] ??
-                    '';
-              }
-            } catch (e) {
-              print('Error fetching profile image for student $studentId: $e');
+          // Fetch profile image from users collection
+          String profileImageUrl = '';
+          try {
+            final userDoc =
+                await _firestore.collection('users').doc(studentId).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data() as Map<String, dynamic>;
+              profileImageUrl =
+                  userData['profileImage'] ??
+                  userData['profileImageUrl'] ??
+                  userData['profileUrl'] ??
+                  '';
             }
-
-            // Calculate unread count (only messages from student that are unread)
-            int unreadCount = 0;
-            if (conversationInfo != null &&
-                conversationInfo['senderType'] == 'student') {
-              unreadCount = (conversationInfo['isRead'] == false) ? 1 : 0;
-            }
-
-            students.add({
-              'id': studentId,
-              'name': studentDocData['studentName'] ?? 'Unknown Student',
-              'email': studentDocData['email'] ?? '',
-              'image': profileImageUrl,
-              'lastMessage':
-                  conversationInfo?['lastMessage'] ?? 'No messages yet',
-              'timestamp': conversationInfo?['timestamp'] ?? Timestamp.now(),
-              'hasMessages': conversationInfo?['hasMessages'] ?? false,
-              'online': studentDocData['isOnline'] ?? false,
-              'status':
-                  studentDocData['isOnline'] == true ? 'Online' : 'Offline',
-              'unreadCount': unreadCount,
-            });
+          } catch (e) {
+            print('Error fetching profile image for student $studentId: $e');
           }
 
-          // Sort by latest message timestamp (students with messages first)
-          students.sort((a, b) {
-            final aHasMessages = a['hasMessages'] as bool;
-            final bHasMessages = b['hasMessages'] as bool;
+          // Calculate unread count (only messages from student that are unread)
+          int unreadCount = 0;
+          if (conversationInfo != null &&
+              conversationInfo['senderType'] == 'student') {
+            unreadCount = (conversationInfo['isRead'] == false) ? 1 : 0;
+          }
 
-            if (aHasMessages && !bHasMessages) return -1;
-            if (!aHasMessages && bHasMessages) return 1;
-
-            if (aHasMessages && bHasMessages) {
-              return (b['timestamp'] as Timestamp).compareTo(a['timestamp']);
-            }
-
-            // If neither has messages, sort by name
-            return (a['name'] as String).compareTo(b['name'] as String);
+          students.add({
+            'id': studentId,
+            'name': studentDocData['studentName'] ?? 'Unknown Student',
+            'email': studentDocData['email'] ?? '',
+            'image': profileImageUrl,
+            'lastMessage':
+                conversationInfo?['lastMessage'] ?? 'No messages yet',
+            'timestamp': conversationInfo?['timestamp'] ?? Timestamp.now(),
+            'hasMessages': conversationInfo?['hasMessages'] ?? false,
+            'online': studentDocData['isOnline'] ?? false,
+            'status': studentDocData['isOnline'] == true ? 'Online' : 'Offline',
+            'unreadCount': unreadCount,
           });
+        }
 
-          return students;
+        // Sort by latest message timestamp (students with messages first)
+        students.sort((a, b) {
+          final aHasMessages = a['hasMessages'] as bool;
+          final bHasMessages = b['hasMessages'] as bool;
+
+          if (aHasMessages && !bHasMessages) return -1;
+          if (!aHasMessages && bHasMessages) return 1;
+
+          if (aHasMessages && bHasMessages) {
+            return (b['timestamp'] as Timestamp).compareTo(a['timestamp']);
+          }
+
+          // If neither has messages, sort by name
+          return (a['name'] as String).compareTo(b['name'] as String);
         });
+
+        return students;
+      });
+    });
   }
 
   /// Get first name from full name
@@ -537,6 +571,77 @@ class MessageService {
     } catch (e) {
       print('Error unsending message: $e');
       rethrow;
+    }
+  }
+
+  /// Send push notification to student when instructor sends a message
+  static Future<void> _sendPushNotification({
+    required String receiverId,
+    required String senderId,
+    required String content,
+    required String messageType,
+    String? fileType,
+  }) async {
+    try {
+      // Get student's Player ID
+      final playerId = await OneSignalHelper.getPlayerIdForUser(receiverId);
+      if (playerId == null || playerId.isEmpty) {
+        print(
+          '⚠️ No Player ID found for user $receiverId, skipping push notification',
+        );
+        return;
+      }
+
+      // Get instructor's name
+      String instructorName = 'Instructor';
+      try {
+        final instructorDoc =
+            await _firestore.collection('instructors').doc(senderId).get();
+        if (instructorDoc.exists) {
+          final instructorData = instructorDoc.data();
+          instructorName =
+              instructorData?['name'] ??
+              instructorData?['fullName'] ??
+              instructorData?['instructorName'] ??
+              'Instructor';
+        }
+      } catch (e) {
+        print('Error fetching instructor name: $e');
+      }
+
+      // Format notification content based on message type
+      String notificationContent = content;
+      if (messageType == 'file') {
+        if (fileType != null) {
+          final lowerFileType = fileType.toLowerCase();
+          if (FileTypeUtils.isImageFile(lowerFileType)) {
+            notificationContent = 'Sent a photo';
+          } else if (FileTypeUtils.isVideoFile(lowerFileType)) {
+            notificationContent = 'Sent a video';
+          } else {
+            notificationContent = 'Sent a file';
+          }
+        } else {
+          notificationContent = 'Sent a file';
+        }
+      }
+
+      // Truncate content if too long
+      if (notificationContent.length > 100) {
+        notificationContent = '${notificationContent.substring(0, 97)}...';
+      }
+
+      // Send push notification
+      await NotifServices.sendIndividualNotification(
+        playerId: playerId,
+        heading: 'New message from $instructorName',
+        content: notificationContent,
+      );
+
+      print('✅ Push notification sent to student $receiverId');
+    } catch (e) {
+      print('❌ Error sending push notification: $e');
+      // Don't throw - message was already sent successfully
     }
   }
 }

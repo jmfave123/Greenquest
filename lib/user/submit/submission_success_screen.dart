@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:greenquest/user/submit/assignment/assignment_list_screen.dart';
-import 'package:greenquest/user/submit/activity/activity_list_screen.dart';
-import 'package:greenquest/user/submit/quiz_new/quiz_list_screen.dart';
-import 'package:greenquest/user/submit/pit/pit_list_screen.dart';
 
 class SubmissionSuccessScreen extends StatefulWidget {
   final String submissionType; // 'assignment' or 'activity'
@@ -111,20 +107,6 @@ class _SubmissionSuccessScreenState extends State<SubmissionSuccessScreen>
 
   void _navigateToHome() {
     Get.offAllNamed('/home');
-  }
-
-  void _navigateToAssignmentList() {
-    if (widget.submissionType == 'assignment') {
-      Get.offAll(() => const AssignmentListScreen());
-    } else if (widget.submissionType == 'activity') {
-      Get.offAll(() => const ActivityListScreen());
-    } else if (widget.submissionType == 'quiz') {
-      Get.offAll(() => const QuizListScreen());
-    } else if (widget.submissionType == 'pit') {
-      Get.offAll(() => const PitListScreen());
-    } else {
-      Get.offAllNamed('/home');
-    }
   }
 
   @override
@@ -317,56 +299,25 @@ class _SubmissionSuccessScreenState extends State<SubmissionSuccessScreen>
 
               const SizedBox(height: 40),
 
-              // Action Buttons
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _navigateToHome,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF34A853),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Go to Home',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+              // Action Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _navigateToHome,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF34A853),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    elevation: 0,
                   ),
-
-                  const SizedBox(height: 12),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _navigateToAssignmentList,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF34A853)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Submit Another',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF34A853),
-                        ),
-                      ),
-                    ),
+                  child: const Text(
+                    'Go to Home',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                ],
+                ),
               ),
 
               const SizedBox(height: 20),

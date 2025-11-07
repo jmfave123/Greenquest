@@ -84,6 +84,27 @@ class _MessageListScreenState extends State<MessageListScreen> {
     return nameParts.first;
   }
 
+  String _formatMessagePreview(MessageModel message) {
+    final isMe = message.senderType == 'student';
+
+    // Handle file attachments
+    if (message.fileAttachment != null) {
+      final fileType = message.fileAttachment!.fileType.toLowerCase();
+      if (fileType.contains('image') || fileType.contains('video')) {
+        return isMe ? 'You sent a photo' : 'Sent a photo';
+      } else {
+        return isMe ? 'You sent a file' : 'Sent a file';
+      }
+    }
+
+    // Handle text messages
+    if (isMe) {
+      return 'You: ${message.content}';
+    } else {
+      return message.content;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -207,9 +228,7 @@ class _MessageListScreenState extends State<MessageListScreen> {
                                     ? (lastMessage!.senderType == 'student'
                                         ? 'You unsent a message'
                                         : '${_getFirstName(selectedInstructor!['name'] ?? 'Instructor')} unsent a message')
-                                    : (lastMessage!.fileAttachment != null
-                                        ? lastMessage!.fileAttachment!.fileName
-                                        : lastMessage!.content),
+                                    : _formatMessagePreview(lastMessage!),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(

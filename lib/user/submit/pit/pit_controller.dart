@@ -46,26 +46,46 @@ class PitController extends GetxController {
   Future<void> _initializeInstructorInfo() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        print('❌ No authenticated user');
+        return;
+      }
 
-      // Get user's section and instructor info
+      print('🔍 Loading instructor for user: ${user.uid}');
+
+      // Get user's selected instructor from their profile
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        final instructorUid = userData['instructorUid'] as String?;
-        final instructorName = userData['instructorName'] as String?;
+        final userData = userDoc.data()!;
+        final instructorId = userData['selectedInstructorId'] ?? '';
+        final instructorName = userData['selectedInstructorName'] ?? '';
+        final selectionComplete = userData['selectionComplete'] ?? false;
 
-        if (instructorUid != null && instructorName != null) {
-          currentInstructorUid.value = instructorUid;
+        print(
+          '📋 User data: selectedInstructorId=$instructorId, selectedInstructorName=$instructorName, selectionComplete=$selectionComplete',
+        );
+
+        if (selectionComplete && instructorId.isNotEmpty) {
+          currentInstructorUid.value = instructorId;
           currentInstructorName.value = instructorName;
 
-          // Load pits for the current instructor
+          print('📚 Loaded instructor: $instructorName ($instructorId)');
+
+          // Load pits for this instructor
           await loadCurrentInstructorPits();
+        } else {
+          print(
+            '⚠️ User has not completed instructor selection or no instructor selected',
+          );
+          errorMessage.value = 'Please select an instructor first';
         }
+      } else {
+        print('❌ User document not found');
+        errorMessage.value = 'User profile not found';
       }
     } catch (e) {
-      print('Error initializing instructor info: $e');
-      errorMessage.value = 'Failed to load instructor information';
+      print('❌ Error loading current instructor: $e');
+      errorMessage.value = 'Failed to load instructor: $e';
     }
   }
 

@@ -356,7 +356,7 @@ class _PitListScreenState extends State<PitListScreen> {
                             ),
                             const SizedBox(height: 16),
                             const Text(
-                              'No PITs posted yet',
+                              'No PITs available',
                               style: TextStyle(
                                 fontSize: 18,
                                 color: Colors.grey,

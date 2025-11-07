@@ -286,15 +286,6 @@ class _AnnouncementContent extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (!isRead)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF34A853),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
                   ],
                 ),
                 const SizedBox(height: 12),

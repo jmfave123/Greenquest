@@ -25,6 +25,7 @@ class MessageChatScreen extends StatefulWidget {
 class _MessageChatScreenState extends State<MessageChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   Map<String, dynamic>? currentUserProfile;
   bool _hasMarkedAsRead = false;
 
@@ -38,18 +39,13 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
   void initState() {
     super.initState();
     _loadCurrentUserProfile();
-    // Add listener to update UI when text changes (for send button color)
-    _controller.addListener(() {
-      setState(() {
-        // Trigger rebuild when text changes to update send button color
-      });
-    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -66,8 +62,6 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
           (context) => ConfirmationDialog(
             title: 'Unsend Message',
             message: 'Are you sure you want to unsend this message?',
-            warningMessage:
-                'This message will be replaced with "You unsent a message".',
             confirmText: 'Unsend',
             cancelText: 'Cancel',
             icon: Icons.undo_outlined,
@@ -579,8 +573,8 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                     });
                   }
 
-                  // Auto-scroll to bottom when new messages arrive
-                  if (snapshot.hasData) {
+                  // Auto-scroll to bottom when new messages arrive (only if not typing)
+                  if (snapshot.hasData && !_focusNode.hasFocus) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       if (_scrollController.hasClients) {
                         _scrollController.animateTo(
@@ -793,158 +787,120 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                                                 radius: 16,
                                               ),
                                         if (!isMe) const SizedBox(width: 8),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Flexible(
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 12,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      isMe
-                                                          ? const Color(
-                                                            0xFF34A853,
-                                                          )
-                                                          : Colors.white,
-                                                  borderRadius: BorderRadius.only(
-                                                    topLeft:
-                                                        const Radius.circular(
-                                                          16,
-                                                        ),
-                                                    topRight:
-                                                        const Radius.circular(
-                                                          16,
-                                                        ),
-                                                    bottomLeft: Radius.circular(
-                                                      isMe ? 16 : 4,
-                                                    ),
-                                                    bottomRight:
-                                                        Radius.circular(
-                                                          isMe ? 4 : 16,
-                                                        ),
-                                                  ),
-                                                  boxShadow: [
-                                                    if (!isMe)
-                                                      const BoxShadow(
-                                                        color: Colors.black12,
-                                                        blurRadius: 2,
-                                                        offset: Offset(0, 1),
-                                                      ),
-                                                  ],
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    // Display file attachment with smart rendering (only if not unsent)
-                                                    if (message.fileAttachment !=
-                                                            null &&
-                                                        !message.isUnsent) ...[
-                                                      _buildFileAttachment(
-                                                        message.fileAttachment!,
-                                                        isMe,
-                                                      ),
-                                                      if (message.content !=
-                                                              'Sent a file' &&
-                                                          message
-                                                              .content
-                                                              .isNotEmpty)
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                    ],
-                                                    // Display text content (or unsent message)
-                                                    if (message.content !=
-                                                            'Sent a file' ||
-                                                        message
-                                                            .content
-                                                            .isNotEmpty)
-                                                      Text(
-                                                        message.isUnsent
-                                                            ? (isMe
-                                                                ? 'You unsent a message'
-                                                                : '${_getFirstName(instructor?['name'] ?? 'Instructor')} unsent a message')
-                                                            : message.content,
-                                                        style: TextStyle(
-                                                          color:
-                                                              isMe
-                                                                  ? Colors.white
-                                                                  : Colors
-                                                                      .black87,
-                                                          fontSize: 15,
-                                                          fontStyle:
-                                                              message.isUnsent
-                                                                  ? FontStyle
-                                                                      .italic
-                                                                  : FontStyle
-                                                                      .normal,
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                            // Three-dot menu for own messages (not already unsent)
-                                            if (isMe && !message.isUnsent) ...[
-                                              const SizedBox(width: 4),
-                                              PopupMenuButton<String>(
-                                                icon: Icon(
-                                                  Icons.more_vert,
-                                                  size: 18,
-                                                  color: Colors.grey[600],
-                                                ),
-                                                padding: EdgeInsets.zero,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                itemBuilder:
-                                                    (context) => [
-                                                      PopupMenuItem(
-                                                        value: 'delete',
-                                                        child: Row(
-                                                          children: [
-                                                            Icon(
-                                                              Icons
-                                                                  .undo_outlined,
-                                                              size: 20,
-                                                              color:
-                                                                  Colors
-                                                                      .orange[400],
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 8,
-                                                            ),
-                                                            const Text(
-                                                              'Unsend',
-                                                              style: TextStyle(
-                                                                fontSize: 14,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w500,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                onSelected: (value) async {
-                                                  if (value == 'delete') {
+                                        GestureDetector(
+                                          onLongPress:
+                                              isMe && !message.isUnsent
+                                                  ? () {
                                                     _showDeleteDialog(
                                                       context,
                                                       message,
                                                     );
                                                   }
-                                                },
+                                                  : null,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              Flexible(
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 12,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        isMe
+                                                            ? const Color(
+                                                              0xFF34A853,
+                                                            )
+                                                            : Colors.white,
+                                                    borderRadius: BorderRadius.only(
+                                                      topLeft:
+                                                          const Radius.circular(
+                                                            16,
+                                                          ),
+                                                      topRight:
+                                                          const Radius.circular(
+                                                            16,
+                                                          ),
+                                                      bottomLeft:
+                                                          Radius.circular(
+                                                            isMe ? 16 : 4,
+                                                          ),
+                                                      bottomRight:
+                                                          Radius.circular(
+                                                            isMe ? 4 : 16,
+                                                          ),
+                                                    ),
+                                                    boxShadow: [
+                                                      if (!isMe)
+                                                        const BoxShadow(
+                                                          color: Colors.black12,
+                                                          blurRadius: 2,
+                                                          offset: Offset(0, 1),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      // Display file attachment with smart rendering (only if not unsent)
+                                                      if (message.fileAttachment !=
+                                                              null &&
+                                                          !message
+                                                              .isUnsent) ...[
+                                                        _buildFileAttachment(
+                                                          message
+                                                              .fileAttachment!,
+                                                          isMe,
+                                                        ),
+                                                        if (message.content !=
+                                                                'Sent a file' &&
+                                                            message
+                                                                .content
+                                                                .isNotEmpty)
+                                                          const SizedBox(
+                                                            height: 8,
+                                                          ),
+                                                      ],
+                                                      // Display text content (or unsent message)
+                                                      if (message.content !=
+                                                              'Sent a file' ||
+                                                          message
+                                                              .content
+                                                              .isNotEmpty)
+                                                        Text(
+                                                          message.isUnsent
+                                                              ? (isMe
+                                                                  ? 'You unsent a message'
+                                                                  : '${_getFirstName(instructor?['name'] ?? 'Instructor')} unsent a message')
+                                                              : message.content,
+                                                          style: TextStyle(
+                                                            color:
+                                                                isMe
+                                                                    ? Colors
+                                                                        .white
+                                                                    : Colors
+                                                                        .black87,
+                                                            fontSize: 15,
+                                                            fontStyle:
+                                                                message.isUnsent
+                                                                    ? FontStyle
+                                                                        .italic
+                                                                    : FontStyle
+                                                                        .normal,
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ),
                                               ),
                                             ],
-                                          ],
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -1109,6 +1065,7 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                                     child: TextField(
                                       cursorColor: Colors.black54,
                                       controller: _controller,
+                                      focusNode: _focusNode,
                                       enabled: !_isUploading,
                                       textInputAction: TextInputAction.send,
                                       keyboardType: TextInputType.text,
@@ -1149,26 +1106,32 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
                                         ),
                                       ),
                                     )
-                                    : GestureDetector(
-                                      onTap: () {
-                                        // Always allow tapping - check inside if we should send
-                                        final content = _controller.text.trim();
-                                        if (content.isNotEmpty ||
-                                            _previewFile != null) {
-                                          _sendMessage(content);
-                                        }
+                                    : ValueListenableBuilder<TextEditingValue>(
+                                      valueListenable: _controller,
+                                      builder: (context, value, child) {
+                                        final hasText =
+                                            value.text.trim().isNotEmpty ||
+                                            _previewFile != null;
+                                        return GestureDetector(
+                                          onTap: () {
+                                            // Always allow tapping - check inside if we should send
+                                            final content =
+                                                _controller.text.trim();
+                                            if (content.isNotEmpty ||
+                                                _previewFile != null) {
+                                              _sendMessage(content);
+                                            }
+                                          },
+                                          child: Image.asset(
+                                            'assets/icons/akar-icons_send.png',
+                                            width: 24,
+                                            color:
+                                                hasText
+                                                    ? const Color(0xFF34A853)
+                                                    : Colors.grey,
+                                          ),
+                                        );
                                       },
-                                      child: Image.asset(
-                                        'assets/icons/akar-icons_send.png',
-                                        width: 24,
-                                        color:
-                                            (_controller.text
-                                                        .trim()
-                                                        .isNotEmpty ||
-                                                    _previewFile != null)
-                                                ? const Color(0xFF34A853)
-                                                : Colors.grey,
-                                      ),
                                     ),
                               ],
                             ),
