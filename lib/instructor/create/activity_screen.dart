@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/controllers/file_submission_controller.dart';
@@ -110,23 +111,44 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   void _loadInitialData() {
     final data = widget.initialData!;
-    _titleController.text = data['title'] ?? '';
-    _instructionController.text = data['instruction'] ?? '';
-    _pointsController.text = data['points'] ?? '100';
+    setState(() {
+      _titleController.text = data['title'] ?? '';
+      _instructionController.text = data['instruction'] ?? '';
+      _pointsController.text = data['points'] ?? '100';
 
-    // Set selected classes
-    if (data['selectedClasses'] != null) {
-      for (String className in data['selectedClasses']) {
-        if (_selectedClasses.containsKey(className)) {
-          _selectedClasses[className] = true;
+      // Set selected classes
+      if (data['selectedClasses'] != null) {
+        for (String className in data['selectedClasses']) {
+          if (_selectedClasses.containsKey(className)) {
+            _selectedClasses[className] = true;
+          }
         }
       }
-    }
 
-    // Set due date
-    if (data['dueDate'] != null) {
-      _selectedDueDate = DateTime.parse(data['dueDate']);
-    }
+      // Set due date - prefer raw date, fallback to formatted string
+      final dueDateValue = data['dueDateRaw'] ?? data['dueDate'];
+      if (dueDateValue != null) {
+        try {
+          // Handle both DateTime objects and ISO string formats
+          if (dueDateValue is DateTime) {
+            _selectedDueDate = dueDateValue;
+          } else if (dueDateValue is Timestamp) {
+            _selectedDueDate = dueDateValue.toDate();
+          } else if (dueDateValue is String) {
+            // Try parsing ISO string format
+            _selectedDueDate = DateTime.parse(dueDateValue);
+          }
+        } catch (e) {
+          print('Error parsing due date: $e');
+          _selectedDueDate = null;
+        }
+      }
+
+      // Set category if available
+      if (data['category'] != null) {
+        _selectedCategory = data['category'] as String;
+      }
+    });
   }
 
   void _handleNavigationSelect(InstructorNavigationItem item) {
@@ -177,10 +199,19 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   Future<void> _selectDueDate() async {
     // First, select the date
+    // Allow past dates when editing (in case existing due date is in the past)
+    final now = DateTime.now();
+    final minDate =
+        widget.isEdit &&
+                _selectedDueDate != null &&
+                _selectedDueDate!.isBefore(now)
+            ? _selectedDueDate!.subtract(const Duration(days: 365))
+            : now;
+
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDueDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
+      firstDate: minDate,
       lastDate: DateTime.now().add(const Duration(days: 365)),
       builder: (context, child) {
         return Theme(

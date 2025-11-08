@@ -754,6 +754,22 @@ class _CreateScreenState extends State<CreateScreen>
                       .then(
                         (_) => _refreshData(),
                       ); // Refresh data when returning
+                } else if (item['type'] == 'PIT') {
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder:
+                              (context) => PITScreen(
+                                period: item['period'],
+                                isEdit: true,
+                                itemId: item['id'],
+                                initialData: item,
+                              ),
+                        ),
+                      )
+                      .then(
+                        (_) => _refreshData(),
+                      ); // Refresh data when returning
                 }
               } else if (value == 'delete') {
                 // Show confirmation dialog

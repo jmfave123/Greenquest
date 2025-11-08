@@ -683,12 +683,14 @@ class CreateController extends GetxController {
             'title': data['title'] ?? 'No Title',
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
-            'dueDate': _formatDate(data['dueDate']),
+            'dueDate': _formatDate(data['dueDate']), // Formatted for display
+            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
             'status': data['status'] ?? 'active',
+            'category': data['category'], // Include category for editing
           });
         }
       } catch (e) {
@@ -720,12 +722,14 @@ class CreateController extends GetxController {
             'title': data['title'] ?? 'No Title',
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
-            'dueDate': _formatDate(data['dueDate']),
+            'dueDate': _formatDate(data['dueDate']), // Formatted for display
+            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
             'status': data['status'] ?? 'active',
+            'category': data['category'], // Include category for editing
           });
         }
       } catch (e) {
@@ -757,12 +761,14 @@ class CreateController extends GetxController {
             'title': data['title'] ?? 'No Title',
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
-            'dueDate': _formatDate(data['dueDate']),
+            'dueDate': _formatDate(data['dueDate']), // Formatted for display
+            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
             'status': data['status'] ?? 'active',
+            'category': data['category'], // Include category for editing
           });
         }
       } catch (e) {
@@ -794,12 +800,14 @@ class CreateController extends GetxController {
             'title': data['title'] ?? 'No Title',
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
-            'dueDate': _formatDate(data['dueDate']),
+            'dueDate': _formatDate(data['dueDate']), // Formatted for display
+            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
             'status': data['status'] ?? 'active',
+            'category': data['category'], // Include category for editing
           });
         }
       } catch (e) {
@@ -1184,6 +1192,73 @@ class CreateController extends GetxController {
       Get.snackbar(
         'Error',
         'Failed to update quiz: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Update PIT
+  Future<bool> updatePIT({
+    required String pitId,
+    required String title,
+    required String instruction,
+    required List<String> selectedClasses,
+    required String points,
+    required DateTime dueDate,
+    String? period,
+    List<String>? attachments,
+  }) async {
+    try {
+      isLoading.value = true;
+      errorMessage.value = '';
+
+      final pitData = {
+        'title': title,
+        'instruction': instruction,
+        'selectedClasses': selectedClasses,
+        'points': int.tryParse(points) ?? 0,
+        'dueDate': dueDate,
+        'period': period,
+        'attachments': attachments ?? [],
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection(pitsCollection)
+          .doc(pitId)
+          .update(pitData);
+
+      // Refresh the list
+      await loadCreatedItems();
+
+      Get.snackbar(
+        'Success',
+        'PIT updated successfully!',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFF34A853),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Error updating PIT: $e';
+      Get.snackbar(
+        'Error',
+        'Failed to update PIT: $e',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
