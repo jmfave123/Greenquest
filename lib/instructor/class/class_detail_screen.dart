@@ -2485,13 +2485,17 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     int actualPoints = 100; // Default fallback
 
     try {
+      // Unified submissions use 'activityId' for all types (assignment, activity, quiz, pit)
       final assignmentId =
+          submission['activityId'] ?? // Unified field (preferred)
           submission['assignmentId'] ??
-          submission['activityId'] ??
-          submission['quizId'];
+          submission['quizId'] ??
+          submission['pitId'];
 
       if (assignmentId != null) {
-        final submissionType = submission['type'] ?? 'activity';
+        // Check both 'type' and 'activityType' fields (unified submissions use 'activityType')
+        final submissionType =
+            submission['type'] ?? submission['activityType'] ?? 'activity';
         String collection;
 
         switch (submissionType.toLowerCase()) {
@@ -2503,6 +2507,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             break;
           case 'quiz':
             collection = 'quizzes';
+            break;
+          case 'pit':
+            collection = 'pits';
             break;
           default:
             collection = 'activities';
@@ -2537,17 +2544,22 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     Navigator.of(context).pop();
 
     // Create activity data for the submission detail screen
+    // Check both 'type' and 'activityType' fields (unified submissions use 'activityType')
+    final submissionType =
+        submission['type'] ?? submission['activityType'] ?? 'activity';
+
     final activityData = {
       'id':
+          submission['activityId'] ?? // Unified field (preferred)
           submission['assignmentId'] ??
-          submission['activityId'] ??
           submission['quizId'] ??
+          submission['pitId'] ??
           submission['id'],
-      'type': submission['type'] ?? 'activity',
+      'type': submissionType,
       'title':
           submission['activityTitle'] ??
           submission['title'] ??
-          'Untitled ${submission['type'] ?? 'Activity'}',
+          'Untitled ${submissionType}',
       'points': actualPoints, // Use actual points instead of fallback
       'description': submission['description'] ?? '',
     };

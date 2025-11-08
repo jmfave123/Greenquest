@@ -47,6 +47,12 @@ class _MaterialScreenState extends State<MaterialScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Clear files when creating a new item (not editing)
+    if (!widget.isEdit) {
+      _fileController.clearFiles();
+    }
+
     _loadClasses();
 
     // Pre-fill data if editing
@@ -351,6 +357,8 @@ class _MaterialScreenState extends State<MaterialScreen> {
 
       if (success) {
         print('✅ Material updated successfully');
+        // Clear files after successful update
+        _fileController.clearFiles();
         Navigator.of(context).pop();
       } else {
         print('❌ Material update failed');
@@ -365,6 +373,8 @@ class _MaterialScreenState extends State<MaterialScreen> {
       );
 
       if (success) {
+        // Clear files after successful creation
+        _fileController.clearFiles();
         Navigator.of(context).pop();
       }
     }

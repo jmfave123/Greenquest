@@ -57,6 +57,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Clear files when creating a new item (not editing)
+    if (!widget.isEdit) {
+      _fileController.clearFiles();
+    }
+
     _loadInstructorClasses().then((_) {
       if (widget.isEdit && widget.initialData != null) {
         _loadInitialData();

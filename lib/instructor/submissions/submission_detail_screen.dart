@@ -119,9 +119,15 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     });
 
     try {
+      // Check both 'type' and 'activityType' fields (unified submissions use 'activityType')
+      final submissionType =
+          widget.submissionData['type'] ??
+          widget.submissionData['activityType'] ??
+          'activity';
+
       final success = await submissionsController.gradeSubmission(
         submissionId: widget.submissionData['id'],
-        submissionType: widget.submissionData['type'] ?? 'activity',
+        submissionType: submissionType,
         score: score,
         feedback: _feedbackController.text,
       );
