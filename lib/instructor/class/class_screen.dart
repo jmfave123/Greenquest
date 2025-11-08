@@ -474,47 +474,56 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
         instructorData['assignments'] ?? [],
       );
 
-      // Get all department IDs from instructor's assignments
-      final departmentIds =
+      // Get section IDs from instructor's assignments (only assigned sections)
+      final sectionIds =
           assignments
-              .map((assignment) => assignment['departmentId'])
+              .map((assignment) => assignment['sectionId'])
               .where((id) => id != null && id.toString().isNotEmpty)
-              .toSet();
+              .toSet()
+              .toList();
 
-      if (departmentIds.isEmpty) {
-        print('No department assignments found for instructor');
+      if (sectionIds.isEmpty) {
+        print('No section assignments found for instructor');
         _availableSections = [];
         return;
       }
 
-      // Load sections for assigned departments only
+      print('🔍 Loading ${sectionIds.length} assigned sections for instructor');
+
+      // Load only the sections that are assigned to the instructor
       final List<Map<String, dynamic>> allSections = [];
 
-      for (String departmentId in departmentIds) {
-        final sectionsSnapshot =
-            await FirebaseFirestore.instance
-                .collection('sections')
-                .where('departmentId', isEqualTo: departmentId)
-                .get();
+      for (String sectionId in sectionIds) {
+        try {
+          final sectionDoc =
+              await FirebaseFirestore.instance
+                  .collection('sections')
+                  .doc(sectionId)
+                  .get();
 
-        final sections =
-            sectionsSnapshot.docs.map((doc) {
-              final data = doc.data();
-              return {
-                'id': doc.id,
-                'sectionCode': data['sectionCode'] ?? '',
-                'departmentId': data['departmentId'] ?? '',
-                'departmentName': data['departmentName'] ?? '',
-                'courseName': data['courseName'] ?? '',
-                'courseCode': data['courseCode'] ?? '',
-              };
-            }).toList();
-
-        allSections.addAll(sections);
+          if (sectionDoc.exists) {
+            final data = sectionDoc.data()!;
+            allSections.add({
+              'id': sectionDoc.id,
+              'sectionCode': data['sectionCode'] ?? '',
+              'departmentId': data['departmentId'] ?? '',
+              'departmentName': data['departmentName'] ?? '',
+              'courseName': data['courseName'] ?? '',
+              'courseCode': data['courseCode'] ?? '',
+            });
+            print('  ✅ Loaded section: ${data['sectionCode']}');
+          } else {
+            print('  ⚠️ Section $sectionId not found in sections collection');
+          }
+        } catch (e) {
+          print('  ❌ Error loading section $sectionId: $e');
+        }
       }
 
       _availableSections = allSections;
-      print('Loaded ${_availableSections.length} sections for instructor');
+      print(
+        '✅ Loaded ${_availableSections.length} assigned sections for instructor',
+      );
     } catch (e) {
       print('Error loading sections: $e');
       _availableSections = [];
