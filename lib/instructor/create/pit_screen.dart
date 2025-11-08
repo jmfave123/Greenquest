@@ -339,9 +339,26 @@ class _PITScreenState extends State<PITScreen> {
       );
 
       if (success) {
+        // Clear files and reset form after successful creation
+        _fileController.clearFiles();
+        _resetForm();
         Navigator.of(context).pop();
       }
     }
+  }
+
+  void _resetForm() {
+    setState(() {
+      _titleController.clear();
+      _instructionController.clear();
+      _pointsController.text = '100';
+      _selectedDueDate = null;
+      _selectedCategory = 'pit';
+      _selectedClasses = Map.fromEntries(
+        _classes.map((e) => MapEntry(e, false)),
+      );
+      _showTitleError = false;
+    });
   }
 
   @override

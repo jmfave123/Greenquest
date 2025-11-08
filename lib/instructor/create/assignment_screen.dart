@@ -330,6 +330,8 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
       );
 
       if (success) {
+        // Clear files and reset form after successful update
+        _fileController.clearFiles();
         Navigator.of(context).pop();
       }
     } else {
@@ -346,9 +348,26 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
       );
 
       if (success) {
+        // Clear files and reset form after successful creation
+        _fileController.clearFiles();
+        _resetForm();
         Navigator.of(context).pop();
       }
     }
+  }
+
+  void _resetForm() {
+    setState(() {
+      _titleController.clear();
+      _instructionController.clear();
+      _pointsController.text = '100';
+      _selectedDueDate = null;
+      _selectedCategory = 'class_standing';
+      _selectedClasses = Map.fromEntries(
+        _classes.map((e) => MapEntry(e, false)),
+      );
+      _showTitleError = false;
+    });
   }
 
   @override

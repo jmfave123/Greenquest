@@ -117,46 +117,52 @@ class ReportController extends GetxController {
         instructorData['assignments'] ?? [],
       );
 
-      // Get all department IDs from instructor's assignments
-      final departmentIds =
+      // Get section IDs from instructor's assignments (only assigned sections)
+      final sectionIds =
           assignments
-              .map((assignment) => assignment['departmentId'])
+              .map((assignment) => assignment['sectionId'])
               .where((id) => id != null && id.toString().isNotEmpty)
-              .toSet();
+              .toSet()
+              .toList();
 
-      if (departmentIds.isEmpty) {
+      if (sectionIds.isEmpty) {
         // If no assignments, try to get from classes collection
         await _loadClassesFromClassesCollection(user.uid);
         return;
       }
 
-      // Load sections for assigned departments
+      print('🔍 Loading ${sectionIds.length} assigned sections for reports');
+
+      // Load only the sections that are assigned to the instructor
       final List<Map<String, dynamic>> allSections = [];
 
-      for (String departmentId in departmentIds) {
-        final sectionsSnapshot =
-            await _firestore
-                .collection('sections')
-                .where('departmentId', isEqualTo: departmentId)
-                .get();
+      for (String sectionId in sectionIds) {
+        try {
+          final sectionDoc =
+              await _firestore.collection('sections').doc(sectionId).get();
 
-        final sections =
-            sectionsSnapshot.docs.map((doc) {
-              final data = doc.data();
-              return {
-                'id': doc.id,
-                'sectionCode': data['sectionCode'] ?? '',
-                'departmentId': data['departmentId'] ?? '',
-                'departmentName': data['departmentName'] ?? '',
-                'courseName': data['courseName'] ?? '',
-                'courseCode': data['courseCode'] ?? '',
-                'students': data['students'] ?? 0,
-                'isActive': data['isActive'] ?? true,
-              };
-            }).toList();
-
-        allSections.addAll(sections);
+          if (sectionDoc.exists) {
+            final data = sectionDoc.data()!;
+            allSections.add({
+              'id': sectionDoc.id,
+              'sectionCode': data['sectionCode'] ?? '',
+              'departmentId': data['departmentId'] ?? '',
+              'departmentName': data['departmentName'] ?? '',
+              'courseName': data['courseName'] ?? '',
+              'courseCode': data['courseCode'] ?? '',
+              'students': data['students'] ?? 0,
+              'isActive': data['isActive'] ?? true,
+            });
+            print('  ✅ Loaded section: ${data['sectionCode']}');
+          } else {
+            print('  ⚠️ Section $sectionId not found in sections collection');
+          }
+        } catch (e) {
+          print('  ❌ Error loading section $sectionId: $e');
+        }
       }
+
+      print('✅ Loaded ${allSections.length} assigned sections for reports');
 
       // Transform sections to match the UI format and get dynamic student counts
       final List<Map<String, dynamic>> classesList = [];
