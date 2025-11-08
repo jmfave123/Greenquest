@@ -415,7 +415,17 @@ class TreeProgressService {
         items['finalQuizItems']!,
       );
 
-      // Fetch Final Exam items (period: Final)
+      // Fetch Final Exam items - Query for final_exam category (always Final period)
+      await _fetchItemsByCategory(
+        instructorId,
+        sectionCode,
+        semesterId,
+        'final_exam',
+        ['Final'], // final_exam category items are always Final period
+        items['finalExamItems']!,
+      );
+
+      // Fetch Final Exam items - Query for midterm_exam category with Final period (backward compatibility)
       await _fetchItemsByCategory(
         instructorId,
         sectionCode,

@@ -52,7 +52,7 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
   final Map<String, String> _categories = {
     'class_standing': 'Class Standing Performance Items (10%)',
     'quiz_prelim': 'Quiz/Prelim Performance Item (40%)',
-    'midterm_exam': 'Midterm Exam (30%)',
+    'final_exam': 'Final Exam (30%)',
     'pit': 'Per Inno Task (20%)',
   };
 
@@ -68,6 +68,11 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
     _loadInstructorClasses().then((_) {
       if (widget.isEdit && widget.initialData != null) {
         _loadInitialData();
+      } else {
+        // Auto-update category based on period for new items
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _updateCategoryBasedOnPeriod();
+        });
       }
     });
   }
@@ -147,9 +152,40 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
 
       // Set category if available
       if (data['category'] != null) {
-        _selectedCategory = data['category'] as String;
+        String category = data['category'] as String;
+        // Auto-update category based on period
+        if (widget.period == 'Final' && category == 'midterm_exam') {
+          category = 'final_exam';
+        } else if (widget.period != 'Final' && category == 'final_exam') {
+          category = 'midterm_exam';
+        }
+        _selectedCategory = category;
+      }
+
+      // Auto-update category if period is Final and category is midterm_exam
+      if (widget.period == 'Final' && _selectedCategory == 'midterm_exam') {
+        _selectedCategory = 'final_exam';
       }
     });
+  }
+
+  // Method to update category based on period
+  void _updateCategoryBasedOnPeriod() {
+    if (widget.period == 'Final') {
+      // If period is Final and category is midterm_exam, change to final_exam
+      if (_selectedCategory == 'midterm_exam') {
+        setState(() {
+          _selectedCategory = 'final_exam';
+        });
+      }
+    } else {
+      // If period is not Final and category is final_exam, change to midterm_exam
+      if (_selectedCategory == 'final_exam') {
+        setState(() {
+          _selectedCategory = 'midterm_exam';
+        });
+      }
+    }
   }
 
   void _handleNavigationSelect(InstructorNavigationItem item) {
@@ -353,6 +389,14 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
       }
     }
 
+    // Auto-update category based on period before saving
+    String categoryToSave = _selectedCategory;
+    if (widget.period == 'Final' && categoryToSave == 'midterm_exam') {
+      categoryToSave = 'final_exam';
+    } else if (widget.period != 'Final' && categoryToSave == 'final_exam') {
+      categoryToSave = 'midterm_exam';
+    }
+
     if (widget.isEdit && widget.itemId != null) {
       // Update existing assignment
       final success = await _createController.updateAssignment(
@@ -363,6 +407,7 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
         points: _pointsController.text.trim(),
         dueDate: _selectedDueDate!,
         period: widget.period,
+        category: categoryToSave,
         attachments: attachmentUrls,
       );
 
@@ -380,7 +425,7 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
         points: _pointsController.text.trim(),
         dueDate: _selectedDueDate!,
         period: widget.period,
-        category: _selectedCategory,
+        category: categoryToSave,
         attachments: attachmentUrls,
       );
 
@@ -737,6 +782,8 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
                                 _selectedCategory = entry.key;
                                 _showCategoryDropdown = false;
                               });
+                              // Auto-update category if period is Final
+                              _updateCategoryBasedOnPeriod();
                             },
                             child: Container(
                               width: double.infinity,

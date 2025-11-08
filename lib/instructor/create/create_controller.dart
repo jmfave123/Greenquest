@@ -1011,6 +1011,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
+    String? category,
     List<String>? attachments,
   }) async {
     try {
@@ -1026,6 +1027,7 @@ class CreateController extends GetxController {
         'period': period,
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
+        if (category != null) 'category': category,
       };
 
       final user = _auth.currentUser;
@@ -1078,6 +1080,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
+    String? category,
     List<String>? attachments,
   }) async {
     try {
@@ -1093,6 +1096,7 @@ class CreateController extends GetxController {
         'period': period,
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
+        if (category != null) 'category': category,
       };
 
       final user = _auth.currentUser;
@@ -1145,6 +1149,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
+    String? category,
     List<String>? attachments,
   }) async {
     try {
@@ -1160,6 +1165,7 @@ class CreateController extends GetxController {
         'period': period,
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
+        if (category != null) 'category': category,
       };
 
       final user = _auth.currentUser;
@@ -1212,6 +1218,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
+    String? category,
     List<String>? attachments,
   }) async {
     try {
@@ -1227,6 +1234,7 @@ class CreateController extends GetxController {
         'period': period,
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
+        if (category != null) 'category': category,
       };
 
       final user = _auth.currentUser;

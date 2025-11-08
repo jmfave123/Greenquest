@@ -821,7 +821,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
     }
   }
 
-  // Fetch Final Exam items (we reuse category 'midterm_exam' but period == 'Final')
+  // Fetch Final Exam items (category 'final_exam' OR category 'midterm_exam' with period 'Final')
   Future<void> _fetchFinalExamItems() async {
     try {
       final user = _auth.currentUser;
@@ -831,21 +831,46 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
 
       List<Map<String, dynamic>> items = [];
 
-      // Assignments
-      Query<Map<String, dynamic>> aQ = _firestore
+      // Assignments - Query for final_exam category
+      Query<Map<String, dynamic>> aQ1 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('assignments')
+          .where('category', isEqualTo: 'final_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        aQ1 = aQ1.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final aSnap1 = await aQ1.get();
+      for (var doc in aSnap1.docs) {
+        final data = doc.data();
+        items.add({
+          'id': doc.id,
+          'title': data['title'],
+          'points': data['points'],
+          'type': 'assignment',
+          'category': data['category'],
+        });
+      }
+
+      // Assignments - Query for midterm_exam category with Final period (backward compatibility)
+      Query<Map<String, dynamic>> aQ2 = _firestore
           .collection('instructors')
           .doc(user.uid)
           .collection('assignments')
           .where('category', isEqualTo: 'midterm_exam')
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
-        aQ = aQ.where(
+        aQ2 = aQ2.where(
           'assignedSemester.semesterId',
           isEqualTo: _selectedSemesterId,
         );
       }
-      final aSnap = await aQ.get();
-      for (var doc in aSnap.docs) {
+      final aSnap2 = await aQ2.get();
+      for (var doc in aSnap2.docs) {
         final data = doc.data();
         if ((data['period'] as String?) == 'Final') {
           items.add({
@@ -858,21 +883,46 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         }
       }
 
-      // Activities
-      Query<Map<String, dynamic>> actQ = _firestore
+      // Activities - Query for final_exam category
+      Query<Map<String, dynamic>> actQ1 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('activities')
+          .where('category', isEqualTo: 'final_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        actQ1 = actQ1.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final actSnap1 = await actQ1.get();
+      for (var doc in actSnap1.docs) {
+        final data = doc.data();
+        items.add({
+          'id': doc.id,
+          'title': data['title'],
+          'points': data['points'],
+          'type': 'activity',
+          'category': data['category'],
+        });
+      }
+
+      // Activities - Query for midterm_exam category with Final period (backward compatibility)
+      Query<Map<String, dynamic>> actQ2 = _firestore
           .collection('instructors')
           .doc(user.uid)
           .collection('activities')
           .where('category', isEqualTo: 'midterm_exam')
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
-        actQ = actQ.where(
+        actQ2 = actQ2.where(
           'assignedSemester.semesterId',
           isEqualTo: _selectedSemesterId,
         );
       }
-      final actSnap = await actQ.get();
-      for (var doc in actSnap.docs) {
+      final actSnap2 = await actQ2.get();
+      for (var doc in actSnap2.docs) {
         final data = doc.data();
         if ((data['period'] as String?) == 'Final') {
           items.add({
@@ -885,21 +935,46 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         }
       }
 
-      // Quizzes
-      Query<Map<String, dynamic>> qQ = _firestore
+      // Quizzes - Query for final_exam category
+      Query<Map<String, dynamic>> qQ1 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('quizzes')
+          .where('category', isEqualTo: 'final_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        qQ1 = qQ1.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final qSnap1 = await qQ1.get();
+      for (var doc in qSnap1.docs) {
+        final data = doc.data();
+        items.add({
+          'id': doc.id,
+          'title': data['title'],
+          'points': data['points'],
+          'type': 'quiz',
+          'category': data['category'],
+        });
+      }
+
+      // Quizzes - Query for midterm_exam category with Final period (backward compatibility)
+      Query<Map<String, dynamic>> qQ2 = _firestore
           .collection('instructors')
           .doc(user.uid)
           .collection('quizzes')
           .where('category', isEqualTo: 'midterm_exam')
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
-        qQ = qQ.where(
+        qQ2 = qQ2.where(
           'assignedSemester.semesterId',
           isEqualTo: _selectedSemesterId,
         );
       }
-      final qSnap = await qQ.get();
-      for (var doc in qSnap.docs) {
+      final qSnap2 = await qQ2.get();
+      for (var doc in qSnap2.docs) {
         final data = doc.data();
         if ((data['period'] as String?) == 'Final') {
           items.add({
@@ -912,21 +987,46 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         }
       }
 
-      // PITs
-      Query<Map<String, dynamic>> pQ = _firestore
+      // PITs - Query for final_exam category
+      Query<Map<String, dynamic>> pQ1 = _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('pits')
+          .where('category', isEqualTo: 'final_exam')
+          .where('selectedClasses', arrayContains: currentSectionCode);
+      if (_selectedSemesterId != null) {
+        pQ1 = pQ1.where(
+          'assignedSemester.semesterId',
+          isEqualTo: _selectedSemesterId,
+        );
+      }
+      final pSnap1 = await pQ1.get();
+      for (var doc in pSnap1.docs) {
+        final data = doc.data();
+        items.add({
+          'id': doc.id,
+          'title': data['title'],
+          'points': data['points'],
+          'type': 'pit',
+          'category': data['category'],
+        });
+      }
+
+      // PITs - Query for midterm_exam category with Final period (backward compatibility)
+      Query<Map<String, dynamic>> pQ2 = _firestore
           .collection('instructors')
           .doc(user.uid)
           .collection('pits')
           .where('category', isEqualTo: 'midterm_exam')
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
-        pQ = pQ.where(
+        pQ2 = pQ2.where(
           'assignedSemester.semesterId',
           isEqualTo: _selectedSemesterId,
         );
       }
-      final pSnap = await pQ.get();
-      for (var doc in pSnap.docs) {
+      final pSnap2 = await pQ2.get();
+      for (var doc in pSnap2.docs) {
         final data = doc.data();
         if ((data['period'] as String?) == 'Final') {
           items.add({
