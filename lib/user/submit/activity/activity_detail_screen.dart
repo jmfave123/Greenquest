@@ -216,7 +216,12 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen>
       ),
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+        padding: const EdgeInsets.only(
+          left: 15,
+          right: 15,
+          top: 15,
+          bottom: 30,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

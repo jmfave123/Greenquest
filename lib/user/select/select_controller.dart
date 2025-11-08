@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class SelectController extends GetxController {
@@ -66,7 +67,7 @@ class SelectController extends GetxController {
           await _firestore.collection('instructors').get();
 
       // Filter out instructors without names and ensure they have required fields
-      instructors.value =
+      List<Map<String, dynamic>> instructorsList =
           querySnapshot.docs
               .map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
@@ -87,6 +88,28 @@ class SelectController extends GetxController {
               })
               .toList();
 
+      // Check if each instructor has classes
+      for (var instructor in instructorsList) {
+        final instructorId = instructor['uid'] ?? '';
+        if (instructorId.isNotEmpty) {
+          try {
+            final classesQuery =
+                await _firestore
+                    .collection('instructors')
+                    .doc(instructorId)
+                    .collection('classes')
+                    .get();
+            instructor['hasClasses'] = classesQuery.docs.isNotEmpty;
+          } catch (e) {
+            log('Error checking classes for instructor $instructorId: $e');
+            instructor['hasClasses'] = false;
+          }
+        } else {
+          instructor['hasClasses'] = false;
+        }
+      }
+
+      instructors.value = instructorsList;
       log('Loaded ${instructors.length} instructors with names');
     } catch (e) {
       log('Error fetching instructors: $e');
@@ -140,6 +163,24 @@ class SelectController extends GetxController {
       log('==================== SELECT INSTRUCTOR ====================');
       log('Instructor ID: $instructorId');
       log('Instructor Name: $instructorName');
+
+      // Check if instructor has classes before allowing selection
+      final instructor = instructors.firstWhereOrNull(
+        (inst) => inst['uid'] == instructorId,
+      );
+
+      if (instructor != null && instructor['hasClasses'] == false) {
+        log('Cannot select instructor: Instructor has no classes');
+        Get.snackbar(
+          'Cannot Select',
+          'This instructor does not have any classes yet. Please select another instructor.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+        return;
+      }
 
       selectedInstructorId.value = instructorId;
       selectedInstructorName.value = instructorName;

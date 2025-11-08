@@ -58,8 +58,45 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
       }
     }
 
-    // Fallback to static asset image
-    return const AssetImage('assets/images/image_311-removebg-preview.png');
+    // Return null if no valid image found (will use initials instead)
+    return null;
+  }
+
+  /// Get initials from instructor name (e.g., "Jovel Lapornina" -> "JL")
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+
+    final parts = name.trim().split(' ');
+    if (parts.length == 1) {
+      // Single name - take first 2 characters
+      return parts[0]
+          .substring(0, parts[0].length > 2 ? 2 : parts[0].length)
+          .toUpperCase();
+    } else {
+      // Multiple names - take first letter of first and last name
+      final first = parts[0].isNotEmpty ? parts[0][0] : '';
+      final last =
+          parts[parts.length - 1].isNotEmpty ? parts[parts.length - 1][0] : '';
+      return (first + last).toUpperCase();
+    }
+  }
+
+  /// Get color for avatar based on instructor name
+  Color _getAvatarColor(String name) {
+    final colors = [
+      const Color(0xFF43A047),
+      const Color(0xFF2196F3),
+      const Color(0xFF9C27B0),
+      const Color(0xFFF57C00),
+      const Color(0xFFE91E63),
+      const Color(0xFF00BCD4),
+      const Color(0xFF795548),
+      const Color(0xFF607D8B),
+    ];
+
+    // Use name hash to consistently assign color
+    int hash = name.hashCode;
+    return colors[hash.abs() % colors.length];
   }
 
   @override
@@ -184,7 +221,8 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 12,
-                  childAspectRatio: 1.0,
+                  childAspectRatio: 0.85, // Adjusted to prevent overflow
+                  padding: EdgeInsets.zero,
                   children: List.generate(instructors.length, (index) {
                     final instructor = instructors[index];
                     final instructorName = instructor['name'] ?? '';
@@ -196,56 +234,135 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                     }
 
                     final isSelected = isInstructorSelected(instructorUid);
+                    final hasClasses = instructor['hasClasses'] ?? false;
 
                     return GestureDetector(
                       onTap:
-                          () => selectInstructor(instructorUid, instructorName),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color:
-                              isSelected
-                                  ? const Color(0xFFE8F5E8)
-                                  : Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
+                          hasClasses
+                              ? () => selectInstructor(
+                                instructorUid,
+                                instructorName,
+                              )
+                              : () {
+                                // Show tooltip or snackbar when trying to select instructor without classes
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'This instructor does not have any classes yet',
+                                    ),
+                                    duration: Duration(seconds: 2),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              },
+                      child: Opacity(
+                        opacity: hasClasses ? 1.0 : 0.5,
+                        child: Container(
+                          decoration: BoxDecoration(
                             color:
                                 isSelected
-                                    ? const Color(0xFF43A047)
+                                    ? const Color(0xFFE8F5E8)
                                     : Colors.transparent,
-                            width: 2,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color:
+                                  isSelected
+                                      ? const Color(0xFF43A047)
+                                      : Colors.transparent,
+                              width: 2,
+                            ),
                           ),
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundImage: _getInstructorProfileImage(
-                                instructor,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 10,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // Check if instructor has profile image
+                                  _getInstructorProfileImage(instructor) != null
+                                      ? CircleAvatar(
+                                        radius: 24,
+                                        backgroundImage:
+                                            _getInstructorProfileImage(
+                                              instructor,
+                                            ),
+                                      )
+                                      : CircleAvatar(
+                                        radius: 24,
+                                        backgroundColor: _getAvatarColor(
+                                          instructorName,
+                                        ),
+                                        child: Text(
+                                          _getInitials(instructorName),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  if (!hasClasses)
+                                    Positioned(
+                                      right: -2,
+                                      bottom: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.orange,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.info_outline,
+                                          size: 12,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            Flexible(
-                              child: Text(
-                                instructorName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight:
-                                      isSelected
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                  color:
-                                      isSelected
-                                          ? const Color(0xFF43A047)
-                                          : Colors.black,
+                              const SizedBox(height: 6),
+                              Flexible(
+                                child: Text(
+                                  instructorName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                    color:
+                                        isSelected
+                                            ? const Color(0xFF43A047)
+                                            : hasClasses
+                                            ? Colors.black
+                                            : Colors.grey,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                textAlign: TextAlign.center,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                              if (!hasClasses)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    'No classes',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      color: Colors.orange,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     );
