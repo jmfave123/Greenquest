@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'instructor_navigation_constants.dart';
 import '../widgets/safe_asset_image.dart';
+import '../services/instructor_class_service.dart';
 
 // Data class for navigation items
 class NavigationItemData {
@@ -32,6 +33,35 @@ class InstructorSidebar extends StatefulWidget {
 }
 
 class _InstructorSidebarState extends State<InstructorSidebar> {
+  bool _hasAssignedSections = true;
+  bool _isCheckingSections = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSections();
+  }
+
+  Future<void> _checkSections() async {
+    setState(() {
+      _isCheckingSections = true;
+    });
+
+    try {
+      final sectionCodes =
+          await InstructorClassService.getInstructorSectionCodes();
+      setState(() {
+        _hasAssignedSections = sectionCodes.isNotEmpty;
+        _isCheckingSections = false;
+      });
+    } catch (e) {
+      setState(() {
+        _hasAssignedSections = false;
+        _isCheckingSections = false;
+      });
+    }
+  }
+
   // Navigation items configuration - easy to maintain and modify
   static const List<NavigationItemData> _mainMenuItems = [
     NavigationItemData(
@@ -90,6 +120,14 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
   );
 
   void _handleNavigationSelect(InstructorNavigationItem item) {
+    // Block Create and Announcements navigation if no sections assigned
+    if ((item == InstructorNavigationItem.create ||
+            item == InstructorNavigationItem.announcements) &&
+        !_hasAssignedSections) {
+      _showNoSectionsError();
+      return;
+    }
+
     widget.onItemSelected(item);
 
     // Find the route for the selected item
@@ -219,40 +257,71 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
     );
   }
 
+  void _showNoSectionsError() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'You have no assigned sections yet. Please contact the administrator.',
+        ),
+        backgroundColor: Colors.orange,
+        duration: const Duration(seconds: 3),
+        dismissDirection: DismissDirection.endToStart,
+      ),
+    );
+  }
+
   Widget _buildNavigationItem(NavigationItemData item, bool isSelected) {
+    // Check if this is the Create or Announcements item and should be disabled
+    final isCreateItem = item.item == InstructorNavigationItem.create;
+    final isAnnouncementsItem =
+        item.item == InstructorNavigationItem.announcements;
+    final isDisabled =
+        (isCreateItem || isAnnouncementsItem) &&
+        (!_hasAssignedSections || _isCheckingSections);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () => _handleNavigationSelect(item.item),
-          child: Container(
-            decoration:
-                isSelected
-                    ? BoxDecoration(
-                      color: const Color(0xFF34A853),
-                      borderRadius: BorderRadius.circular(8),
-                    )
-                    : null,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                SafeAssetImage(
-                  assetPath: item.iconPath,
-                  width: 22,
-                  color: isSelected ? Colors.white : Colors.black87,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  item.label,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.black87,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    fontSize: 15,
+        child: Opacity(
+          opacity: isDisabled ? 0.5 : 1.0,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: isDisabled ? null : () => _handleNavigationSelect(item.item),
+            child: Container(
+              decoration:
+                  isSelected
+                      ? BoxDecoration(
+                        color: const Color(0xFF34A853),
+                        borderRadius: BorderRadius.circular(8),
+                      )
+                      : null,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  SafeAssetImage(
+                    assetPath: item.iconPath,
+                    width: 22,
+                    color:
+                        isDisabled
+                            ? Colors.grey
+                            : (isSelected ? Colors.white : Colors.black87),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Text(
+                    item.label,
+                    style: TextStyle(
+                      color:
+                          isDisabled
+                              ? Colors.grey
+                              : (isSelected ? Colors.white : Colors.black87),
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'auth_controller.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -31,6 +32,21 @@ class _SplashScreenState extends State<SplashScreen> {
         final refreshedUser = FirebaseAuth.instance.currentUser;
 
         if (refreshedUser != null) {
+          // Sync email verification status (backup sync on app startup)
+          try {
+            // Try to find existing controller, or create one if it doesn't exist
+            AuthController authController;
+            try {
+              authController = Get.find<AuthController>();
+            } catch (e) {
+              authController = Get.put(AuthController());
+            }
+            await authController.checkAndSyncEmailVerification();
+          } catch (e) {
+            // If sync fails, that's okay - it will sync on next login
+            print('Could not sync email verification on splash: $e');
+          }
+
           // Check if user has completed selection and approval status
           final hasCompletedSelection = await _checkUserSelectionStatus(
             refreshedUser.uid,

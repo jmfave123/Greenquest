@@ -27,8 +27,15 @@ class InstructorController extends GetxController {
     loadInstructor();
     // Load dashboard data once when controller is first created (when screen is first shown)
     // This is NOT auto-loading on every lifecycle change - it only happens once
-    loadDashboardStats(); // Load stats once when screen first appears
-    loadLeaderboardData(); // Load leaderboard once when screen first appears
+    _initializeDashboard(); // Load stats first, then conditionally load leaderboard
+  }
+
+  /// Initialize dashboard - load stats first, then conditionally load leaderboard
+  Future<void> _initializeDashboard() async {
+    // Load stats first to get activeClassesCount
+    await loadDashboardStats();
+    // Only load leaderboard if instructor has classes
+    loadLeaderboardData();
   }
 
   /// Load instructor name using email query (same pattern as login flow)
@@ -179,12 +186,103 @@ class InstructorController extends GetxController {
     }
   }
 
+  /// Get instructor's class section codes for filtering students
+  /// Returns a set of section codes that match the instructor's classes
+  Future<Set<String>> _getInstructorClassSectionCodes(
+    String instructorId,
+  ) async {
+    try {
+      final classesQuery =
+          await FirebaseFirestore.instance
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('classes')
+              .get();
+
+      Set<String> sectionCodes = {};
+
+      for (var classDoc in classesQuery.docs) {
+        final classData = classDoc.data();
+        final section = classData['section']?.toString() ?? '';
+        final sectionId = classData['sectionId']?.toString() ?? '';
+
+        // Add both section and sectionId to the set
+        if (section.isNotEmpty) {
+          sectionCodes.add(section);
+        }
+        if (sectionId.isNotEmpty) {
+          sectionCodes.add(sectionId);
+        }
+
+        // Also handle full section codes (e.g., "BSIT-4D")
+        // Extract the section part if it contains a dash
+        if (section.contains('-')) {
+          final sectionPart = section.split('-').last;
+          if (sectionPart.isNotEmpty) {
+            sectionCodes.add(sectionPart);
+          }
+        }
+      }
+
+      return sectionCodes;
+    } catch (e) {
+      print('Error getting instructor class section codes: $e');
+      return {};
+    }
+  }
+
+  /// Check if a student's section code matches any of the instructor's classes
+  bool _matchesInstructorClass(
+    String studentSectionCode,
+    Set<String> instructorSectionCodes,
+  ) {
+    if (studentSectionCode.isEmpty) return false;
+
+    // Direct match
+    if (instructorSectionCodes.contains(studentSectionCode)) {
+      return true;
+    }
+
+    // Extract section part if it contains a dash (e.g., "BSIT-4D" -> "4D")
+    if (studentSectionCode.contains('-')) {
+      final sectionPart = studentSectionCode.split('-').last;
+      if (instructorSectionCodes.contains(sectionPart)) {
+        return true;
+      }
+    }
+
+    // Check if any instructor section code matches the student's section
+    for (var instructorSection in instructorSectionCodes) {
+      if (studentSectionCode.contains(instructorSection) ||
+          instructorSection.contains(studentSectionCode)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   /// Load leaderboard data for students
+  /// Only loads if instructor has at least one class
   Future<void> loadLeaderboardData() async {
     try {
       isLoadingLeaderboard.value = true;
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        isLoadingLeaderboard.value = false;
+        return;
+      }
+
+      // Check if instructor has any classes - if not, skip loading leaderboard
+      if (activeClassesCount.value == 0) {
+        print('No classes found for instructor. Skipping leaderboard load.');
+        // Clear leaderboard data
+        leaderboardData['Total'] = [];
+        leaderboardData['Assignments'] = [];
+        leaderboardData['Activities'] = [];
+        isLoadingLeaderboard.value = false;
+        return;
+      }
 
       // Load total points leaderboard
       await _loadTotalLeaderboard(user.uid);
@@ -202,33 +300,56 @@ class InstructorController extends GetxController {
   }
 
   /// Load total points leaderboard
+  /// Only loads approved students enrolled in instructor's classes
   Future<void> _loadTotalLeaderboard(String instructorId) async {
     try {
-      // Get all students enrolled with this instructor
-      final studentsQuery =
+      // Get instructor's class section codes for filtering
+      final instructorSectionCodes = await _getInstructorClassSectionCodes(
+        instructorId,
+      );
+
+      if (instructorSectionCodes.isEmpty) {
+        print('No class sections found for instructor. Skipping leaderboard.');
+        leaderboardData['Total'] = [];
+        return;
+      }
+
+      // Get approved students from instructors/{instructorId}/students
+      final approvedStudentsQuery =
           await FirebaseFirestore.instance
-              .collection('users')
-              .where('selectedInstructorId', isEqualTo: instructorId)
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('students')
               .get();
 
       List<Map<String, dynamic>> studentsWithPoints = [];
 
-      for (var studentDoc in studentsQuery.docs) {
+      for (var studentDoc in approvedStudentsQuery.docs) {
         final studentData = studentDoc.data();
-        final studentId = studentDoc.id;
+        final studentId = studentData['studentId'] ?? studentDoc.id;
+        final studentSectionCode =
+            studentData['selectedSectionCode']?.toString() ?? '';
+
+        // Filter: Only include students whose section matches instructor's classes
+        if (!_matchesInstructorClass(
+          studentSectionCode,
+          instructorSectionCodes,
+        )) {
+          continue; // Skip students not enrolled in any class
+        }
 
         // Calculate total points from all submissions
         int totalPoints = await _calculateTotalPoints(studentId, instructorId);
 
         studentsWithPoints.add({
           'name':
-              studentData['fullName'] ??
+              studentData['studentName'] ??
               studentData['name'] ??
               'Unknown Student',
           'class':
-              studentData['selectedSectionCode'] ??
-              studentData['sectionCode'] ??
-              'Unknown Class',
+              studentSectionCode.isNotEmpty
+                  ? studentSectionCode
+                  : 'Unknown Class',
           'points': totalPoints,
         });
       }
@@ -246,20 +367,43 @@ class InstructorController extends GetxController {
   }
 
   /// Load assignments leaderboard
+  /// Only loads approved students enrolled in instructor's classes
   Future<void> _loadAssignmentsLeaderboard(String instructorId) async {
     try {
-      // Get all students enrolled with this instructor
-      final studentsQuery =
+      // Get instructor's class section codes for filtering
+      final instructorSectionCodes = await _getInstructorClassSectionCodes(
+        instructorId,
+      );
+
+      if (instructorSectionCodes.isEmpty) {
+        print('No class sections found for instructor. Skipping leaderboard.');
+        leaderboardData['Assignments'] = [];
+        return;
+      }
+
+      // Get approved students from instructors/{instructorId}/students
+      final approvedStudentsQuery =
           await FirebaseFirestore.instance
-              .collection('users')
-              .where('selectedInstructorId', isEqualTo: instructorId)
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('students')
               .get();
 
       List<Map<String, dynamic>> studentsWithPoints = [];
 
-      for (var studentDoc in studentsQuery.docs) {
+      for (var studentDoc in approvedStudentsQuery.docs) {
         final studentData = studentDoc.data();
-        final studentId = studentDoc.id;
+        final studentId = studentData['studentId'] ?? studentDoc.id;
+        final studentSectionCode =
+            studentData['selectedSectionCode']?.toString() ?? '';
+
+        // Filter: Only include students whose section matches instructor's classes
+        if (!_matchesInstructorClass(
+          studentSectionCode,
+          instructorSectionCodes,
+        )) {
+          continue; // Skip students not enrolled in any class
+        }
 
         // Calculate points from assignment submissions only
         int assignmentPoints = await _calculateAssignmentPoints(
@@ -269,13 +413,13 @@ class InstructorController extends GetxController {
 
         studentsWithPoints.add({
           'name':
-              studentData['fullName'] ??
+              studentData['studentName'] ??
               studentData['name'] ??
               'Unknown Student',
           'class':
-              studentData['selectedSectionCode'] ??
-              studentData['sectionCode'] ??
-              'Unknown Class',
+              studentSectionCode.isNotEmpty
+                  ? studentSectionCode
+                  : 'Unknown Class',
           'points': assignmentPoints,
         });
       }
@@ -293,20 +437,43 @@ class InstructorController extends GetxController {
   }
 
   /// Load activities leaderboard
+  /// Only loads approved students enrolled in instructor's classes
   Future<void> _loadActivitiesLeaderboard(String instructorId) async {
     try {
-      // Get all students enrolled with this instructor
-      final studentsQuery =
+      // Get instructor's class section codes for filtering
+      final instructorSectionCodes = await _getInstructorClassSectionCodes(
+        instructorId,
+      );
+
+      if (instructorSectionCodes.isEmpty) {
+        print('No class sections found for instructor. Skipping leaderboard.');
+        leaderboardData['Activities'] = [];
+        return;
+      }
+
+      // Get approved students from instructors/{instructorId}/students
+      final approvedStudentsQuery =
           await FirebaseFirestore.instance
-              .collection('users')
-              .where('selectedInstructorId', isEqualTo: instructorId)
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('students')
               .get();
 
       List<Map<String, dynamic>> studentsWithPoints = [];
 
-      for (var studentDoc in studentsQuery.docs) {
+      for (var studentDoc in approvedStudentsQuery.docs) {
         final studentData = studentDoc.data();
-        final studentId = studentDoc.id;
+        final studentId = studentData['studentId'] ?? studentDoc.id;
+        final studentSectionCode =
+            studentData['selectedSectionCode']?.toString() ?? '';
+
+        // Filter: Only include students whose section matches instructor's classes
+        if (!_matchesInstructorClass(
+          studentSectionCode,
+          instructorSectionCodes,
+        )) {
+          continue; // Skip students not enrolled in any class
+        }
 
         // Calculate points from activity submissions only
         int activityPoints = await _calculateActivityPoints(
@@ -316,13 +483,13 @@ class InstructorController extends GetxController {
 
         studentsWithPoints.add({
           'name':
-              studentData['fullName'] ??
+              studentData['studentName'] ??
               studentData['name'] ??
               'Unknown Student',
           'class':
-              studentData['selectedSectionCode'] ??
-              studentData['sectionCode'] ??
-              'Unknown Class',
+              studentSectionCode.isNotEmpty
+                  ? studentSectionCode
+                  : 'Unknown Class',
           'points': activityPoints,
         });
       }

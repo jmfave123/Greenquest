@@ -1729,70 +1729,206 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     );
   }
 
-  Future<void> _deleteSemester(String semesterId, String semesterName) async {
-    // Show confirmation dialog
-    await ConfirmationDialog.showDeleteSemesterDialog(
-      context,
-      semesterName: semesterName,
-      onConfirm: () async {
-        await _performDeleteSemester(semesterId);
+  Future<void> _editSemester(Map<String, dynamic> semester) async {
+    final TextEditingController yearController = TextEditingController(
+      text: semester['year'] ?? '',
+    );
+    String selectedSemester = semester['semester'] ?? '1st Semester';
+    final String semesterId = semester['id'] ?? '';
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF34A853).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.edit,
+                            color: Color(0xFF34A853),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Edit Semester',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    TextFormField(
+                      controller: yearController,
+                      decoration: InputDecoration(
+                        labelText: 'Academic Year',
+                        hintText: 'e.g., 2024-2025',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF34A853),
+                          ),
+                        ),
+                      ),
+                      keyboardType: TextInputType.text,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedSemester,
+                      decoration: InputDecoration(
+                        labelText: 'Semester',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF34A853),
+                          ),
+                        ),
+                      ),
+                      items:
+                          ['1st Semester', '2nd Semester', 'Summer'].map((
+                            String semester,
+                          ) {
+                            return DropdownMenuItem<String>(
+                              value: semester,
+                              child: Text(semester),
+                            );
+                          }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          selectedSemester = newValue!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed:
+                              () => _updateSemester(
+                                semesterId,
+                                yearController.text.trim(),
+                                selectedSemester,
+                              ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF34A853),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Update Semester'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
       },
     );
   }
 
-  Future<void> _performDeleteSemester(String semesterId) async {
+  Future<void> _updateSemester(
+    String semesterId,
+    String year,
+    String semester,
+  ) async {
+    if (year.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'Please enter academic year',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     try {
-      // Get all instructors assigned to this semester
-      final assignedInstructorsSnapshot =
+      // Check for duplicate semester (excluding current semester)
+      final existingSemester =
           await _firestore
               .collection('semesters')
-              .doc(semesterId)
-              .collection('instructors')
+              .where('year', isEqualTo: year)
+              .where('semester', isEqualTo: semester)
               .get();
 
-      // Remove semester from each instructor's assignedSemesters array
-      for (var instructorDoc in assignedInstructorsSnapshot.docs) {
-        final instructorId = instructorDoc.id;
-        final instructorRef = _firestore
-            .collection('instructors')
-            .doc(instructorId);
-        final instructorSnapshot = await instructorRef.get();
+      // Check if duplicate exists and it's not the current semester
+      final duplicateExists = existingSemester.docs.any(
+        (doc) => doc.id != semesterId,
+      );
 
-        if (instructorSnapshot.exists) {
-          final instructorData =
-              instructorSnapshot.data() as Map<String, dynamic>;
-          final assignedSemesters =
-              (instructorData['assignedSemesters'] as List<dynamic>?) ?? [];
-
-          // Remove this semester from the array
-          final updatedSemesters =
-              assignedSemesters
-                  .where((sem) => sem['semesterId'] != semesterId)
-                  .toList();
-
-          await instructorRef.update({
-            'assignedSemesters': updatedSemesters,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
+      if (duplicateExists) {
+        Get.snackbar(
+          'Error',
+          'This semester already exists',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
       }
 
-      // Delete the semester document (this will cascade delete subcollections)
-      await _firestore.collection('semesters').doc(semesterId).delete();
+      await _firestore.collection('semesters').doc(semesterId).update({
+        'year': year,
+        'semester': semester,
+        'displayName': '$semester $year',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      Navigator.of(context).pop();
 
       // Reload semesters to update the UI
       _loadSemesters();
 
       Get.snackbar(
         'Success',
-        'Semester deleted successfully',
+        'Semester updated successfully',
         backgroundColor: const Color(0xFF34A853),
         colorText: Colors.white,
       );
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to delete semester: $e',
+        'Failed to update semester: $e',
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
@@ -2289,11 +2425,39 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                                             );
                                           }
 
+                                          // Sort sections alphabetically by sectionCode
+                                          final sortedDocs =
+                                              sectionsSnapshot.data!.docs
+                                                  .toList()
+                                                ..sort((a, b) {
+                                                  final aData =
+                                                      a.data()
+                                                          as Map<
+                                                            String,
+                                                            dynamic
+                                                          >;
+                                                  final bData =
+                                                      b.data()
+                                                          as Map<
+                                                            String,
+                                                            dynamic
+                                                          >;
+                                                  final aCode =
+                                                      (aData['sectionCode'] ??
+                                                              '')
+                                                          .toString()
+                                                          .toUpperCase();
+                                                  final bCode =
+                                                      (bData['sectionCode'] ??
+                                                              '')
+                                                          .toString()
+                                                          .toUpperCase();
+                                                  return aCode.compareTo(bCode);
+                                                });
+
                                           return Column(
                                             children:
-                                                sectionsSnapshot.data!.docs.map((
-                                                  sectionDoc,
-                                                ) {
+                                                sortedDocs.map((sectionDoc) {
                                                   final sectionData =
                                                       sectionDoc.data()
                                                           as Map<
@@ -2643,17 +2807,13 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                                           ),
                                           IconButton(
                                             onPressed:
-                                                () => _deleteSemester(
-                                                  semester['id'],
-                                                  semester['displayName'] ??
-                                                      'Unknown Semester',
-                                                ),
+                                                () => _editSemester(semester),
                                             icon: const Icon(
-                                              Icons.delete,
-                                              color: Colors.red,
+                                              Icons.edit,
+                                              color: Color(0xFF34A853),
                                               size: 20,
                                             ),
-                                            tooltip: 'Delete Semester',
+                                            tooltip: 'Edit Semester',
                                           ),
                                           const Icon(
                                             Icons.arrow_forward_ios,

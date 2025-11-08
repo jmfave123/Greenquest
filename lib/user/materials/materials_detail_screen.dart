@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../shared/services/file_download_service.dart';
+import '../../shared/widgets/linkable_text.dart';
 
 class MaterialsDetailScreen extends StatelessWidget {
   final Map<String, dynamic>? material;
@@ -71,8 +72,9 @@ class MaterialsDetailScreen extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
             ),
             const SizedBox(height: 16),
-            Text(
-              material!['description']?.toString() ??
+            LinkableText(
+              text:
+                  material!['description']?.toString() ??
                   'No description available',
               style: const TextStyle(
                 fontSize: 15,

@@ -66,6 +66,7 @@ void showErrorSnackBar(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       margin: const EdgeInsets.all(16),
       elevation: 6,
+      dismissDirection: DismissDirection.endToStart,
       action: SnackBarAction(
         label: 'Dismiss',
         textColor: Colors.white,

@@ -144,13 +144,18 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                                   ),
                         ),
                         const SizedBox(height: 28),
-                        // Dynamic Leaderboard
-                        Obx(
-                          () =>
-                              instructorController.isLoadingLeaderboard.value
-                                  ? const SkeletonInstructorLeaderboardCard()
-                                  : _LeaderboardCard(),
-                        ),
+                        // Dynamic Leaderboard - only show if instructor has classes
+                        Obx(() {
+                          // Don't show leaderboard if instructor has no classes
+                          if (instructorController.activeClassesCount.value ==
+                              0) {
+                            return const SizedBox.shrink();
+                          }
+                          // Show loading skeleton or leaderboard card
+                          return instructorController.isLoadingLeaderboard.value
+                              ? const SkeletonInstructorLeaderboardCard()
+                              : _LeaderboardCard();
+                        }),
                         const SizedBox(height: 32),
                       ],
                     ),

@@ -8,6 +8,7 @@ import '../../../shared/controllers/file_submission_controller.dart';
 import '../../../shared/services/file_upload_service.dart';
 import '../../../shared/services/file_download_service.dart';
 import '../../../shared/utils/file_type_utils.dart';
+import '../../../shared/widgets/linkable_text.dart';
 
 class AssignmentDetailScreen extends StatefulWidget {
   final Map<String, dynamic> assignment;
@@ -275,8 +276,9 @@ class _AssignmentDetailScreenState extends State<AssignmentDetailScreen>
               children: [
                 const Text('📝 ', style: TextStyle(fontSize: 18)),
                 Expanded(
-                  child: Text(
-                    'Description: ${assignment['instruction'] ?? 'No instructions available'}',
+                  child: LinkableText(
+                    text:
+                        'Description: ${assignment['instruction'] ?? 'No instructions available'}',
                     style: const TextStyle(fontSize: 15),
                   ),
                 ),

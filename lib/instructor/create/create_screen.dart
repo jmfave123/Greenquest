@@ -7,6 +7,7 @@ import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/widgets/safe_asset_image.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../../shared/services/instructor_class_service.dart';
 import 'assignment_screen.dart';
 import 'activity_screen.dart';
 import 'quiz_screen_new.dart';
@@ -49,12 +50,41 @@ class _CreateScreenState extends State<CreateScreen>
   ];
   final List<String> _periods = ['Prelim', 'Midterm', 'Final'];
   final List<String> _pitPeriods = ['Midterm', 'Final'];
+  bool _hasAssignedSections = true;
+  bool _isCheckingSections = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Removed auto-loading - data will load only when user explicitly requests it
+    _checkSectionsOnInit();
+  }
+
+  Future<void> _checkSectionsOnInit() async {
+    setState(() {
+      _isCheckingSections = true;
+    });
+
+    try {
+      final hasSections = await _checkInstructorSections();
+      setState(() {
+        _hasAssignedSections = hasSections;
+        _isCheckingSections = false;
+      });
+
+      if (!hasSections) {
+        // Show error message when screen loads
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _showNoSectionsError();
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _hasAssignedSections = false;
+        _isCheckingSections = false;
+      });
+      print('Error checking sections on init: $e');
+    }
   }
 
   @override
@@ -78,7 +108,13 @@ class _CreateScreenState extends State<CreateScreen>
     Navigator.of(context).pushNamed(route);
   }
 
-  void _toggleTypeDropdown() {
+  Future<void> _toggleTypeDropdown() async {
+    // Don't allow opening if no sections assigned
+    if (!_hasAssignedSections || _isCheckingSections) {
+      _showNoSectionsError();
+      return;
+    }
+
     // If dropdowns are already open, close them (avoid double-handling with overlay)
     if (_showTypeDropdown || _showPeriodDropdown) {
       _closeDropdowns();
@@ -90,7 +126,17 @@ class _CreateScreenState extends State<CreateScreen>
     });
   }
 
-  void _selectType(String type) {
+  Future<void> _selectType(String type) async {
+    // Check if instructor has assigned sections (except for Material)
+    if (type != 'Material') {
+      final hasSections = await _checkInstructorSections();
+      if (!hasSections) {
+        // Show error message and don't proceed
+        _showNoSectionsError();
+        return;
+      }
+    }
+
     setState(() {
       _selectedType = type;
       _selectedPeriod = null; // Reset period when type changes
@@ -110,6 +156,32 @@ class _CreateScreenState extends State<CreateScreen>
         _navigateToMaterial();
       }
     });
+  }
+
+  Future<bool> _checkInstructorSections() async {
+    try {
+      final sectionCodes =
+          await InstructorClassService.getInstructorSectionCodes();
+      return sectionCodes.isNotEmpty;
+    } catch (e) {
+      print('Error checking instructor sections: $e');
+      return false;
+    }
+  }
+
+  void _showNoSectionsError() {
+    Get.snackbar(
+      'No Assigned Sections',
+      'You have no assigned sections yet. Please contact the administrator.',
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: Colors.orange,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 4),
+      dismissDirection: DismissDirection.endToStart,
+      margin: const EdgeInsets.all(16),
+    );
+    // Close dropdowns
+    _closeDropdowns();
   }
 
   void _navigateToMaterial() {
@@ -835,51 +907,117 @@ class _CreateScreenState extends State<CreateScreen>
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Main Create Button
-                                GestureDetector(
-                                  onTap: _toggleTypeDropdown,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 30,
-                                      vertical: 10,
-                                    ),
+                                // Warning message if no sections
+                                if (!_isCheckingSections &&
+                                    !_hasAssignedSections) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    margin: const EdgeInsets.only(bottom: 16),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF34A853),
-                                      borderRadius: BorderRadius.circular(10),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(
-                                            0xFF34A853,
-                                          ).withOpacity(0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
+                                      color: Colors.orange.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.orange.withOpacity(0.3),
+                                      ),
                                     ),
                                     child: Row(
-                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         const Icon(
-                                          Icons.add,
-                                          color: Colors.white,
+                                          Icons.warning_amber_rounded,
+                                          color: Colors.orange,
                                           size: 24,
                                         ),
                                         const SizedBox(width: 12),
-                                        Text(
-                                          _selectedType ?? 'Create',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
+                                        Expanded(
+                                          child: Text(
+                                            'You have no assigned sections yet. Please contact the administrator to get sections assigned to you.',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.orange[900],
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        const Icon(
-                                          Icons.keyboard_arrow_down,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
                                       ],
+                                    ),
+                                  ),
+                                ],
+                                // Main Create Button
+                                Opacity(
+                                  opacity:
+                                      _isCheckingSections ||
+                                              !_hasAssignedSections
+                                          ? 0.5
+                                          : 1.0,
+                                  child: GestureDetector(
+                                    onTap:
+                                        _isCheckingSections ||
+                                                !_hasAssignedSections
+                                            ? null
+                                            : _toggleTypeDropdown,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 30,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            _isCheckingSections ||
+                                                    !_hasAssignedSections
+                                                ? Colors.grey
+                                                : const Color(0xFF34A853),
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow:
+                                            _isCheckingSections ||
+                                                    !_hasAssignedSections
+                                                ? []
+                                                : [
+                                                  BoxShadow(
+                                                    color: const Color(
+                                                      0xFF34A853,
+                                                    ).withOpacity(0.3),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 4),
+                                                  ),
+                                                ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.add,
+                                            color:
+                                                _isCheckingSections ||
+                                                        !_hasAssignedSections
+                                                    ? Colors.grey[300]
+                                                    : Colors.white,
+                                            size: 24,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            _selectedType ?? 'Create',
+                                            style: TextStyle(
+                                              color:
+                                                  _isCheckingSections ||
+                                                          !_hasAssignedSections
+                                                      ? Colors.grey[300]
+                                                      : Colors.white,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Icon(
+                                            Icons.keyboard_arrow_down,
+                                            color:
+                                                _isCheckingSections ||
+                                                        !_hasAssignedSections
+                                                    ? Colors.grey[300]
+                                                    : Colors.white,
+                                            size: 20,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),

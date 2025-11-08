@@ -229,7 +229,19 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
       Get.offAllNamed('/select-instructor');
     } else {
       if (mounted) {
-        showErrorSnackBar(context, message: result['message']);
+        // Check if error is due to email not verified
+        if (result['error'] == 'email-not-verified') {
+          // Show error message (verification email was already sent during login attempt)
+          showErrorSnackBar(
+            context,
+            message:
+                result['message'] ??
+                'Please verify your email before logging in. Check your inbox for the verification link.',
+          );
+        } else {
+          // Show regular error
+          showErrorSnackBar(context, message: result['message']);
+        }
       }
     }
   }

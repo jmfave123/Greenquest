@@ -247,7 +247,7 @@ class InAppNotificationService {
         return [];
       }
 
-      // Get student's enrolled section
+      // Get student's enrolled section and account creation date
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       if (!userDoc.exists) {
         dev.log('❌ User document not found');
@@ -258,8 +258,20 @@ class InAppNotificationService {
       final userSection = userData['selectedSectionCode']?.toString() ?? '';
       final userId = user.uid;
 
+      // Get user's account creation date
+      final userCreatedAt = userData['createdAt'];
+      DateTime? userCreatedAtDate;
+      if (userCreatedAt != null) {
+        if (userCreatedAt is Timestamp) {
+          userCreatedAtDate = userCreatedAt.toDate();
+        } else if (userCreatedAt is DateTime) {
+          userCreatedAtDate = userCreatedAt;
+        }
+      }
+
       dev.log('📬 Fetching notifications for user: $userId');
       dev.log('📬 User section: $userSection');
+      dev.log('📬 User account created at: $userCreatedAtDate');
 
       // Build the query
       Query query = _firestore
@@ -277,26 +289,81 @@ class InAppNotificationService {
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final targetType = data['targetType']?.toString() ?? '';
+        final notificationCreatedAt = data['createdAt'];
+
+        // Check if notification was created on or after user's account creation
+        bool isNotificationAfterUserCreation = true;
+        if (userCreatedAtDate != null && notificationCreatedAt != null) {
+          DateTime? notificationDate;
+          if (notificationCreatedAt is Timestamp) {
+            notificationDate = notificationCreatedAt.toDate();
+          } else if (notificationCreatedAt is DateTime) {
+            notificationDate = notificationCreatedAt;
+          }
+
+          if (notificationDate != null) {
+            // Only show notifications created on or after user's account creation
+            isNotificationAfterUserCreation =
+                notificationDate.isAfter(userCreatedAtDate) ||
+                notificationDate.isAtSameMomentAs(userCreatedAtDate);
+
+            if (!isNotificationAfterUserCreation) {
+              dev.log(
+                '❌ Excluding notification: ${data['title']} (created ${notificationDate} before user registration ${userCreatedAtDate})',
+              );
+            }
+          }
+        }
 
         // Filter based on target type
+        // This checks the user's CURRENT section/status at query time,
+        // AND ensures the notification was created on or after the user registered
         bool shouldInclude = false;
 
         if (targetType == 'all') {
-          // Broadcast: show to everyone
+          // Broadcast: show to everyone, regardless of when they registered
           shouldInclude = true;
+          dev.log('✅ Including broadcast notification: ${data['title']}');
         } else if (targetType == 'section') {
-          // Section-based: check if user's section is in targetSections
+          // Section-based: check if user's CURRENT section matches
+          // This works for users who registered before OR after notification creation
           final targetSections = List<String>.from(
             data['targetSections'] ?? [],
           );
           shouldInclude = targetSections.contains(userSection);
+
+          if (shouldInclude) {
+            dev.log(
+              '✅ Including section notification: ${data['title']} (user section: $userSection matches target sections: $targetSections)',
+            );
+          } else {
+            dev.log(
+              '❌ Excluding section notification: ${data['title']} (user section: $userSection not in target sections: $targetSections)',
+            );
+          }
         } else if (targetType == 'individual') {
           // Individual: check if user's ID is in targetUsers
+          // Note: This only works if the user was added to targetUsers when notification was created
+          // For users who register later, they won't see individual notifications unless
+          // the notification is updated to include them
           final targetUsers = List<String>.from(data['targetUsers'] ?? []);
           shouldInclude = targetUsers.contains(userId);
+
+          if (shouldInclude) {
+            dev.log('✅ Including individual notification: ${data['title']}');
+          } else {
+            dev.log(
+              '❌ Excluding individual notification: ${data['title']} (user not in targetUsers)',
+            );
+          }
+        } else {
+          // Unknown targetType - default to showing it (safer than hiding)
+          dev.log('⚠️ Unknown targetType: $targetType, defaulting to show');
+          shouldInclude = true;
         }
 
-        if (shouldInclude) {
+        // Only include if it passes both the target type filter AND the date filter
+        if (shouldInclude && isNotificationAfterUserCreation) {
           notifications.add({'id': doc.id, ...data});
         }
       }
@@ -474,7 +541,7 @@ class InAppNotificationService {
           .orderBy('createdAt', descending: true)
           .snapshots()
           .asyncMap((snapshot) async {
-            // Get user's section
+            // Get user's section and account creation date
             final userDoc =
                 await _firestore.collection('users').doc(user.uid).get();
             final userData = userDoc.data() ?? {};
@@ -482,33 +549,111 @@ class InAppNotificationService {
                 userData['selectedSectionCode']?.toString() ?? '';
             final userId = user.uid;
 
+            // Get user's account creation date
+            final userCreatedAt = userData['createdAt'];
+            DateTime? userCreatedAtDate;
+            if (userCreatedAt != null) {
+              if (userCreatedAt is Timestamp) {
+                userCreatedAtDate = userCreatedAt.toDate();
+              } else if (userCreatedAt is DateTime) {
+                userCreatedAtDate = userCreatedAt;
+              }
+            }
+
+            dev.log('📬 Filtering notifications for user: $userId');
+            dev.log('📬 User section: $userSection');
+            dev.log('📬 User account created at: $userCreatedAtDate');
+
             final notifications = <Map<String, dynamic>>[];
 
             for (var doc in snapshot.docs) {
               final data = doc.data();
               final targetType = data['targetType']?.toString() ?? '';
+              final notificationCreatedAt = data['createdAt'];
+
+              // Check if notification was created on or after user's account creation
+              bool isNotificationAfterUserCreation = true;
+              if (userCreatedAtDate != null && notificationCreatedAt != null) {
+                DateTime? notificationDate;
+                if (notificationCreatedAt is Timestamp) {
+                  notificationDate = notificationCreatedAt.toDate();
+                } else if (notificationCreatedAt is DateTime) {
+                  notificationDate = notificationCreatedAt;
+                }
+
+                if (notificationDate != null) {
+                  // Only show notifications created on or after user's account creation
+                  isNotificationAfterUserCreation =
+                      notificationDate.isAfter(userCreatedAtDate) ||
+                      notificationDate.isAtSameMomentAs(userCreatedAtDate);
+
+                  if (!isNotificationAfterUserCreation) {
+                    dev.log(
+                      '❌ Excluding notification: ${data['title']} (created ${notificationDate} before user registration ${userCreatedAtDate})',
+                    );
+                  }
+                }
+              }
 
               bool shouldInclude = false;
 
               if (targetType == 'all') {
+                // Broadcast: show to everyone, regardless of when they registered
                 shouldInclude = true;
+                dev.log('✅ Including broadcast notification: ${data['title']}');
               } else if (targetType == 'section') {
+                // Section-based: check if user's CURRENT section matches
+                // This works for users who registered before OR after notification creation
                 final targetSections = List<String>.from(
                   data['targetSections'] ?? [],
                 );
                 shouldInclude = targetSections.contains(userSection);
+
+                if (shouldInclude) {
+                  dev.log(
+                    '✅ Including section notification: ${data['title']} (user section: $userSection matches target sections: $targetSections)',
+                  );
+                } else {
+                  dev.log(
+                    '❌ Excluding section notification: ${data['title']} (user section: $userSection not in target sections: $targetSections)',
+                  );
+                }
               } else if (targetType == 'individual') {
+                // Individual: check if user's ID is in targetUsers
+                // Note: This only works if the user was added to targetUsers when notification was created
+                // For users who register later, they won't see individual notifications unless
+                // the notification is updated to include them
                 final targetUsers = List<String>.from(
                   data['targetUsers'] ?? [],
                 );
                 shouldInclude = targetUsers.contains(userId);
+
+                if (shouldInclude) {
+                  dev.log(
+                    '✅ Including individual notification: ${data['title']}',
+                  );
+                } else {
+                  dev.log(
+                    '❌ Excluding individual notification: ${data['title']} (user not in targetUsers)',
+                  );
+                }
+              } else {
+                // Unknown targetType - default to showing it (safer than hiding)
+                dev.log(
+                  '⚠️ Unknown targetType: $targetType, defaulting to show',
+                );
+                shouldInclude = true;
               }
 
-              if (shouldInclude) {
+              // Only include if it passes both the target type filter AND the date filter
+              if (shouldInclude && isNotificationAfterUserCreation) {
                 notifications.add({'id': doc.id, ...data});
               }
             }
 
+            dev.log(
+              '✅ Filtered ${notifications.length} notifications for user',
+            );
             return notifications;
           });
     } catch (e) {

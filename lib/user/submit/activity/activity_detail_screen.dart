@@ -8,6 +8,7 @@ import '../../../shared/controllers/file_submission_controller.dart';
 import '../../../shared/services/file_upload_service.dart';
 import '../../../shared/services/file_download_service.dart';
 import '../../../shared/utils/file_type_utils.dart';
+import '../../../shared/widgets/linkable_text.dart';
 
 class ActivityDetailScreen extends StatefulWidget {
   final Map<String, dynamic> activity;
@@ -299,8 +300,9 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen>
               children: [
                 const Text('🔷 ', style: TextStyle(fontSize: 18)),
                 Expanded(
-                  child: Text(
-                    'Description: ${activity['instruction'] ?? 'No instructions available'}',
+                  child: LinkableText(
+                    text:
+                        'Description: ${activity['instruction'] ?? 'No instructions available'}',
                     style: const TextStyle(fontSize: 15),
                   ),
                 ),

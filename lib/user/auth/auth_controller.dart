@@ -32,6 +32,7 @@ class AuthController extends GetxController {
         'idNumber': idNumber,
         'createdAt': FieldValue.serverTimestamp(),
         'role': 'user',
+        'isVerified': false,
       });
 
       await userCredential.user?.sendEmailVerification();
@@ -76,19 +77,7 @@ class AuthController extends GetxController {
         password: password,
       );
 
-      // Check if email is verified
-      if (userCredential.user?.emailVerified == false) {
-        // Don't sign out, allow user to proceed but show warning
-        return {
-          'success': true,
-          'message':
-              'Login successful! Please verify your email for full access.',
-          'user': userCredential.user,
-          'emailVerified': false,
-        };
-      }
-
-      // Refresh the user token to ensure it's valid
+      // Refresh the user token to ensure we have the latest emailVerified status
       await userCredential.user?.reload();
       final refreshedUser = _auth.currentUser;
 
@@ -99,6 +88,34 @@ class AuthController extends GetxController {
           'error': 'session-expired',
         };
       }
+
+      // Check if email is verified - BLOCK LOGIN if not verified
+      if (!refreshedUser.emailVerified) {
+        // Try to send verification email before signing out
+        try {
+          await refreshedUser.sendEmailVerification();
+          log('Verification email sent to ${refreshedUser.email}');
+        } catch (e) {
+          log('Error sending verification email: $e');
+          // Continue even if sending email fails
+        }
+
+        // Sign out the user since email is not verified
+        await _auth.signOut();
+        isLoggedIn = false;
+        errorMessage = 'Please verify your email before logging in.';
+
+        return {
+          'success': false,
+          'message':
+              'Please verify your email before logging in. A verification email has been sent to your inbox.',
+          'error': 'email-not-verified',
+          'emailVerified': false,
+        };
+      }
+
+      // Email is verified - sync Firestore isVerified field
+      await _syncEmailVerificationStatus(refreshedUser.uid, true);
 
       isLoggedIn = true;
       errorMessage = null;
@@ -310,6 +327,49 @@ class AuthController extends GetxController {
     } catch (e) {
       log('Send email verification error: $e');
       rethrow;
+    }
+  }
+
+  /// Sync email verification status between Firebase Auth and Firestore
+  Future<void> _syncEmailVerificationStatus(
+    String userId,
+    bool isVerified,
+  ) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'isVerified': isVerified,
+        'emailVerifiedAt': isVerified ? FieldValue.serverTimestamp() : null,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      log(
+        '✅ Synced email verification status: isVerified=$isVerified for user $userId',
+      );
+    } catch (e) {
+      log('Error syncing email verification status: $e');
+      // Don't throw - this is a sync operation, shouldn't block login
+    }
+  }
+
+  /// Check and sync email verification status (used on app startup)
+  Future<void> checkAndSyncEmailVerification() async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        // Reload to get latest emailVerified status
+        await user.reload();
+        final refreshedUser = _auth.currentUser;
+
+        if (refreshedUser != null) {
+          // Sync Firestore with Firebase Auth status
+          await _syncEmailVerificationStatus(
+            refreshedUser.uid,
+            refreshedUser.emailVerified,
+          );
+        }
+      }
+    } catch (e) {
+      log('Error checking email verification status: $e');
+      // Don't throw - this is a background sync
     }
   }
 }

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/controllers/file_submission_controller.dart';
 import '../../shared/services/file_upload_service.dart';
+import '../../shared/widgets/linkable_text.dart';
 import 'submission_success_screen.dart';
 
 class FilePickerScreen extends StatefulWidget {
@@ -264,8 +265,9 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      'Description: ${widget.itemData['instruction'] ?? 'No description available'}',
+                    LinkableText(
+                      text:
+                          'Description: ${widget.itemData['instruction'] ?? 'No description available'}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.black54,

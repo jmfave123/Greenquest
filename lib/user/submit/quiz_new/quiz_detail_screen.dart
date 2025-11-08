@@ -8,6 +8,7 @@ import 'package:greenquest/shared/utils/file_type_utils.dart';
 import 'package:greenquest/user/submit/student_submission_controller.dart';
 import 'package:greenquest/user/submit/file_picker_screen.dart';
 import 'package:greenquest/shared/controllers/file_submission_controller.dart';
+import 'package:greenquest/shared/widgets/linkable_text.dart';
 
 class QuizDetailScreen extends StatefulWidget {
   final Map<String, dynamic> assignment;
@@ -300,8 +301,9 @@ class _QuizDetailScreenState extends State<QuizDetailScreen>
               children: [
                 const Text('🔷 ', style: TextStyle(fontSize: 18)),
                 Expanded(
-                  child: Text(
-                    'Description: ${assignment['instruction'] ?? 'No instructions available'}',
+                  child: LinkableText(
+                    text:
+                        'Description: ${assignment['instruction'] ?? 'No instructions available'}',
                     style: const TextStyle(fontSize: 15),
                   ),
                 ),

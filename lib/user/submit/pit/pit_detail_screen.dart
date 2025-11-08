@@ -8,6 +8,7 @@ import '../student_submission_controller.dart';
 import '../../../shared/controllers/file_submission_controller.dart';
 import '../../../shared/services/file_download_service.dart';
 import '../../../shared/utils/file_type_utils.dart';
+import '../../../shared/widgets/linkable_text.dart';
 
 class PitDetailScreen extends StatefulWidget {
   final Map<String, dynamic> pit;
@@ -212,8 +213,9 @@ class _PitDetailScreenState extends State<PitDetailScreen>
               children: [
                 const Text('🔷 ', style: TextStyle(fontSize: 18)),
                 Expanded(
-                  child: Text(
-                    'Description: ${widget.pit['instruction'] ?? 'No instructions available'}',
+                  child: LinkableText(
+                    text:
+                        'Description: ${widget.pit['instruction'] ?? 'No instructions available'}',
                     style: const TextStyle(fontSize: 15),
                   ),
                 ),
