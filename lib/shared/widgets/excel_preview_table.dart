@@ -84,7 +84,7 @@ class ExcelPreviewTable extends StatelessWidget {
                         );
                       }).toList(),
                 );
-              }).toList(),
+              }),
             ],
           ),
         ),

@@ -359,7 +359,8 @@ class _MaterialScreenState extends State<MaterialScreen> {
         print('✅ Material updated successfully');
         // Clear files after successful update
         _fileController.clearFiles();
-        Navigator.of(context).pop();
+        // Return true to trigger refresh in create screen
+        Navigator.of(context).pop(true);
       } else {
         print('❌ Material update failed');
       }
@@ -375,7 +376,8 @@ class _MaterialScreenState extends State<MaterialScreen> {
       if (success) {
         // Clear files after successful creation
         _fileController.clearFiles();
-        Navigator.of(context).pop();
+        // Return true to trigger refresh in create screen
+        Navigator.of(context).pop(true);
       }
     }
   }

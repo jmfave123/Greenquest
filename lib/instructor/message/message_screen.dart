@@ -490,7 +490,7 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                         lastSeen = null;
                                       }
 
-                                      // Check if online based on lastSeen (within 5 minutes)
+                                      // Check if online based on lastSeen (within 1 minute)
                                       bool isActuallyOnline = isOnline;
                                       if (!isOnline && lastSeen != null) {
                                         try {
@@ -509,7 +509,7 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                                     .inMinutes;
                                             isActuallyOnline =
                                                 difference <=
-                                                5; // Online if last seen within 5 minutes
+                                                1; // Online if last seen within 1 minute
                                           }
                                         } catch (e) {
                                           isActuallyOnline = false;
@@ -667,7 +667,7 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                               lastSeen = null;
                                             }
 
-                                            // Check if online based on lastSeen (within 5 minutes)
+                                            // Check if online based on lastSeen (within 1 minute)
                                             bool isActuallyOnline = isOnline;
                                             if (!isOnline && lastSeen != null) {
                                               try {
@@ -690,7 +690,7 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                                           .inMinutes;
                                                   isActuallyOnline =
                                                       difference <=
-                                                      5; // Online if last seen within 5 minutes
+                                                      1; // Online if last seen within 1 minute
                                                 }
                                               } catch (e) {
                                                 isActuallyOnline = false;

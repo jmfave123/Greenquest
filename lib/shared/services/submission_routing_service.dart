@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:developer' as dev;
+import 'in_app_notification_service.dart';
 
 /// Service responsible for automatically routing student submissions
 /// to the correct instructor's activity section
@@ -83,6 +84,19 @@ class SubmissionRoutingService {
         activityId,
         docRef.id,
         submissionType,
+      );
+
+      // Create notification in main notifications collection
+      await _createInstructorNotification(
+        instructorId: activityInfo['instructorId'],
+        studentId: submissionData['studentId'] as String,
+        studentName:
+            submissionData['studentName'] as String? ?? 'Unknown Student',
+        activityId: activityId,
+        activityTitle: activityInfo['title'] as String,
+        activityType: submissionType.toLowerCase(),
+        submissionId: docRef.id,
+        sectionName: sectionInfo?['sectionName'] as String?,
       );
 
       return {
@@ -169,6 +183,19 @@ class SubmissionRoutingService {
         activityId,
         docRef.id,
         submissionType,
+      );
+
+      // Create notification in main notifications collection
+      await _createInstructorNotification(
+        instructorId: activityInfo['instructorId'],
+        studentId: submissionData['studentId'] as String,
+        studentName:
+            submissionData['studentName'] as String? ?? 'Unknown Student',
+        activityId: activityId,
+        activityTitle: activityInfo['title'] as String,
+        activityType: submissionType.toLowerCase(),
+        submissionId: docRef.id,
+        sectionName: sectionInfo?['sectionName'] as String?,
       );
 
       return {
@@ -500,6 +527,35 @@ class SubmissionRoutingService {
       dev.log('📢 Notification sent to instructor: $instructorId');
     } catch (e) {
       dev.log('❌ Error sending notification: $e');
+    }
+  }
+
+  /// Create instructor notification in main notifications collection
+  static Future<void> _createInstructorNotification({
+    required String instructorId,
+    required String studentId,
+    required String studentName,
+    required String activityId,
+    required String activityTitle,
+    required String activityType,
+    required String submissionId,
+    String? sectionName,
+  }) async {
+    try {
+      await InAppNotificationService.createInstructorNotification(
+        type: 'submission',
+        targetInstructorId: instructorId,
+        studentId: studentId,
+        studentName: studentName,
+        activityId: activityId,
+        activityTitle: activityTitle,
+        activityType: activityType,
+        submissionId: submissionId,
+        sectionName: sectionName,
+      );
+      dev.log('✅ Instructor notification created in main collection');
+    } catch (e) {
+      dev.log('❌ Error creating instructor notification: $e');
     }
   }
 

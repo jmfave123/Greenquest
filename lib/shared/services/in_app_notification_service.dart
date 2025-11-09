@@ -309,7 +309,7 @@ class InAppNotificationService {
 
             if (!isNotificationAfterUserCreation) {
               dev.log(
-                '❌ Excluding notification: ${data['title']} (created ${notificationDate} before user registration ${userCreatedAtDate})',
+                '❌ Excluding notification: ${data['title']} (created $notificationDate before user registration $userCreatedAtDate)',
               );
             }
           }
@@ -377,7 +377,7 @@ class InAppNotificationService {
   }
 
   /// Get notifications for a specific instructor
-  /// Shows all notifications created by that instructor
+  /// Shows all notifications created by that instructor (for students)
   static Future<List<Map<String, dynamic>>> getInstructorNotifications({
     String? instructorId,
     int? limit,
@@ -417,6 +417,172 @@ class InAppNotificationService {
     } catch (e) {
       dev.log('❌ Error getting instructor notifications: $e');
       return [];
+    }
+  }
+
+  /// Get notifications FOR a specific instructor (e.g., submission notifications)
+  /// Shows notifications targeting the instructor (not created by them)
+  static Future<List<Map<String, dynamic>>> getNotificationsForInstructor({
+    String? instructorId,
+    int? limit,
+  }) async {
+    try {
+      final currentInstructorId = instructorId ?? _auth.currentUser?.uid;
+      if (currentInstructorId == null) {
+        dev.log('❌ Instructor ID not provided');
+        return [];
+      }
+
+      dev.log('📬 Fetching notifications FOR instructor: $currentInstructorId');
+
+      // Query for notifications targeting this instructor
+      // Try with orderBy first, if it fails (index missing), query without orderBy
+      Query query = _firestore
+          .collection('notifications')
+          .where('targetInstructorId', isEqualTo: currentInstructorId)
+          .where('status', isEqualTo: 'active');
+
+      QuerySnapshot snapshot;
+      try {
+        // Try to order by createdAt if index exists
+        snapshot = await query.orderBy('createdAt', descending: true).get();
+      } catch (e) {
+        // If index doesn't exist, just get without ordering
+        dev.log('⚠️ Index missing for orderBy, fetching without order: $e');
+        snapshot = await query.get();
+      }
+
+      final notifications = <Map<String, dynamic>>[];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        notifications.add({'id': doc.id, ...data});
+      }
+
+      // Sort manually by createdAt (descending)
+      notifications.sort((a, b) {
+        final aCreated = a['createdAt'] as Timestamp?;
+        final bCreated = b['createdAt'] as Timestamp?;
+        if (aCreated == null && bCreated == null) return 0;
+        if (aCreated == null) return 1;
+        if (bCreated == null) return -1;
+        return bCreated.compareTo(aCreated);
+      });
+
+      // Apply limit if specified
+      if (limit != null && notifications.length > limit) {
+        notifications.removeRange(limit, notifications.length);
+      }
+
+      dev.log('✅ Found ${notifications.length} notifications FOR instructor');
+      return notifications;
+    } catch (e) {
+      dev.log('❌ Error getting notifications FOR instructor: $e');
+      return [];
+    }
+  }
+
+  /// Get real-time stream of notifications FOR instructor
+  static Stream<List<Map<String, dynamic>>>
+  getNotificationsForInstructorStream({String? instructorId, int? limit}) {
+    try {
+      final currentInstructorId = instructorId ?? _auth.currentUser?.uid;
+      if (currentInstructorId == null) {
+        dev.log('❌ Instructor ID not provided');
+        return Stream.value([]);
+      }
+
+      dev.log(
+        '📬 Setting up real-time stream for instructor: $currentInstructorId',
+      );
+
+      Query query = _firestore
+          .collection('notifications')
+          .where('targetInstructorId', isEqualTo: currentInstructorId)
+          .where('status', isEqualTo: 'active');
+
+      return query.snapshots().map((snapshot) {
+        final notifications = <Map<String, dynamic>>[];
+
+        for (var doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          notifications.add({'id': doc.id, ...data});
+        }
+
+        // Sort by createdAt descending
+        notifications.sort((a, b) {
+          final aCreated = a['createdAt'] as Timestamp?;
+          final bCreated = b['createdAt'] as Timestamp?;
+          if (aCreated == null && bCreated == null) return 0;
+          if (aCreated == null) return 1;
+          if (bCreated == null) return -1;
+          return bCreated.compareTo(aCreated);
+        });
+
+        // Apply limit if specified
+        if (limit != null && notifications.length > limit) {
+          return notifications.take(limit).toList();
+        }
+
+        return notifications;
+      });
+    } catch (e) {
+      dev.log('❌ Error creating notifications stream for instructor: $e');
+      return Stream.value([]);
+    }
+  }
+
+  /// Create a notification FOR an instructor (e.g., when student submits)
+  static Future<bool> createInstructorNotification({
+    required String
+    type, // 'submission', 'assignment', 'activity', 'quiz', 'pit'
+    required String targetInstructorId,
+    required String studentId,
+    required String studentName,
+    required String activityId,
+    required String activityTitle,
+    required String activityType, // 'assignment', 'activity', 'quiz', 'pit'
+    required String submissionId,
+    String? sectionName,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      dev.log('📢 Creating instructor notification for: $type');
+
+      // Format notification title and description
+      final capitalizedType =
+          activityType.isEmpty
+              ? activityType
+              : activityType[0].toUpperCase() + activityType.substring(1);
+      final title = 'New $capitalizedType Submission';
+      final description = '$studentName submitted "$activityTitle"';
+
+      final notificationData = {
+        'type': type,
+        'title': title,
+        'description': description,
+        'targetInstructorId': targetInstructorId,
+        'targetType': 'instructor',
+        'studentId': studentId,
+        'studentName': studentName,
+        'activityId': activityId,
+        'activityTitle': activityTitle,
+        'activityType': activityType,
+        'submissionId': submissionId,
+        'sectionName': sectionName ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'active',
+        'metadata': metadata ?? {},
+        'readBy': [], // Track if instructor has read this notification
+      };
+
+      await _firestore.collection('notifications').add(notificationData);
+
+      dev.log('✅ Instructor notification created successfully');
+      return true;
+    } catch (e) {
+      dev.log('❌ Error creating instructor notification: $e');
+      return false;
     }
   }
 
@@ -589,7 +755,7 @@ class InAppNotificationService {
 
                   if (!isNotificationAfterUserCreation) {
                     dev.log(
-                      '❌ Excluding notification: ${data['title']} (created ${notificationDate} before user registration ${userCreatedAtDate})',
+                      '❌ Excluding notification: ${data['title']} (created $notificationDate before user registration $userCreatedAtDate)',
                     );
                   }
                 }

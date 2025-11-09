@@ -349,6 +349,9 @@ class ExportService {
       final Worksheet sheet = workbook.worksheets[0];
       sheet.name = 'Class Record';
 
+      // Note: Auto-filter (sorting arrows) should not be enabled
+      // This prevents Excel from auto-sizing row heights for filter dropdowns
+
       // Build headers similar to the grid layout
       _setupCompleteHeaders(
         sheet,
@@ -1073,6 +1076,20 @@ class ExportService {
       }
 
       _autoFitColumns(sheet);
+
+      // Force row 7 height again after all operations (Excel may try to recalculate)
+      // Row index is 0-based, so row 7 is index 6
+      final row7 = sheet.rows[6];
+      if (row7 != null) {
+        row7.height = 15; // Default row height to match other rows
+        // Also try setting it on the row range to ensure it sticks
+        final row7Range = sheet.getRangeByName(
+          'A7:${_getColumnLetter(_totalColumnCount(classStandingItems, quizPrelimItems, midtermExamItems, pitItems, finalClassStandingItems, finalQuizItems, finalExamItems, finalPitItems))}7',
+        );
+        // Ensure wrapText is still false
+        row7Range.cellStyle.wrapText = false;
+      }
+
       await _saveAndOpenFile(workbook, '${sectionName}_ClassRecord');
     } catch (e) {
       Get.snackbar(
@@ -1965,6 +1982,15 @@ class ExportService {
     );
     row7Range.cellStyle.hAlign = HAlignType.center;
     row7Range.cellStyle.vAlign = VAlignType.center;
+    // Disable text wrapping to prevent auto-expansion
+    row7Range.cellStyle.wrapText = false;
+
+    // Set row 7 height immediately after setting up content (before Excel recalculates)
+    // Row index is 0-based, so row 7 is index 6
+    final row7 = sheet.rows[6];
+    if (row7 != null) {
+      row7.height = 15; // Set to default height to match other rows
+    }
   }
 
   void _writeMaxPointsRow(

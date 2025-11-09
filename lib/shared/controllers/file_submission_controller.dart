@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../services/file_upload_service.dart';
 import '../config/cloudinary_config.dart';
+import '../services/in_app_notification_service.dart';
 
 class FileSubmissionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -204,6 +205,24 @@ class FileSubmissionController extends GetxController {
       log('📄 Submission ID: ${docRef.id}');
       log('📍 Section: $studentSectionName');
 
+      // Create notification for instructor
+      try {
+        await InAppNotificationService.createInstructorNotification(
+          type: 'submission',
+          targetInstructorId: instructorId,
+          studentId: user.uid,
+          studentName:
+              userData['fullName'] ?? user.displayName ?? 'Unknown Student',
+          activityId: assignmentId,
+          activityTitle: assignmentData['title'] ?? 'Unknown Assignment',
+          activityType: 'assignment',
+          submissionId: docRef.id,
+          sectionName: studentSectionName,
+        );
+      } catch (e) {
+        log('⚠️ Error creating notification: $e');
+      }
+
       Get.snackbar(
         'Success',
         'Assignment submitted successfully!',
@@ -314,6 +333,24 @@ class FileSubmissionController extends GetxController {
       log('✅ Activity submission saved successfully');
       log('📄 Submission ID: ${docRef.id}');
       log('📍 Section: $studentSectionName');
+
+      // Create notification for instructor
+      try {
+        await InAppNotificationService.createInstructorNotification(
+          type: 'submission',
+          targetInstructorId: instructorId,
+          studentId: user.uid,
+          studentName:
+              userData['fullName'] ?? user.displayName ?? 'Unknown Student',
+          activityId: activityId,
+          activityTitle: activityData['title'] ?? 'Unknown Activity',
+          activityType: 'activity',
+          submissionId: docRef.id,
+          sectionName: studentSectionName,
+        );
+      } catch (e) {
+        log('⚠️ Error creating notification: $e');
+      }
 
       Get.snackbar(
         'Success',

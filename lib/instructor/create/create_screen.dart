@@ -185,9 +185,14 @@ class _CreateScreenState extends State<CreateScreen>
   }
 
   void _navigateToMaterial() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (context) => const MaterialScreen()))
-        .then((_) => _refreshData()); // Refresh data when returning
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const MaterialScreen())).then((
+      result,
+    ) {
+      // Always refresh data when returning to show newly created/updated items
+      _refreshData();
+    });
   }
 
   void _closeDropdowns() {

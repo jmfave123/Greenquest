@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
@@ -92,54 +93,54 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
   }
 
   // Alternative method to load submissions directly from Firestore
+  // Uses unified submissions collection (like the submissions controller)
   Future<void> _loadSubmissionsDirectly() async {
     try {
       final activityData = widget.activityData;
       final itemType =
           activityData['type']?.toString().toLowerCase() ?? 'activity';
       final activityId = activityData['id'] ?? '';
+      final sectionId = widget.sectionId;
+      final user = FirebaseAuth.instance.currentUser;
 
-      print('🔧 Direct load: $itemType with ID: $activityId');
-
-      String collectionName;
-      String idFieldName;
-
-      switch (itemType) {
-        case 'assignment':
-          collectionName = 'assignment_submissions';
-          idFieldName = 'assignmentId';
-          break;
-        case 'activity':
-          collectionName = 'activity_submissions';
-          idFieldName = 'activityId';
-          break;
-        case 'quiz':
-          collectionName = 'quiz_submissions';
-          idFieldName = 'quizId';
-          break;
-        case 'pit':
-          collectionName = 'submissions';
-          idFieldName = 'pitId';
-          break;
-        default:
-          collectionName = 'activity_submissions';
-          idFieldName = 'activityId';
+      if (user == null) {
+        print('❌ No user authenticated for direct load');
+        return;
       }
 
-      final querySnapshot =
-          await FirebaseFirestore.instance
-              .collection(collectionName)
-              .where(idFieldName, isEqualTo: activityId)
-              .get();
+      print('🔧 Direct load: $itemType with ID: $activityId');
+      print('🔧 Section: $sectionId');
+
+      // Use unified submissions collection
+      Query query = FirebaseFirestore.instance
+          .collection('submissions')
+          .where('activityType', isEqualTo: itemType)
+          .where('activityId', isEqualTo: activityId)
+          .where('instructorId', isEqualTo: user.uid);
+
+      // If section is provided, query directly by sectionName
+      if (sectionId != null && sectionId.isNotEmpty) {
+        print('  - Querying directly by sectionName: $sectionId');
+        query = query.where('sectionName', isEqualTo: sectionId);
+      }
+
+      QuerySnapshot querySnapshot;
+      try {
+        querySnapshot =
+            await query.orderBy('submittedAt', descending: true).get();
+      } catch (e) {
+        print('  - OrderBy failed, trying without it: $e');
+        querySnapshot = await query.get();
+      }
 
       print('🔧 Direct query returned ${querySnapshot.docs.length} documents');
 
       List<Map<String, dynamic>> directSubmissions = [];
       for (var doc in querySnapshot.docs) {
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>;
         print('🔧 Found direct submission: ${doc.id}');
         print('  - Student: ${data['studentName']}');
-        print('  - Section: ${data['sectionId']}');
+        print('  - Section: ${data['sectionName']}');
         directSubmissions.add({'id': doc.id, 'type': itemType, ...data});
       }
 
@@ -210,6 +211,8 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
         return Colors.orange;
       case 'quiz':
         return Colors.purple;
+      case 'pit':
+        return Colors.teal;
       default:
         return Colors.grey;
     }
@@ -223,6 +226,8 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
         return 'ASSIGNMENT';
       case 'quiz':
         return 'QUIZ';
+      case 'pit':
+        return 'PIT';
       default:
         return 'UNKNOWN';
     }

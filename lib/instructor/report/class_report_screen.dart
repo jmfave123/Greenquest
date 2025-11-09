@@ -1588,7 +1588,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
 
       // Build summary text
       final summaryText =
-          '${summary['studentCount']} students • ${summary['totalColumns']} columns • ${sectionName}';
+          '${summary['studentCount']} students • ${summary['totalColumns']} columns • $sectionName';
 
       // Show preview dialog
       final shouldExport = await ExcelExportPreviewDialog.show(

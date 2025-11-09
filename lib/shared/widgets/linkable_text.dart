@@ -178,7 +178,7 @@ class LinkableText extends StatelessWidget {
       if (context.mounted) {
         // Use the cleaned URL for display and copying
         final displayUrl =
-            cleanUrl.length > 50 ? cleanUrl.substring(0, 50) + "..." : cleanUrl;
+            cleanUrl.length > 50 ? "${cleanUrl.substring(0, 50)}..." : cleanUrl;
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

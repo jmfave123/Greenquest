@@ -147,28 +147,40 @@ class SubmissionsController extends GetxController {
 
       print('  - User ID: ${user.uid}');
 
-      // Get instructor's assigned sections
-      final instructorSections = await _getInstructorSections(user.uid);
-      print('  - Instructor sections: $instructorSections');
-
-      if (instructorSections.isEmpty) {
-        print('❌ No sections found for instructor: ${user.uid}');
-        submissions.assignAll([]);
-        updateStats();
-        isLoading.value = false;
-        return;
-      }
-
-      // Load all submissions for this assignment first (unified collection)
+      // Build query - query directly by sectionName when sectionId is provided (like class_report_controller)
       Query query = _firestore
           .collection('submissions')
           .where('activityType', isEqualTo: 'assignment')
           .where('activityId', isEqualTo: assignmentId)
           .where('instructorId', isEqualTo: user.uid);
 
-      print('  - Executing query...');
-      final querySnapshot =
-          await query.orderBy('submittedAt', descending: true).get();
+      // If a specific section is provided, query directly by sectionName in Firestore
+      if (sectionId != null && sectionId.isNotEmpty) {
+        print('  - Querying directly by sectionName: $sectionId');
+        query = query.where('sectionName', isEqualTo: sectionId);
+      } else {
+        // If no specific section, get instructor's assigned sections first
+        final instructorSections = await _getInstructorSections(user.uid);
+        print('  - Instructor sections: $instructorSections');
+
+        if (instructorSections.isEmpty) {
+          print('❌ No sections found for instructor: ${user.uid}');
+          submissions.assignAll([]);
+          updateStats();
+          isLoading.value = false;
+          return;
+        }
+      }
+
+      QuerySnapshot querySnapshot;
+      try {
+        print('  - Executing query with orderBy...');
+        querySnapshot =
+            await query.orderBy('submittedAt', descending: true).get();
+      } catch (e) {
+        print('  - OrderBy failed, trying without it: $e');
+        querySnapshot = await query.get();
+      }
 
       print('  - Query returned ${querySnapshot.docs.length} documents');
 
@@ -179,15 +191,21 @@ class SubmissionsController extends GetxController {
         print('  - Found submission: ${doc.id}');
         print('    - Student: ${data['studentName']}');
         print('    - Status: ${data['status']}');
+        print('    - Section: ${data['sectionName']}');
         loadedSubmissions.add({'id': doc.id, 'type': 'assignment', ...data});
       }
 
-      // Filter submissions by section using the helper method
-      loadedSubmissions = _filterSubmissionsBySection(
-        loadedSubmissions,
-        sectionId,
-        instructorSections,
-      );
+      // If no specific section was provided, filter by instructor sections
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isNotEmpty) {
+          loadedSubmissions = _filterSubmissionsBySection(
+            loadedSubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
 
@@ -220,24 +238,30 @@ class SubmissionsController extends GetxController {
 
       print('  - User ID: ${user.uid}');
 
-      // Get instructor's assigned sections
-      final instructorSections = await _getInstructorSections(user.uid);
-      print('  - Instructor sections: $instructorSections');
-
-      if (instructorSections.isEmpty) {
-        print('❌ No sections found for instructor: ${user.uid}');
-        submissions.assignAll([]);
-        updateStats();
-        isLoading.value = false;
-        return;
-      }
-
-      // Load all submissions for this quiz first (unified collection)
+      // Build query - query directly by sectionName when sectionId is provided (like class_report_controller)
       Query query = _firestore
           .collection('submissions')
           .where('activityType', isEqualTo: 'quiz')
           .where('activityId', isEqualTo: quizId)
           .where('instructorId', isEqualTo: user.uid);
+
+      // If a specific section is provided, query directly by sectionName in Firestore
+      if (sectionId != null && sectionId.isNotEmpty) {
+        print('  - Querying directly by sectionName: $sectionId');
+        query = query.where('sectionName', isEqualTo: sectionId);
+      } else {
+        // If no specific section, get instructor's assigned sections first
+        final instructorSections = await _getInstructorSections(user.uid);
+        print('  - Instructor sections: $instructorSections');
+
+        if (instructorSections.isEmpty) {
+          print('❌ No sections found for instructor: ${user.uid}');
+          submissions.assignAll([]);
+          updateStats();
+          isLoading.value = false;
+          return;
+        }
+      }
 
       QuerySnapshot querySnapshot;
       try {
@@ -246,7 +270,6 @@ class SubmissionsController extends GetxController {
             await query.orderBy('submittedAt', descending: true).get();
       } catch (e) {
         print('  - OrderBy failed, trying without it: $e');
-        // If orderBy fails, try without it
         querySnapshot = await query.get();
       }
 
@@ -259,15 +282,21 @@ class SubmissionsController extends GetxController {
         print('  - Found submission: ${doc.id}');
         print('    - Student: ${data['studentName']}');
         print('    - Status: ${data['status']}');
+        print('    - Section: ${data['sectionName']}');
         loadedSubmissions.add({'id': doc.id, 'type': 'quiz', ...data});
       }
 
-      // Filter submissions by section using the helper method
-      loadedSubmissions = _filterSubmissionsBySection(
-        loadedSubmissions,
-        sectionId,
-        instructorSections,
-      );
+      // If no specific section was provided, filter by instructor sections
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isNotEmpty) {
+          loadedSubmissions = _filterSubmissionsBySection(
+            loadedSubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
 
@@ -303,24 +332,30 @@ class SubmissionsController extends GetxController {
 
       print('  - User ID: ${user.uid}');
 
-      // Get instructor's assigned sections
-      final instructorSections = await _getInstructorSections(user.uid);
-      print('  - Instructor sections: $instructorSections');
-
-      if (instructorSections.isEmpty) {
-        print('❌ No sections found for instructor: ${user.uid}');
-        submissions.assignAll([]);
-        updateStats();
-        isLoading.value = false;
-        return;
-      }
-
-      // Load all submissions for this activity first (unified collection)
+      // Build query - query directly by sectionName when sectionId is provided (like class_report_controller)
       Query query = _firestore
           .collection('submissions')
           .where('activityType', isEqualTo: 'activity')
           .where('activityId', isEqualTo: activityId)
           .where('instructorId', isEqualTo: user.uid);
+
+      // If a specific section is provided, query directly by sectionName in Firestore
+      if (sectionId != null && sectionId.isNotEmpty) {
+        print('  - Querying directly by sectionName: $sectionId');
+        query = query.where('sectionName', isEqualTo: sectionId);
+      } else {
+        // If no specific section, get instructor's assigned sections first
+        final instructorSections = await _getInstructorSections(user.uid);
+        print('  - Instructor sections: $instructorSections');
+
+        if (instructorSections.isEmpty) {
+          print('❌ No sections found for instructor: ${user.uid}');
+          submissions.assignAll([]);
+          updateStats();
+          isLoading.value = false;
+          return;
+        }
+      }
 
       QuerySnapshot querySnapshot;
       try {
@@ -329,7 +364,6 @@ class SubmissionsController extends GetxController {
             await query.orderBy('submittedAt', descending: true).get();
       } catch (e) {
         print('  - OrderBy failed, trying without it: $e');
-        // If orderBy fails, try without it
         querySnapshot = await query.get();
       }
 
@@ -342,15 +376,21 @@ class SubmissionsController extends GetxController {
         print('  - Found submission: ${doc.id}');
         print('    - Student: ${data['studentName']}');
         print('    - Status: ${data['status']}');
+        print('    - Section: ${data['sectionName']}');
         loadedSubmissions.add({'id': doc.id, 'type': 'activity', ...data});
       }
 
-      // Filter submissions by section using the helper method
-      loadedSubmissions = _filterSubmissionsBySection(
-        loadedSubmissions,
-        sectionId,
-        instructorSections,
-      );
+      // If no specific section was provided, filter by instructor sections
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isNotEmpty) {
+          loadedSubmissions = _filterSubmissionsBySection(
+            loadedSubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
 
@@ -388,31 +428,54 @@ class SubmissionsController extends GetxController {
       // Track current section for real-time filtering
       _currentSectionId = sectionId;
 
-      // Get instructor's assigned sections
-      final instructorSections = await _getInstructorSections(
-        currentInstructorId,
-      );
-      if (instructorSections.isEmpty) {
-        print('No sections found for instructor: $currentInstructorId');
-        submissions.assignAll([]);
-        updateStats();
-        isLoading.value = false;
-        return;
-      }
-
-      print('📚 Instructor sections: $instructorSections');
-
       List<Map<String, dynamic>> allSubmissions = [];
 
-      // Load all submissions for instructor from unified collection
+      // Build query - if sectionId is provided, query directly by sectionName (like class_report_controller does)
       Query allSubmissionsQuery = _firestore
           .collection('submissions')
           .where('instructorId', isEqualTo: currentInstructorId);
 
-      final allDocs = await allSubmissionsQuery.get();
-      print('📝 Found ${allDocs.docs.length} total submissions');
+      // If a specific section is provided, query directly by sectionName in Firestore
+      // This matches the working pattern from class_report_controller
+      if (sectionId != null && sectionId.isNotEmpty) {
+        print('  - Querying directly by sectionName: $sectionId');
+        allSubmissionsQuery = allSubmissionsQuery.where(
+          'sectionName',
+          isEqualTo: sectionId,
+        );
+      } else {
+        // If no specific section, get instructor's assigned sections and filter
+        final instructorSections = await _getInstructorSections(
+          currentInstructorId,
+        );
+        if (instructorSections.isEmpty) {
+          print('No sections found for instructor: $currentInstructorId');
+          submissions.assignAll([]);
+          updateStats();
+          isLoading.value = false;
+          return;
+        }
+        print('📚 Instructor sections: $instructorSections');
+        // For all sections, we still need to filter by instructor sections
+        // But we'll do it after fetching since Firestore doesn't support array-contains-any easily
+      }
 
-      for (var doc in allDocs.docs) {
+      QuerySnapshot querySnapshot;
+      try {
+        print('  - Executing query with orderBy...');
+        querySnapshot =
+            await allSubmissionsQuery
+                .orderBy('submittedAt', descending: true)
+                .get();
+      } catch (e) {
+        print('  - OrderBy failed, trying without it: $e');
+        // If orderBy fails (e.g., no index), try without it
+        querySnapshot = await allSubmissionsQuery.get();
+      }
+
+      print('📝 Found ${querySnapshot.docs.length} submissions from query');
+
+      for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final activityType = data['activityType'] ?? 'activity';
         final type = activityType; // 'assignment', 'activity', 'quiz', or 'pit'
@@ -423,12 +486,20 @@ class SubmissionsController extends GetxController {
         allSubmissions.add({'id': doc.id, 'type': type, ...data});
       }
 
-      // Filter submissions by section using the helper method
-      allSubmissions = _filterSubmissionsBySection(
-        allSubmissions,
-        sectionId,
-        instructorSections,
-      );
+      // If no specific section was provided, filter by instructor sections
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(
+          currentInstructorId,
+        );
+        if (instructorSections.isNotEmpty) {
+          // Filter submissions by section using the helper method
+          allSubmissions = _filterSubmissionsBySection(
+            allSubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
 
       // Sort by submission date
       allSubmissions.sort((a, b) {
@@ -532,11 +603,14 @@ class SubmissionsController extends GetxController {
   // Update submission statistics
   void updateStats() {
     final total = submissions.length;
-    final submitted =
-        submissions.where((s) => s['status'] == 'submitted').length;
+    // Submitted includes all submissions (both 'submitted' and 'graded' status)
+    // since all submissions have been submitted
+    final submitted = total;
+    // Graded submissions are those with status 'graded'
     final graded = submissions.where((s) => s['status'] == 'graded').length;
+    // Pending submissions are those with status 'submitted' (not yet graded)
+    final pending = submissions.where((s) => s['status'] == 'submitted').length;
     final late = submissions.where((s) => _isLateSubmission(s)).length;
-    final pending = submitted - graded;
 
     submissionStats.value = {
       'total': total,
@@ -621,28 +695,35 @@ class SubmissionsController extends GetxController {
         throw Exception('User not authenticated');
       }
 
-      // Get instructor's assigned sections
-      final instructorSections = await _getInstructorSections(user.uid);
-      if (instructorSections.isEmpty) {
-        print('No sections found for instructor: ${user.uid}');
-        submissions.assignAll([]);
-        updateStats();
-        return;
-      }
-
       List<Map<String, dynamic>> categorySubmissions = [];
 
       switch (category.toLowerCase()) {
         case 'activities':
-          final activityQuery = _firestore
+          Query activityQuery = _firestore
               .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
-              .where('activityType', isEqualTo: 'activity')
-              .orderBy('submittedAt', descending: true);
+              .where('activityType', isEqualTo: 'activity');
 
-          final activityDocs = await activityQuery.get();
-          for (var doc in activityDocs.docs) {
-            final data = doc.data();
+          // Query directly by sectionName when sectionId is provided
+          if (sectionId != null && sectionId.isNotEmpty) {
+            activityQuery = activityQuery.where(
+              'sectionName',
+              isEqualTo: sectionId,
+            );
+          }
+
+          QuerySnapshot activitySnapshot;
+          try {
+            activitySnapshot =
+                await activityQuery
+                    .orderBy('submittedAt', descending: true)
+                    .get();
+          } catch (e) {
+            activitySnapshot = await activityQuery.get();
+          }
+
+          for (var doc in activitySnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
             categorySubmissions.add({
               'id': doc.id,
               'type': 'activity',
@@ -652,15 +733,31 @@ class SubmissionsController extends GetxController {
           break;
 
         case 'assignments':
-          final assignmentQuery = _firestore
+          Query assignmentQuery = _firestore
               .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
-              .where('activityType', isEqualTo: 'assignment')
-              .orderBy('submittedAt', descending: true);
+              .where('activityType', isEqualTo: 'assignment');
 
-          final assignmentDocs = await assignmentQuery.get();
-          for (var doc in assignmentDocs.docs) {
-            final data = doc.data();
+          // Query directly by sectionName when sectionId is provided
+          if (sectionId != null && sectionId.isNotEmpty) {
+            assignmentQuery = assignmentQuery.where(
+              'sectionName',
+              isEqualTo: sectionId,
+            );
+          }
+
+          QuerySnapshot assignmentSnapshot;
+          try {
+            assignmentSnapshot =
+                await assignmentQuery
+                    .orderBy('submittedAt', descending: true)
+                    .get();
+          } catch (e) {
+            assignmentSnapshot = await assignmentQuery.get();
+          }
+
+          for (var doc in assignmentSnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
             categorySubmissions.add({
               'id': doc.id,
               'type': 'assignment',
@@ -670,29 +767,51 @@ class SubmissionsController extends GetxController {
           break;
 
         case 'quizzes':
-          final quizQuery = _firestore
+          Query quizQuery = _firestore
               .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
-              .where('activityType', isEqualTo: 'quiz')
-              .orderBy('submittedAt', descending: true);
+              .where('activityType', isEqualTo: 'quiz');
 
-          final quizDocs = await quizQuery.get();
-          for (var doc in quizDocs.docs) {
-            final data = doc.data();
+          // Query directly by sectionName when sectionId is provided
+          if (sectionId != null && sectionId.isNotEmpty) {
+            quizQuery = quizQuery.where('sectionName', isEqualTo: sectionId);
+          }
+
+          QuerySnapshot quizSnapshot;
+          try {
+            quizSnapshot =
+                await quizQuery.orderBy('submittedAt', descending: true).get();
+          } catch (e) {
+            quizSnapshot = await quizQuery.get();
+          }
+
+          for (var doc in quizSnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
             categorySubmissions.add({'id': doc.id, 'type': 'quiz', ...data});
           }
           break;
 
         case 'pits':
-          final pitQuery = _firestore
+          Query pitQuery = _firestore
               .collection('submissions')
               .where('instructorId', isEqualTo: user.uid)
-              .where('activityType', isEqualTo: 'pit')
-              .orderBy('submittedAt', descending: true);
+              .where('activityType', isEqualTo: 'pit');
 
-          final pitDocs = await pitQuery.get();
-          for (var doc in pitDocs.docs) {
-            final data = doc.data();
+          // Query directly by sectionName when sectionId is provided
+          if (sectionId != null && sectionId.isNotEmpty) {
+            pitQuery = pitQuery.where('sectionName', isEqualTo: sectionId);
+          }
+
+          QuerySnapshot pitSnapshot;
+          try {
+            pitSnapshot =
+                await pitQuery.orderBy('submittedAt', descending: true).get();
+          } catch (e) {
+            pitSnapshot = await pitQuery.get();
+          }
+
+          for (var doc in pitSnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
             categorySubmissions.add({'id': doc.id, 'type': 'pit', ...data});
           }
           break;
@@ -702,12 +821,17 @@ class SubmissionsController extends GetxController {
           return loadInstructorSubmissions(sectionId: sectionId);
       }
 
-      // Filter submissions by section using the helper method
-      categorySubmissions = _filterSubmissionsBySection(
-        categorySubmissions,
-        sectionId,
-        instructorSections,
-      );
+      // If no specific section was provided, filter by instructor sections
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isNotEmpty) {
+          categorySubmissions = _filterSubmissionsBySection(
+            categorySubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
 
       submissions.assignAll(categorySubmissions);
       updateStats();
@@ -1198,16 +1322,32 @@ class SubmissionsController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      final instructorSections = await _getInstructorSections(user.uid);
-      if (instructorSections.isEmpty) return;
-
+      // Build query - query directly by sectionName when sectionId is provided (like class_report_controller)
       Query query = _firestore
           .collection('submissions')
           .where('activityId', isEqualTo: pitId)
           .where('instructorId', isEqualTo: user.uid)
           .where('activityType', isEqualTo: 'pit');
 
-      final querySnapshot = await query.get();
+      // If a specific section is provided, query directly by sectionName in Firestore
+      if (sectionId != null && sectionId.isNotEmpty) {
+        print(
+          '  - Querying PIT submissions directly by sectionName: $sectionId',
+        );
+        query = query.where('sectionName', isEqualTo: sectionId);
+      } else {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isEmpty) return;
+      }
+
+      QuerySnapshot querySnapshot;
+      try {
+        querySnapshot =
+            await query.orderBy('submittedAt', descending: true).get();
+      } catch (e) {
+        querySnapshot = await query.get();
+      }
+
       List<Map<String, dynamic>> loadedSubmissions = [];
 
       for (var doc in querySnapshot.docs) {
@@ -1215,12 +1355,17 @@ class SubmissionsController extends GetxController {
         loadedSubmissions.add({'id': doc.id, 'type': 'pit', ...data});
       }
 
-      // Filter submissions by section
-      loadedSubmissions = _filterSubmissionsBySection(
-        loadedSubmissions,
-        sectionId,
-        instructorSections,
-      );
+      // If no specific section was provided, filter by instructor sections
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isNotEmpty) {
+          loadedSubmissions = _filterSubmissionsBySection(
+            loadedSubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
 
       submissions.assignAll(loadedSubmissions);
       updateStats();

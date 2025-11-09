@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -258,8 +259,31 @@ class LoginScreenController extends GetxController {
           userType = 'admin';
           debugPrint('Found admin');
         }
-        // No user found in Firestore
+        // Check if user is a student (exists in users collection but not instructors/admins)
+        // AND trying to login via web - block them
         else {
+          // Check if user exists in users collection (students)
+          final userQuery =
+              await _firestore
+                  .collection('users')
+                  .where('email', isEqualTo: email)
+                  .limit(1)
+                  .get();
+
+          // If user is a student AND trying to login via web, block them
+          if (userQuery.docs.isNotEmpty && kIsWeb) {
+            debugPrint(
+              'Student account detected trying to login via web - blocking',
+            );
+            errorMessage.value =
+                'Your account must be logged in through the mobile app.';
+            await _auth.signOut(); // Sign out from Firebase Auth
+
+            isLoading.value = false;
+            return;
+          }
+
+          // No user found in any collection
           debugPrint('No user found in Firestore with email: $email');
           errorMessage.value =
               'No account found with this email. Please register first.';

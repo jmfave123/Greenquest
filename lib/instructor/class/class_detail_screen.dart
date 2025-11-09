@@ -289,7 +289,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           lastSeen = null;
         }
 
-        // Check if online based on lastSeen (within 5 minutes)
+        // Check if online based on lastSeen (within 1 minute)
         bool isActuallyOnline = isOnline;
         if (!isOnline && lastSeen != null) {
           try {
@@ -304,7 +304,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               final now = DateTime.now();
               final difference = now.difference(lastSeenTime).inMinutes;
               isActuallyOnline =
-                  difference <= 5; // Online if last seen within 5 minutes
+                  difference <= 1; // Online if last seen within 1 minute
             }
           } catch (e) {
             isActuallyOnline = false;
@@ -2423,7 +2423,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   void _navigateToItem(Map<String, dynamic> item) {
     // Navigate to appropriate screen based on item type
     String itemType = item['type'] ?? '';
-    final sectionId = widget.classData['sectionId'];
+    // Use section name (like "BSIT-1A") instead of sectionId, matching how we load submissions
+    final sectionCode = widget.classData['section'] ?? '';
 
     switch (itemType.toLowerCase()) {
       case 'assignment':
@@ -2432,7 +2433,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             builder:
                 (context) => StudentSubmissionsScreen(
                   activityData: item,
-                  sectionId: sectionId,
+                  sectionId: sectionCode,
                 ),
           ),
         );
@@ -2443,7 +2444,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             builder:
                 (context) => StudentSubmissionsScreen(
                   activityData: item,
-                  sectionId: sectionId,
+                  sectionId: sectionCode,
                 ),
           ),
         );
@@ -2454,7 +2455,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             builder:
                 (context) => StudentSubmissionsScreen(
                   activityData: item,
-                  sectionId: sectionId,
+                  sectionId: sectionCode,
                 ),
           ),
         );
@@ -2466,7 +2467,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             builder:
                 (context) => StudentSubmissionsScreen(
                   activityData: item,
-                  sectionId: sectionId,
+                  sectionId: sectionCode,
                 ),
           ),
         );
@@ -2559,7 +2560,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       'title':
           submission['activityTitle'] ??
           submission['title'] ??
-          'Untitled ${submissionType}',
+          'Untitled $submissionType',
       'points': actualPoints, // Use actual points instead of fallback
       'description': submission['description'] ?? '',
     };

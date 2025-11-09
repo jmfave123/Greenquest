@@ -915,7 +915,7 @@ class ClassController extends GetxController {
 
     if (isOnline) return true;
 
-    // Consider offline if last seen is more than 5 minutes ago
+    // Consider offline if last seen is more than 1 minute ago
     if (lastSeen != null) {
       try {
         DateTime lastSeenTime;
@@ -929,7 +929,7 @@ class ClassController extends GetxController {
 
         final now = DateTime.now();
         final difference = now.difference(lastSeenTime).inMinutes;
-        return difference <= 5; // Online if last seen within 5 minutes
+        return difference <= 1; // Online if last seen within 1 minute
       } catch (e) {
         return false;
       }
