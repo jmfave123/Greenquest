@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,6 +11,8 @@ import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/services/file_download_service.dart';
 import 'submissions_controller.dart';
+// Web-specific imports (only used when kIsWeb is true)
+import 'package:universal_html/html.dart' as html;
 
 class SubmissionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> activityData;
@@ -361,18 +364,25 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     try {
       _showSnackBar('Opening file preview...', const Color(0xFF34A853));
 
-      // Create a proper URI from the URL
-      final Uri uri = Uri.parse(url);
-
-      // Check if the URL can be launched
-      if (await canLaunchUrl(uri)) {
-        // Launch the URL in the default browser for preview
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-
-        _showSnackBar('File opened in browser', const Color(0xFF34A853));
+      // Handle web and mobile platforms differently
+      if (kIsWeb) {
+        // For web: Open in new tab without pausing the app
+        // Using window.open() prevents the Flutter app from pausing
+        html.window.open(url, '_blank');
+        _showSnackBar('File opened in new tab', const Color(0xFF34A853));
       } else {
-        // Fallback: Show dialog with URL
-        _showPreviewDialog(url);
+        // For mobile: Use URL launcher as before
+        final Uri uri = Uri.parse(url);
+
+        // Check if the URL can be launched
+        if (await canLaunchUrl(uri)) {
+          // Launch the URL in the default browser for preview
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          _showSnackBar('File opened in browser', const Color(0xFF34A853));
+        } else {
+          // Fallback: Show dialog with URL
+          _showPreviewDialog(url);
+        }
       }
     } catch (e) {
       _showSnackBar('Error opening file: $e', Colors.red);

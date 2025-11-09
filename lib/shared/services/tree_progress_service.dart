@@ -536,6 +536,11 @@ class TreeProgressService {
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>?;
         if (data == null) continue;
+
+        // Only include items with status='active' (uploaded items, not templates/predicted)
+        final status = data['status'] as String?;
+        if (status != 'active') continue;
+
         final period = data['period'] as String?;
 
         // Filter by period

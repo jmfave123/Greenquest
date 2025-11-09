@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/services/in_app_notification_service.dart';
+import '../../instructor/submissions/student_submissions_screen.dart';
 
 class InstructorAppBar extends StatefulWidget {
   final String instructorName;
@@ -26,43 +27,59 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
   final GlobalKey _notificationBellKey = GlobalKey();
   List<Map<String, dynamic>> _notifications = [];
   bool _isLoadingNotifications = false;
+  final ValueNotifier<bool> _loadingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<List<Map<String, dynamic>>> _notificationsNotifier =
+      ValueNotifier<List<Map<String, dynamic>>>([]);
 
   @override
   void initState() {
     super.initState();
-    _loadNotifications();
+    // Don't load notifications on init - only load when dropdown opens
   }
 
   @override
   void dispose() {
     _removeOverlay();
+    _loadingNotifier.dispose();
+    _notificationsNotifier.dispose();
     super.dispose();
   }
 
   Future<void> _loadNotifications() async {
     if (!mounted) return;
 
-    setState(() {
-      _isLoadingNotifications = true;
-    });
+    _loadingNotifier.value = true;
+    _notificationsNotifier.value = [];
 
     try {
       final notifications =
           await InAppNotificationService.getNotificationsForInstructor();
+
+      print('📬 Loaded ${notifications.length} notifications');
 
       if (mounted) {
         setState(() {
           _notifications = notifications;
           _isLoadingNotifications = false;
         });
+
+        _loadingNotifier.value = false;
+        _notificationsNotifier.value = notifications;
+
+        print(
+          '📬 Updated state: ${_notifications.length} notifications, loading: $_isLoadingNotifications',
+        );
       }
     } catch (e) {
-      print('Error loading notifications: $e');
+      print('❌ Error loading notifications: $e');
       if (mounted) {
         setState(() {
           _notifications = [];
           _isLoadingNotifications = false;
         });
+
+        _loadingNotifier.value = false;
+        _notificationsNotifier.value = [];
       }
     }
   }
@@ -71,9 +88,16 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
     if (_showNotificationDropdown) {
       _removeOverlay();
     } else {
-      // Always refresh notifications when opening dropdown
-      _loadNotifications();
+      // Set loading state first, then show overlay
+      setState(() {
+        _isLoadingNotifications = true;
+        _notifications = [];
+      });
+      _loadingNotifier.value = true;
+      _notificationsNotifier.value = [];
       _showOverlay();
+      // Load notifications after showing overlay
+      _loadNotifications();
     }
   }
 
@@ -96,12 +120,23 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
   }
 
   void _showOverlay() {
-    if (_overlayEntry != null) return;
+    if (_overlayEntry != null) {
+      // If overlay already exists, just mark it for rebuild
+      _overlayEntry?.markNeedsBuild();
+      return;
+    }
 
     _overlayEntry = _createOverlayEntry();
     Overlay.of(context).insert(_overlayEntry!);
     setState(() {
       _showNotificationDropdown = true;
+    });
+
+    // Ensure overlay rebuilds with current state
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _overlayEntry != null) {
+        _overlayEntry!.markNeedsBuild();
+      }
     });
   }
 
@@ -176,9 +211,21 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
               top: topPosition,
               child: GestureDetector(
                 onTap: () {}, // Prevent closing when tapping inside dropdown
-                child: _buildNotificationDropdownContent(
-                  width: dropdownWidth,
-                  maxHeight: maxDropdownHeight,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _loadingNotifier,
+                  builder: (context, isLoading, _) {
+                    return ValueListenableBuilder<List<Map<String, dynamic>>>(
+                      valueListenable: _notificationsNotifier,
+                      builder: (context, notifications, _) {
+                        return _buildNotificationDropdownContent(
+                          width: dropdownWidth,
+                          maxHeight: maxDropdownHeight,
+                          isLoading: isLoading,
+                          notifications: notifications,
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
             ),
@@ -322,8 +369,20 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
   Widget _buildNotificationDropdownContent({
     required double width,
     required double maxHeight,
+    bool? isLoading,
+    List<Map<String, dynamic>>? notifications,
   }) {
-    final unreadCount = _unreadCount;
+    // Use provided values or fall back to state variables
+    final isCurrentlyLoading = isLoading ?? _isLoadingNotifications;
+    final currentNotifications = notifications ?? _notifications;
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final unreadCount =
+        userId == null
+            ? 0
+            : currentNotifications.where((notification) {
+              final readBy = List<String>.from(notification['readBy'] ?? []);
+              return !readBy.contains(userId);
+            }).length;
 
     return Material(
       elevation: 8,
@@ -402,7 +461,7 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
               ),
             ),
             // Notification List or Empty State
-            if (_isLoadingNotifications)
+            if (isCurrentlyLoading)
               const Padding(
                 padding: EdgeInsets.all(40.0),
                 child: Center(
@@ -414,21 +473,21 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
                   ),
                 ),
               )
-            else if (_notifications.isEmpty)
+            else if (currentNotifications.isEmpty)
               _buildEmptyState()
             else
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
                   physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: _notifications.length,
+                  itemCount: currentNotifications.length,
                   itemBuilder: (context, index) {
-                    return _buildNotificationItem(_notifications[index]);
+                    return _buildNotificationItem(currentNotifications[index]);
                   },
                 ),
               ),
             // Footer - View All button
-            if (_notifications.isNotEmpty)
+            if (currentNotifications.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: const BoxDecoration(
@@ -466,6 +525,175 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
     );
   }
 
+  /// Map activityType to Firestore collection name
+  String _getCollectionName(String activityType) {
+    switch (activityType.toLowerCase()) {
+      case 'assignment':
+        return 'assignments';
+      case 'activity':
+        return 'activities';
+      case 'quiz':
+        return 'quizzes';
+      case 'pit':
+        return 'pits';
+      default:
+        return 'activities';
+    }
+  }
+
+  /// Map activityType to capitalized type for activityData
+  String _getCapitalizedType(String activityType) {
+    switch (activityType.toLowerCase()) {
+      case 'assignment':
+        return 'Assignment';
+      case 'activity':
+        return 'Activity';
+      case 'quiz':
+        return 'Quiz';
+      case 'pit':
+        return 'PIT';
+      default:
+        return 'Activity';
+    }
+  }
+
+  /// Fetch activity data from Firestore
+  Future<Map<String, dynamic>?> _fetchActivityData(
+    String activityId,
+    String activityType,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('❌ User not authenticated');
+        return null;
+      }
+
+      final collectionName = _getCollectionName(activityType);
+      print('🔍 Fetching activity data:');
+      print('  - Activity ID: $activityId');
+      print('  - Activity Type: $activityType');
+      print('  - Collection: $collectionName');
+      print('  - Instructor ID: ${user.uid}');
+
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('instructors')
+              .doc(user.uid)
+              .collection(collectionName)
+              .doc(activityId)
+              .get();
+
+      if (!doc.exists) {
+        print('❌ Activity document not found');
+        return null;
+      }
+
+      final data = doc.data()!;
+      // Add id and type fields for StudentSubmissionsScreen
+      // Spread data first, then add id and type to ensure they overwrite any existing values
+      final activityData = {
+        ...data,
+        'id': doc.id,
+        'type': _getCapitalizedType(activityType),
+      };
+
+      print('✅ Activity data fetched successfully');
+      return activityData;
+    } catch (e) {
+      print('❌ Error fetching activity data: $e');
+      return null;
+    }
+  }
+
+  /// Handle navigation when notification is clicked
+  Future<void> _handleNotificationNavigation(
+    Map<String, dynamic> notification,
+  ) async {
+    // Extract data from notification
+    final activityId = notification['activityId']?.toString();
+    final activityType = notification['activityType']?.toString() ?? 'activity';
+    final sectionName = notification['sectionName']?.toString();
+    final notificationId = notification['id']?.toString();
+
+    // Validate required fields
+    if (activityId == null || activityId.isEmpty) {
+      print('❌ Activity ID not found in notification');
+      _showErrorSnackbar('Notification data is invalid');
+      return;
+    }
+
+    // Mark notification as read
+    if (notificationId != null) {
+      await InAppNotificationService.markAsRead(notificationId: notificationId);
+      // Refresh notifications list
+      _loadNotifications();
+    }
+
+    // Close dropdown
+    _closeNotificationDropdown();
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF34A853)),
+            ),
+          ),
+    );
+
+    try {
+      // Fetch activity data from Firestore
+      final activityData = await _fetchActivityData(activityId, activityType);
+
+      // Close loading indicator
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (activityData == null) {
+        _showErrorSnackbar('Activity not found. It may have been deleted.');
+        return;
+      }
+
+      // Navigate to StudentSubmissionsScreen
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder:
+                (context) => StudentSubmissionsScreen(
+                  activityData: activityData,
+                  sectionId: sectionName,
+                ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading indicator
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      print('❌ Error navigating to submissions: $e');
+      _showErrorSnackbar('Failed to load activity. Please try again.');
+    }
+  }
+
+  /// Show error snackbar
+  void _showErrorSnackbar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   /// Build individual notification item
   Widget _buildNotificationItem(Map<String, dynamic> notification) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -482,17 +710,8 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
 
     return InkWell(
       onTap: () async {
-        // Mark as read when tapped
-        final notificationId = notification['id'];
-        if (notificationId != null) {
-          await InAppNotificationService.markAsRead(
-            notificationId: notificationId,
-          );
-          // Refresh notifications
-          _loadNotifications();
-        }
-        // Navigation will be added later
-        // _closeNotificationDropdown();
+        // Handle navigation to submissions screen
+        await _handleNotificationNavigation(notification);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),

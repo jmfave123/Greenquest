@@ -622,305 +622,344 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
 
                   final messages = snapshot.data ?? [];
 
-                  if (messages.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No messages yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Start a conversation with ${instructor?['name'] ?? 'your instructor'}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[500],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
                   return Column(
                     children: [
                       Expanded(
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                          itemCount: messages.length,
-                          itemBuilder: (context, i) {
-                            final message = messages[i];
-                            final isMe = message.senderType == 'student';
-                            return Align(
-                              alignment:
-                                  isMe
-                                      ? Alignment.centerRight
-                                      : Alignment.centerLeft,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      isMe
-                                          ? CrossAxisAlignment.end
-                                          : CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
+                        child:
+                            messages.isEmpty
+                                ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.chat_bubble_outline,
+                                        size: 64,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No messages yet',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Start a conversation with ${instructor?['name'] ?? 'your instructor'}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[500],
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                                : ListView.builder(
+                                  controller: _scrollController,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 16,
+                                  ),
+                                  itemCount: messages.length,
+                                  itemBuilder: (context, i) {
+                                    final message = messages[i];
+                                    final isMe =
+                                        message.senderType == 'student';
+                                    return Align(
+                                      alignment:
                                           isMe
-                                              ? MainAxisAlignment.end
-                                              : MainAxisAlignment.start,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        if (!isMe)
-                                          instructor != null &&
-                                                  instructor!['id'] != null
-                                              ? StreamBuilder<DocumentSnapshot>(
-                                                stream:
-                                                    FirebaseFirestore.instance
-                                                        .collection(
-                                                          'instructors',
-                                                        )
-                                                        .doc(instructor!['id'])
-                                                        .snapshots(),
-                                                builder: (context, snapshot) {
-                                                  final isOnline =
-                                                      snapshot.hasData &&
-                                                      snapshot.data!.exists &&
-                                                      (snapshot.data!.data()
-                                                              as Map<
-                                                                String,
-                                                                dynamic
-                                                              >?)?['isOnline'] ==
-                                                          true;
-                                                  dynamic lastSeen;
-                                                  if (snapshot.hasData &&
-                                                      snapshot.data!.exists) {
-                                                    final data =
-                                                        snapshot.data!.data()
-                                                            as Map<
-                                                              String,
-                                                              dynamic
-                                                            >?;
-                                                    lastSeen =
-                                                        data?['lastSeen'];
-                                                  } else {
-                                                    lastSeen = null;
-                                                  }
-
-                                                  // Check if online based on lastSeen (within 5 minutes)
-                                                  bool isActuallyOnline =
-                                                      isOnline;
-                                                  if (!isOnline &&
-                                                      lastSeen != null) {
-                                                    try {
-                                                      DateTime? lastSeenTime;
-                                                      if (lastSeen
-                                                          is Timestamp) {
-                                                        lastSeenTime =
-                                                            lastSeen.toDate();
-                                                      } else if (lastSeen
-                                                          is DateTime) {
-                                                        lastSeenTime = lastSeen;
-                                                      }
-
-                                                      if (lastSeenTime !=
-                                                          null) {
-                                                        final now =
-                                                            DateTime.now();
-                                                        final difference =
-                                                            now
-                                                                .difference(
-                                                                  lastSeenTime,
+                                              ? Alignment.centerRight
+                                              : Alignment.centerLeft,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 4,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              isMe
+                                                  ? CrossAxisAlignment.end
+                                                  : CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  isMe
+                                                      ? MainAxisAlignment.end
+                                                      : MainAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                if (!isMe)
+                                                  instructor != null &&
+                                                          instructor!['id'] !=
+                                                              null
+                                                      ? StreamBuilder<
+                                                        DocumentSnapshot
+                                                      >(
+                                                        stream:
+                                                            FirebaseFirestore
+                                                                .instance
+                                                                .collection(
+                                                                  'instructors',
                                                                 )
-                                                                .inMinutes;
-                                                        isActuallyOnline =
-                                                            difference <=
-                                                            5; // Online if last seen within 5 minutes
-                                                      }
-                                                    } catch (e) {
-                                                      isActuallyOnline = false;
-                                                    }
-                                                  }
+                                                                .doc(
+                                                                  instructor!['id'],
+                                                                )
+                                                                .snapshots(),
+                                                        builder: (
+                                                          context,
+                                                          snapshot,
+                                                        ) {
+                                                          final isOnline =
+                                                              snapshot
+                                                                  .hasData &&
+                                                              snapshot
+                                                                  .data!
+                                                                  .exists &&
+                                                              (snapshot.data!
+                                                                          .data()
+                                                                      as Map<
+                                                                        String,
+                                                                        dynamic
+                                                                      >?)?['isOnline'] ==
+                                                                  true;
+                                                          dynamic lastSeen;
+                                                          if (snapshot
+                                                                  .hasData &&
+                                                              snapshot
+                                                                  .data!
+                                                                  .exists) {
+                                                            final data =
+                                                                snapshot.data!
+                                                                        .data()
+                                                                    as Map<
+                                                                      String,
+                                                                      dynamic
+                                                                    >?;
+                                                            lastSeen =
+                                                                data?['lastSeen'];
+                                                          } else {
+                                                            lastSeen = null;
+                                                          }
 
-                                                  return InstructorMessageAvatar(
-                                                    profileImage:
-                                                        instructor?['profileImageUrl'] ??
-                                                        instructor?['profileImage'],
-                                                    name:
-                                                        instructor?['name'] ??
-                                                        'Unknown Instructor',
-                                                    isOnline: isActuallyOnline,
-                                                    radius: 16,
-                                                  );
-                                                },
-                                              )
-                                              : InstructorMessageAvatar(
-                                                profileImage:
-                                                    instructor?['profileImageUrl'] ??
-                                                    instructor?['profileImage'],
-                                                name:
-                                                    instructor?['name'] ??
-                                                    'Unknown Instructor',
-                                                isOnline:
-                                                    instructor?['isOnline'] ??
-                                                    false,
-                                                radius: 16,
-                                              ),
-                                        if (!isMe) const SizedBox(width: 8),
-                                        GestureDetector(
-                                          onLongPress:
-                                              isMe && !message.isUnsent
-                                                  ? () {
-                                                    _showDeleteDialog(
-                                                      context,
-                                                      message,
-                                                    );
-                                                  }
-                                                  : null,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.end,
-                                            children: [
-                                              Flexible(
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                        vertical: 12,
+                                                          // Check if online based on lastSeen (within 5 minutes)
+                                                          bool
+                                                          isActuallyOnline =
+                                                              isOnline;
+                                                          if (!isOnline &&
+                                                              lastSeen !=
+                                                                  null) {
+                                                            try {
+                                                              DateTime?
+                                                              lastSeenTime;
+                                                              if (lastSeen
+                                                                  is Timestamp) {
+                                                                lastSeenTime =
+                                                                    lastSeen
+                                                                        .toDate();
+                                                              } else if (lastSeen
+                                                                  is DateTime) {
+                                                                lastSeenTime =
+                                                                    lastSeen;
+                                                              }
+
+                                                              if (lastSeenTime !=
+                                                                  null) {
+                                                                final now =
+                                                                    DateTime.now();
+                                                                final difference =
+                                                                    now
+                                                                        .difference(
+                                                                          lastSeenTime,
+                                                                        )
+                                                                        .inMinutes;
+                                                                isActuallyOnline =
+                                                                    difference <=
+                                                                    5; // Online if last seen within 5 minutes
+                                                              }
+                                                            } catch (e) {
+                                                              isActuallyOnline =
+                                                                  false;
+                                                            }
+                                                          }
+
+                                                          return InstructorMessageAvatar(
+                                                            profileImage:
+                                                                instructor?['profileImageUrl'] ??
+                                                                instructor?['profileImage'],
+                                                            name:
+                                                                instructor?['name'] ??
+                                                                'Unknown Instructor',
+                                                            isOnline:
+                                                                isActuallyOnline,
+                                                            radius: 16,
+                                                          );
+                                                        },
+                                                      )
+                                                      : InstructorMessageAvatar(
+                                                        profileImage:
+                                                            instructor?['profileImageUrl'] ??
+                                                            instructor?['profileImage'],
+                                                        name:
+                                                            instructor?['name'] ??
+                                                            'Unknown Instructor',
+                                                        isOnline:
+                                                            instructor?['isOnline'] ??
+                                                            false,
+                                                        radius: 16,
                                                       ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        isMe
-                                                            ? const Color(
-                                                              0xFF34A853,
-                                                            )
-                                                            : Colors.white,
-                                                    borderRadius: BorderRadius.only(
-                                                      topLeft:
-                                                          const Radius.circular(
-                                                            16,
-                                                          ),
-                                                      topRight:
-                                                          const Radius.circular(
-                                                            16,
-                                                          ),
-                                                      bottomLeft:
-                                                          Radius.circular(
-                                                            isMe ? 16 : 4,
-                                                          ),
-                                                      bottomRight:
-                                                          Radius.circular(
-                                                            isMe ? 4 : 16,
-                                                          ),
-                                                    ),
-                                                    boxShadow: [
-                                                      if (!isMe)
-                                                        const BoxShadow(
-                                                          color: Colors.black12,
-                                                          blurRadius: 2,
-                                                          offset: Offset(0, 1),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                  child: Column(
+                                                if (!isMe)
+                                                  const SizedBox(width: 8),
+                                                GestureDetector(
+                                                  onLongPress:
+                                                      isMe && !message.isUnsent
+                                                          ? () {
+                                                            _showDeleteDialog(
+                                                              context,
+                                                              message,
+                                                            );
+                                                          }
+                                                          : null,
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
                                                     crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
+                                                        CrossAxisAlignment.end,
                                                     children: [
-                                                      // Display file attachment with smart rendering (only if not unsent)
-                                                      if (message.fileAttachment !=
-                                                              null &&
-                                                          !message
-                                                              .isUnsent) ...[
-                                                        _buildFileAttachment(
-                                                          message
-                                                              .fileAttachment!,
-                                                          isMe,
-                                                        ),
-                                                        if (message.content !=
-                                                                'Sent a file' &&
-                                                            message
-                                                                .content
-                                                                .isNotEmpty)
-                                                          const SizedBox(
-                                                            height: 8,
-                                                          ),
-                                                      ],
-                                                      // Display text content (or unsent message)
-                                                      if (message.content !=
-                                                              'Sent a file' ||
-                                                          message
-                                                              .content
-                                                              .isNotEmpty)
-                                                        Text(
-                                                          message.isUnsent
-                                                              ? (isMe
-                                                                  ? 'You unsent a message'
-                                                                  : '${_getFirstName(instructor?['name'] ?? 'Instructor')} unsent a message')
-                                                              : message.content,
-                                                          style: TextStyle(
+                                                      Flexible(
+                                                        child: Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 16,
+                                                                vertical: 12,
+                                                              ),
+                                                          decoration: BoxDecoration(
                                                             color:
                                                                 isMe
-                                                                    ? Colors
-                                                                        .white
+                                                                    ? const Color(
+                                                                      0xFF34A853,
+                                                                    )
                                                                     : Colors
-                                                                        .black87,
-                                                            fontSize: 15,
-                                                            fontStyle:
-                                                                message.isUnsent
-                                                                    ? FontStyle
-                                                                        .italic
-                                                                    : FontStyle
-                                                                        .normal,
+                                                                        .white,
+                                                            borderRadius: BorderRadius.only(
+                                                              topLeft:
+                                                                  const Radius.circular(
+                                                                    16,
+                                                                  ),
+                                                              topRight:
+                                                                  const Radius.circular(
+                                                                    16,
+                                                                  ),
+                                                              bottomLeft:
+                                                                  Radius.circular(
+                                                                    isMe
+                                                                        ? 16
+                                                                        : 4,
+                                                                  ),
+                                                              bottomRight:
+                                                                  Radius.circular(
+                                                                    isMe
+                                                                        ? 4
+                                                                        : 16,
+                                                                  ),
+                                                            ),
+                                                            boxShadow: [
+                                                              if (!isMe)
+                                                                const BoxShadow(
+                                                                  color:
+                                                                      Colors
+                                                                          .black12,
+                                                                  blurRadius: 2,
+                                                                  offset:
+                                                                      Offset(
+                                                                        0,
+                                                                        1,
+                                                                      ),
+                                                                ),
+                                                            ],
+                                                          ),
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              // Display file attachment with smart rendering (only if not unsent)
+                                                              if (message.fileAttachment !=
+                                                                      null &&
+                                                                  !message
+                                                                      .isUnsent) ...[
+                                                                _buildFileAttachment(
+                                                                  message
+                                                                      .fileAttachment!,
+                                                                  isMe,
+                                                                ),
+                                                                if (message.content !=
+                                                                        'Sent a file' &&
+                                                                    message
+                                                                        .content
+                                                                        .isNotEmpty)
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
+                                                              ],
+                                                              // Display text content (or unsent message)
+                                                              if (message.content !=
+                                                                      'Sent a file' ||
+                                                                  message
+                                                                      .content
+                                                                      .isNotEmpty)
+                                                                Text(
+                                                                  message.isUnsent
+                                                                      ? (isMe
+                                                                          ? 'You unsent a message'
+                                                                          : '${_getFirstName(instructor?['name'] ?? 'Instructor')} unsent a message')
+                                                                      : message
+                                                                          .content,
+                                                                  style: TextStyle(
+                                                                    color:
+                                                                        isMe
+                                                                            ? Colors.white
+                                                                            : Colors.black87,
+                                                                    fontSize:
+                                                                        15,
+                                                                    fontStyle:
+                                                                        message.isUnsent
+                                                                            ? FontStyle.italic
+                                                                            : FontStyle.normal,
+                                                                  ),
+                                                                ),
+                                                            ],
                                                           ),
                                                         ),
+                                                      ),
                                                     ],
                                                   ),
                                                 ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _formatTime(
+                                                message.timestamp.toDate(),
                                               ),
-                                            ],
-                                          ),
+                                              style: TextStyle(
+                                                color:
+                                                    isMe
+                                                        ? const Color(
+                                                          0xFF34A853,
+                                                        )
+                                                        : Colors.black38,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _formatTime(message.timestamp.toDate()),
-                                      style: TextStyle(
-                                        color:
-                                            isMe
-                                                ? const Color(0xFF34A853)
-                                                : Colors.black38,
-                                        fontSize: 12,
                                       ),
-                                    ),
-                                  ],
+                                    );
+                                  },
                                 ),
-                              ),
-                            );
-                          },
-                        ),
                       ),
                       // Input field section
                       Column(

@@ -200,6 +200,7 @@ class MaterialsListScreenController extends GetxController {
             'updatedAt': _formatDate(materialData['updatedAt']),
             'status': materialData['status']?.toString() ?? 'active',
             'type': materialData['type']?.toString() ?? 'Material',
+            'period': materialData['period']?.toString() ?? '',
           };
 
           print('📄 Processed material: ${materialMap['title']}');
@@ -318,6 +319,7 @@ class MaterialsListScreenController extends GetxController {
               'updatedAt': _formatDate(materialData['updatedAt']),
               'status': materialData['status']?.toString() ?? 'active',
               'type': materialData['type']?.toString() ?? 'Material',
+              'period': materialData['period']?.toString() ?? '',
             };
 
             // Only add if material has valid data for UI display
@@ -421,6 +423,7 @@ class MaterialsListScreenController extends GetxController {
           'updatedAt': _formatDate(materialData['updatedAt']),
           'status': materialData['status']?.toString() ?? 'active',
           'type': materialData['type']?.toString() ?? 'Material',
+          'period': materialData['period']?.toString() ?? '',
         };
 
         // Only add if material has valid data for UI display
@@ -719,6 +722,7 @@ class MaterialsListScreenController extends GetxController {
             'updatedAt': _formatDate(materialData['updatedAt']),
             'status': materialData['status']?.toString() ?? 'active',
             'type': materialData['type']?.toString() ?? 'Material',
+            'period': materialData['period']?.toString() ?? '',
           };
 
           if (materialMap['title'] != null &&
@@ -788,6 +792,7 @@ class MaterialsListScreenController extends GetxController {
                 'updatedAt': _formatDate(materialData['updatedAt']),
                 'status': materialData['status']?.toString() ?? 'active',
                 'type': materialData['type']?.toString() ?? 'Material',
+                'period': materialData['period']?.toString() ?? '',
               };
 
               if (materialMap['title'] != null &&
@@ -862,6 +867,7 @@ class MaterialsListScreenController extends GetxController {
                     'updatedAt': _formatDate(materialData['updatedAt']),
                     'status': materialData['status']?.toString() ?? 'active',
                     'type': materialData['type']?.toString() ?? 'Material',
+                    'period': materialData['period']?.toString() ?? '',
                   };
 
                   if (materialMap['title'] != null &&
@@ -934,6 +940,7 @@ class MaterialsListScreenController extends GetxController {
                     'updatedAt': _formatDate(materialData['updatedAt']),
                     'status': materialData['status']?.toString() ?? 'active',
                     'type': materialData['type']?.toString() ?? 'Material',
+                    'period': materialData['period']?.toString() ?? '',
                   };
 
                   if (materialMap['title'] != null &&

@@ -28,6 +28,14 @@ class ExportService {
     return '${lastName.toUpperCase()}, ${firstMiddleName.toUpperCase()}';
   }
 
+  /// Helper function to truncate text for row 7 headers to prevent row expansion
+  /// Limits text to a reasonable length that fits in a fixed-height row
+  String _truncateHeaderText(String text, {int maxLength = 30}) {
+    if (text.isEmpty) return '';
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength)}...';
+  }
+
   /// Generate preview data that matches the actual Excel structure
   /// Returns both preview data and column headers matching Excel output
   Map<String, dynamic> generateExcelPreviewData({
@@ -50,27 +58,27 @@ class ExportService {
 
     // Class Standing items
     for (var item in classStandingItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('Total Score (SRC)');
     columnHeaders.add('CPA');
 
     // Quiz/Prelim items
     for (var item in quizPrelimItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('Total Score (SRQ)');
     columnHeaders.add('QA');
 
     // Midterm Exam items
     for (var item in midtermExamItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('M');
 
     // PIT items
     for (var item in pitItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('Total Score (PIT)');
     columnHeaders.add('PIT%');
@@ -83,27 +91,27 @@ class ExportService {
 
     // Final Class Standing items
     for (var item in finalClassStandingItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('Total Score (SRC)');
     columnHeaders.add('CPA');
 
     // Final Quiz items
     for (var item in finalQuizItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('Total Score (SRQ)');
     columnHeaders.add('QA');
 
     // Final Exam items
     for (var item in finalExamItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('F');
 
     // Final PIT items
     for (var item in finalPitItems) {
-      columnHeaders.add(item['title']?.toString() ?? '');
+      columnHeaders.add(_truncateHeaderText(item['title']?.toString() ?? ''));
     }
     columnHeaders.add('Total Score (PIT)');
     columnHeaders.add('PIT%');
@@ -1079,15 +1087,34 @@ class ExportService {
 
       // Force row 7 height again after all operations (Excel may try to recalculate)
       // Row index is 0-based, so row 7 is index 6
+      final totalCols = _totalColumnCount(
+        classStandingItems,
+        quizPrelimItems,
+        midtermExamItems,
+        pitItems,
+        finalClassStandingItems,
+        finalQuizItems,
+        finalExamItems,
+        finalPitItems,
+      );
+
+      // Set wrapText = false on all cells in row 7 first
+      final row7Range = sheet.getRangeByName(
+        'A7:${_getColumnLetter(totalCols)}7',
+      );
+      row7Range.cellStyle.wrapText = false;
+
+      // Also set on individual cells to ensure it sticks
+      for (int c = 1; c <= totalCols; c++) {
+        final cell = sheet.getRangeByName('${_getColumnLetter(c)}7');
+        cell.cellStyle.wrapText = false;
+      }
+
+      // Now force the row height - this MUST be done after auto-fit
       final row7 = sheet.rows[6];
       if (row7 != null) {
-        row7.height = 15; // Default row height to match other rows
-        // Also try setting it on the row range to ensure it sticks
-        final row7Range = sheet.getRangeByName(
-          'A7:${_getColumnLetter(_totalColumnCount(classStandingItems, quizPrelimItems, midtermExamItems, pitItems, finalClassStandingItems, finalQuizItems, finalExamItems, finalPitItems))}7',
-        );
-        // Ensure wrapText is still false
-        row7Range.cellStyle.wrapText = false;
+        row7.height =
+            20; // Fixed height - slightly larger to accommodate rotated text
       }
 
       await _saveAndOpenFile(workbook, '${sectionName}_ClassRecord');
@@ -1410,9 +1437,10 @@ class ExportService {
     // Track column positions for vertical rotation
     int csItemsStartCol = col;
     for (var item in classStandingItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int csItemsEndCol = col;
     sheet
@@ -1423,9 +1451,10 @@ class ExportService {
 
     int qpItemsStartCol = col;
     for (var item in quizPrelimItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int qpItemsEndCol = col;
     sheet
@@ -1436,9 +1465,10 @@ class ExportService {
 
     int meItemsStartCol = col;
     for (var item in midtermExamItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int meItemsEndCol = col;
     int mCol = col;
@@ -1446,9 +1476,10 @@ class ExportService {
 
     int pitItemsStartCol = col;
     for (var item in pitItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int pitItemsEndCol = col;
     sheet
@@ -1474,9 +1505,10 @@ class ExportService {
 
     int fcsItemsStartCol = col;
     for (var item in finalClassStandingItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int fcsItemsEndCol = col;
     sheet
@@ -1487,9 +1519,10 @@ class ExportService {
 
     int fqItemsStartCol = col;
     for (var item in finalQuizItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int fqItemsEndCol = col;
     sheet
@@ -1500,9 +1533,10 @@ class ExportService {
 
     int feItemsStartCol = col;
     for (var item in finalExamItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int feItemsEndCol = col;
     int fCol = col;
@@ -1510,9 +1544,10 @@ class ExportService {
 
     int fpitItemsStartCol = col;
     for (var item in finalPitItems) {
-      sheet
-          .getRangeByName('${_getColumnLetter(col++)}$row')
-          .setText(item['title'] ?? '');
+      final title = _truncateHeaderText(item['title'] ?? '');
+      final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+      cell.setText(title);
+      cell.cellStyle.wrapText = false;
     }
     int fpitItemsEndCol = col;
     sheet
@@ -1982,14 +2017,21 @@ class ExportService {
     );
     row7Range.cellStyle.hAlign = HAlignType.center;
     row7Range.cellStyle.vAlign = VAlignType.center;
-    // Disable text wrapping to prevent auto-expansion
+    // Disable text wrapping to prevent auto-expansion - CRITICAL for fixed height
     row7Range.cellStyle.wrapText = false;
+
+    // Also set wrapText = false on all individual cells in row 7 to ensure it sticks
+    for (int c = 1; c <= totalColumns; c++) {
+      final cell = sheet.getRangeByName('${_getColumnLetter(c)}$row');
+      cell.cellStyle.wrapText = false;
+    }
 
     // Set row 7 height immediately after setting up content (before Excel recalculates)
     // Row index is 0-based, so row 7 is index 6
     final row7 = sheet.rows[6];
     if (row7 != null) {
-      row7.height = 15; // Set to default height to match other rows
+      row7.height =
+          20; // Fixed height - slightly larger to accommodate rotated text
     }
   }
 

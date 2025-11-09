@@ -343,14 +343,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       completed == total && total > 0;
                                   final hasItems = total > 0;
 
-                                  // Add period label to display name
-                                  final periodLabel =
-                                      period == 'midterm'
-                                          ? 'Prelim/Midterm'
-                                          : 'Final';
-                                  final fullDisplayName =
-                                      '$periodLabel - $displayName';
-
                                   // Always show category, even if 0/0 (no items created yet)
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 12),
@@ -399,22 +391,61 @@ class _HomeScreenState extends State<HomeScreen> {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              Text(
-                                                fullDisplayName,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                  color:
-                                                      hasItems
-                                                          ? (isComplete
-                                                              ? Color(
-                                                                0xFF2E7D32,
-                                                              )
-                                                              : Color(
-                                                                0xFFE65100,
-                                                              ))
-                                                          : Colors.grey[600],
-                                                ),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      displayName,
+                                                      style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 16,
+                                                        color:
+                                                            hasItems
+                                                                ? (isComplete
+                                                                    ? Color(
+                                                                      0xFF2E7D32,
+                                                                    )
+                                                                    : Color(
+                                                                      0xFFE65100,
+                                                                    ))
+                                                                : Colors
+                                                                    .grey[600],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (period.isNotEmpty) ...[
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 2,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.grey
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                      ),
+                                                      child: Text(
+                                                        period == 'midterm'
+                                                            ? 'Prelim/Midterm'
+                                                            : period == 'final'
+                                                            ? 'Final'
+                                                            : period,
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: Colors.black54,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
                                               ),
                                               const SizedBox(height: 4),
                                               Row(
