@@ -72,7 +72,10 @@ class MessageService {
         senderId: user.uid,
         receiverId: receiverId,
         senderType: senderType,
-        content: content.isEmpty ? 'Sent a file' : content,
+        content:
+            content.isEmpty
+                ? ''
+                : content, // Use empty string instead of 'Sent a file'
         timestamp: Timestamp.now(),
         isRead: false,
         messageType: 'file',
@@ -86,7 +89,10 @@ class MessageService {
         _sendPushNotification(
           receiverId: receiverId,
           senderId: user.uid,
-          content: content.isEmpty ? 'Sent a file' : content,
+          content:
+              content.isEmpty
+                  ? fileName
+                  : content, // Use file name instead of 'Sent a file'
           messageType: 'file',
           fileType: fileType,
         );
@@ -421,23 +427,19 @@ class MessageService {
         }
       } else {
         if (isFromInstructor) {
-          return 'You sent an attachment';
+          return 'You sent a file';
         } else {
           // Use first name only for student
           final firstName = _getFirstName(senderName);
-          return '$firstName sent an attachment';
+          return '$firstName sent a file';
         }
       }
     }
 
-    // For text messages
-    if (content.isEmpty || content == 'Sent a file') {
-      if (isFromInstructor) {
-        return 'You sent a message';
-      } else {
-        // For students, just return empty or generic (but this shouldn't happen for text)
-        return 'Sent a message';
-      }
+    // For text messages - if content is empty and there's a file, show file name
+    if (content.isEmpty) {
+      // This case should not happen for text messages, but handle gracefully
+      return '';
     }
 
     // For text messages: add "You: " prefix if from instructor, otherwise just show content

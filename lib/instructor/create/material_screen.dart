@@ -366,18 +366,36 @@ class _MaterialScreenState extends State<MaterialScreen> {
       }
     } else {
       // Create new material
-      final success = await _createController.createMaterial(
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        selectedClasses: selectedClasses,
-        attachments: attachmentUrls,
-      );
+      try {
+        final success = await _createController.createMaterial(
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          selectedClasses: selectedClasses,
+          attachments: attachmentUrls,
+        );
 
-      if (success) {
-        // Clear files after successful creation
-        _fileController.clearFiles();
-        // Return true to trigger refresh in create screen
-        Navigator.of(context).pop(true);
+        if (success) {
+          // Clear files after successful creation
+          _fileController.clearFiles();
+
+          // Ensure we're still mounted before navigating
+          if (!mounted) return;
+
+          // Navigate back to create screen (item list)
+          // This will trigger the .then() callback in create_screen.dart
+          // which will refresh the data and show success message
+          Navigator.of(context).pop(true);
+        }
+      } catch (e) {
+        print('❌ Error in material creation flow: $e');
+        // Show error if something went wrong
+        Get.snackbar(
+          'Error',
+          'Failed to create material: $e',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
       }
     }
   }

@@ -3821,6 +3821,12 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
         final name = (data['name'] ?? '').toString();
         if (name.trim().isEmpty) continue;
 
+        // Only include approved instructors - exclude pending and rejected
+        final instructorStatus = data['status']?.toString() ?? 'Pending';
+        if (instructorStatus != 'Approved') {
+          continue;
+        }
+
         // Collect department names from assignments → departments collection
         final assignments = data['assignments'];
         final Set<String> departmentNames = {};

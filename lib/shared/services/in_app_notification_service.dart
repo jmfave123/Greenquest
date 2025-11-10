@@ -356,6 +356,13 @@ class InAppNotificationService {
               '❌ Excluding individual notification: ${data['title']} (user not in targetUsers)',
             );
           }
+        } else if (targetType == 'instructor') {
+          // Instructor notifications should ONLY be visible to instructors
+          // Students should never see these notifications
+          shouldInclude = false;
+          dev.log(
+            '❌ Excluding instructor notification: ${data['title']} (students should not see instructor notifications)',
+          );
         } else {
           // Unknown targetType - default to showing it (safer than hiding)
           dev.log('⚠️ Unknown targetType: $targetType, defaulting to show');
@@ -803,6 +810,13 @@ class InAppNotificationService {
                     '❌ Excluding individual notification: ${data['title']} (user not in targetUsers)',
                   );
                 }
+              } else if (targetType == 'instructor') {
+                // Instructor notifications should ONLY be visible to instructors
+                // Students should never see these notifications
+                shouldInclude = false;
+                dev.log(
+                  '❌ Excluding instructor notification: ${data['title']} (students should not see instructor notifications)',
+                );
               } else {
                 // Unknown targetType - default to showing it (safer than hiding)
                 dev.log(
@@ -872,6 +886,10 @@ class InAppNotificationService {
         return 'New Announcement from $instructorName';
       case 'graded':
         return 'Your work has been graded';
+      case 'enrollment_approved':
+        return 'Enrollment Approved';
+      case 'enrollment_rejected':
+        return 'Enrollment Rejected';
       default:
         return 'New Notification from $instructorName';
     }

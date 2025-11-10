@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'materials_list_screen_controller.dart';
 import 'materials_detail_screen.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
+import 'package:greenquest/shared/login/custom_drawer.dart';
 
 class MaterialsListScreen extends StatefulWidget {
   const MaterialsListScreen({super.key});
@@ -13,6 +14,7 @@ class MaterialsListScreen extends StatefulWidget {
 
 class _MaterialsListScreenState extends State<MaterialsListScreen> {
   MaterialsListScreenController? controller;
+  int selectedDrawerIndex = 4;
 
   @override
   void initState() {
@@ -23,12 +25,24 @@ class _MaterialsListScreenState extends State<MaterialsListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: CustomDrawer(
+        selectedIndex: selectedDrawerIndex,
+        onSelect: (i) {
+          setState(() => selectedDrawerIndex = i);
+          Navigator.pop(context);
+        },
+      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
+        leading: Builder(
+          builder:
+              (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.black),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
         ),
         title: const Text(
           'Materials',

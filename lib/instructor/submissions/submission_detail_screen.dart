@@ -184,106 +184,6 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     );
   }
 
-  void _downloadSpecificPDF() async {
-    try {
-      _showSnackBar(
-        'Downloading submission_flow.pdf...',
-        const Color(0xFF34A853),
-      );
-
-      // Show progress dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder:
-            (context) => AlertDialog(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(color: Color(0xFF34A853)),
-                  const SizedBox(height: 16),
-                  const Text('Downloading submission_flow.pdf...'),
-                ],
-              ),
-            ),
-      );
-
-      // Download the specific PDF using the download service
-      final filePath = await FileDownloadService.downloadSubmissionPDF();
-
-      // Close progress dialog
-      Navigator.of(context).pop();
-
-      if (filePath != null) {
-        _showSnackBar(
-          'PDF downloaded successfully: submission_flow.pdf',
-          const Color(0xFF34A853),
-        );
-      } else {
-        throw Exception('Download failed');
-      }
-    } catch (e) {
-      // Close progress dialog if it's open
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      _showSnackBar('Error downloading PDF: $e', Colors.red);
-
-      // Show fallback dialog with the URL
-      showDialog(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              title: const Text('Download PDF'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Unable to download directly. Please use the link below:',
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: SelectableText(
-                      'https://res.cloudinary.com/dddnu6i5q/raw/upload/v1759553378/greenquest/submissions/activitys/fckx3dknrdfg4misgm6x.pdf',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Clipboard.setData(
-                      const ClipboardData(
-                        text:
-                            'https://res.cloudinary.com/dddnu6i5q/raw/upload/v1759553378/greenquest/submissions/activitys/fckx3dknrdfg4misgm6x.pdf',
-                      ),
-                    );
-                    _showSnackBar(
-                      'URL copied to clipboard',
-                      const Color(0xFF34A853),
-                    );
-                  },
-                  child: const Text('Copy URL'),
-                ),
-              ],
-            ),
-      );
-    }
-  }
-
   String _formatSubmissionDate(dynamic submittedAt) {
     if (submittedAt == null) return 'Unknown';
 
@@ -368,8 +268,23 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       if (kIsWeb) {
         // For web: Open in new tab without pausing the app
         // Using window.open() prevents the Flutter app from pausing
-        html.window.open(url, '_blank');
-        _showSnackBar('File opened in new tab', const Color(0xFF34A853));
+        try {
+          // Open file in new tab - this won't pause the Flutter app
+          html.window.open(url, '_blank');
+
+          // Successfully attempted to open
+          // Note: We can't reliably detect if popup was blocked, but this is the
+          // best approach that doesn't pause the app
+          _showSnackBar('File opened in new tab', const Color(0xFF34A853));
+        } catch (e) {
+          // If window.open fails completely, show dialog with link
+          print('window.open failed: $e');
+          _showSnackBar(
+            'Unable to open in new tab. Showing link...',
+            Colors.orange,
+          );
+          _showPreviewDialog(url);
+        }
       } else {
         // For mobile: Use URL launcher as before
         final Uri uri = Uri.parse(url);
@@ -385,6 +300,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
         }
       }
     } catch (e) {
+      print('Error in _openFilePreview: $e');
       _showSnackBar('Error opening file: $e', Colors.red);
       // Show fallback dialog
       _showPreviewDialog(url);
@@ -447,6 +363,27 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     }
 
     try {
+      // For web, download directly without showing progress dialog
+      if (kIsWeb) {
+        _showSnackBar('Downloading $fileName...', const Color(0xFF34A853));
+
+        // Use web download method directly
+        await FileDownloadService.downloadFileFromUrl(
+          url: url,
+          customFileName: fileName,
+          onProgress: (received, total) {
+            // Progress callback - can be used for UI updates if needed
+          },
+        );
+
+        _showSnackBar(
+          'File download started: $fileName',
+          const Color(0xFF34A853),
+        );
+        return;
+      }
+
+      // For Android/iOS, show progress dialog
       _showSnackBar('Downloading $fileName...', const Color(0xFF34A853));
 
       // Show progress dialog
@@ -772,34 +709,13 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Text(
-                'Submitted Files',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const Spacer(),
-              // Test button for the specific PDF URL
-              ElevatedButton.icon(
-                onPressed: () {
-                  _downloadSpecificPDF();
-                },
-                icon: const Icon(Icons.download, size: 16),
-                label: const Text('Download PDF'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF34A853),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-              ),
-            ],
+          const Text(
+            'Submitted Files',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
           ),
           const SizedBox(height: 16),
           if (widget.submissionData['files'] != null &&

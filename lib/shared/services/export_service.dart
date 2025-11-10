@@ -10,30 +10,38 @@ class ExportService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// Helper function to format student name from "Jv P. Tenefrancia" to "TENEFRANCIA, JV P."
+  /// Format name from "First Middle Last" to "Last, First M." format
+  /// Handles: "First Last" -> "Last, First"
+  ///          "First Middle Last" -> "Last, First M."
   String _formatStudentName(String name) {
     if (name.isEmpty) return '';
 
-    // Split the name into parts
-    final parts = name.trim().split(' ');
+    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.length < 2)
+      return name.toUpperCase(); // Return uppercase if only one part
 
-    if (parts.length < 2) {
-      return name.toUpperCase(); // If only one word, return as uppercase
+    // Get the last part (last name)
+    final lastName = parts.last;
+
+    // Get first name and middle initial
+    if (parts.length == 2) {
+      // "First Last" -> "LAST, FIRST" (uppercase)
+      return '${lastName.toUpperCase()}, ${parts[0].toUpperCase()}';
+    } else if (parts.length >= 3) {
+      // "First Middle Last" -> "LAST, FIRST M." (uppercase)
+      final firstName = parts[0];
+      final middleInitial = parts[1][0].toUpperCase();
+      return '${lastName.toUpperCase()}, ${firstName.toUpperCase()} $middleInitial.';
     }
 
-    // Last part is the last name, everything else is first/middle name
-    final lastName = parts.last;
-    final firstMiddleName = parts.sublist(0, parts.length - 1).join(' ');
-
-    return '${lastName.toUpperCase()}, ${firstMiddleName.toUpperCase()}';
+    return name.toUpperCase();
   }
 
-  /// Helper function to truncate text for row 7 headers to prevent row expansion
-  /// Limits text to a reasonable length that fits in a fixed-height row
-  String _truncateHeaderText(String text, {int maxLength = 30}) {
-    if (text.isEmpty) return '';
-    if (text.length <= maxLength) return text;
-    return '${text.substring(0, maxLength)}...';
+  /// Helper function to get header text for row 7
+  /// Returns full text to allow wrapping within fixed row height
+  String _truncateHeaderText(String text) {
+    // Return full text - no truncation. Text will wrap and clip at fixed row height
+    return text.isEmpty ? '' : text;
   }
 
   /// Generate preview data that matches the actual Excel structure
@@ -403,9 +411,10 @@ class ExportService {
         sheet
             .getRangeByName('${_getColumnLetter(col++)}$row')
             .setText(student['idNumber'] ?? '');
-        sheet
-            .getRangeByName('${_getColumnLetter(col++)}$row')
-            .setText(_formatStudentName(student['name'] ?? ''));
+        // Name column (column C) - set to left align and uppercase
+        final nameCell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
+        nameCell.setText(_formatStudentName(student['name'] ?? ''));
+        nameCell.cellStyle.hAlign = HAlignType.left;
 
         // Class Standing items
         int csItemsStartCol = col;
@@ -1063,30 +1072,7 @@ class ExportService {
         computedRange.cellStyle.backColor = '#FFFFFF';
       }
 
-      // Center all content in row 9 (first student row)
-      if (students.isNotEmpty) {
-        final row9 = startRow + 1; // First student row
-        final totalCols = _totalColumnCount(
-          classStandingItems,
-          quizPrelimItems,
-          midtermExamItems,
-          pitItems,
-          finalClassStandingItems,
-          finalQuizItems,
-          finalExamItems,
-          finalPitItems,
-        );
-        final row9Range = sheet.getRangeByName(
-          'A$row9:${_getColumnLetter(totalCols)}$row9',
-        );
-        row9Range.cellStyle.hAlign = HAlignType.center;
-        row9Range.cellStyle.vAlign = VAlignType.center;
-      }
-
-      _autoFitColumns(sheet);
-
-      // Force row 7 height again after all operations (Excel may try to recalculate)
-      // Row index is 0-based, so row 7 is index 6
+      // Apply thick black borders to ALL sections as complete rectangles (from row 4 headers to last data row)
       final totalCols = _totalColumnCount(
         classStandingItems,
         quizPrelimItems,
@@ -1098,24 +1084,173 @@ class ExportService {
         finalPitItems,
       );
 
-      // Set wrapText = false on all cells in row 7 first
-      final row7Range = sheet.getRangeByName(
-        'A7:${_getColumnLetter(totalCols)}7',
-      );
-      row7Range.cellStyle.wrapText = false;
+      // Calculate section boundaries
+      final csGroup = classStandingItems.length + 2;
+      final qpGroup = quizPrelimItems.length + 2;
+      final meGroup = midtermExamItems.length + 1;
+      final pitGroup = pitItems.length + 2;
+      final midLectureGroup = 4;
+      final midtermGroup =
+          csGroup + qpGroup + meGroup + pitGroup + midLectureGroup;
+      final fcsGroup = finalClassStandingItems.length + 2;
+      final fqGroup = finalQuizItems.length + 2;
+      final feGroup = finalExamItems.length + 1;
+      final fpitGroup = finalPitItems.length + 2;
+      final finalLectureGroup = 4;
+      final finalGroup =
+          fcsGroup + fqGroup + feGroup + fpitGroup + finalLectureGroup;
+      final computedGroup = 8;
 
-      // Also set on individual cells to ensure it sticks
-      for (int c = 1; c <= totalCols; c++) {
-        final cell = sheet.getRangeByName('${_getColumnLetter(c)}7');
-        cell.cellStyle.wrapText = false;
+      // Section start columns
+      final midtermStartCol = 4; // Column D (4)
+      final midtermEndCol = 4 + midtermGroup - 1;
+      final finalStartCol = 4 + midtermGroup;
+      final finalEndCol = 4 + midtermGroup + finalGroup - 1;
+      final computedStartCol = 4 + midtermGroup + finalGroup;
+
+      // Apply thick black borders to HEADER rows (rows 4-7) and MAX POINTS row (row 8)
+      // Student data rows (9+) will NOT have thick black borders (they have thin borders)
+      final headerStartRow = 4;
+      final headerEndRow = 7;
+      final maxPointsRow = startRow; // Row 8
+
+      // Student info columns (No, ID, Names): headers (rows 4-7) and max points row (row 8)
+      final studentInfoHeaderRange = sheet.getRangeByName(
+        'A$headerStartRow:C$headerEndRow',
+      );
+      studentInfoHeaderRange.cellStyle.borders.all.lineStyle = LineStyle.thick;
+      studentInfoHeaderRange.cellStyle.borders.all.color = '#000000';
+
+      final studentInfoMaxPointsRange = sheet.getRangeByName(
+        'A$maxPointsRow:C$maxPointsRow',
+      );
+      studentInfoMaxPointsRange.cellStyle.borders.all.lineStyle =
+          LineStyle.thick;
+      studentInfoMaxPointsRange.cellStyle.borders.all.color = '#000000';
+
+      // Midterm section: headers (rows 4-7) and max points row (row 8)
+      final midtermHeaderRange = sheet.getRangeByName(
+        '${_getColumnLetter(midtermStartCol)}$headerStartRow:${_getColumnLetter(midtermEndCol)}$headerEndRow',
+      );
+      midtermHeaderRange.cellStyle.borders.all.lineStyle = LineStyle.thick;
+      midtermHeaderRange.cellStyle.borders.all.color = '#000000';
+
+      final midtermMaxPointsRange = sheet.getRangeByName(
+        '${_getColumnLetter(midtermStartCol)}$maxPointsRow:${_getColumnLetter(midtermEndCol)}$maxPointsRow',
+      );
+      midtermMaxPointsRange.cellStyle.borders.all.lineStyle = LineStyle.thick;
+      midtermMaxPointsRange.cellStyle.borders.all.color = '#000000';
+
+      // Final section: headers (rows 4-7) and max points row (row 8)
+      final finalHeaderRange = sheet.getRangeByName(
+        '${_getColumnLetter(finalStartCol)}$headerStartRow:${_getColumnLetter(finalEndCol)}$headerEndRow',
+      );
+      finalHeaderRange.cellStyle.borders.all.lineStyle = LineStyle.thick;
+      finalHeaderRange.cellStyle.borders.all.color = '#000000';
+
+      final finalMaxPointsRange = sheet.getRangeByName(
+        '${_getColumnLetter(finalStartCol)}$maxPointsRow:${_getColumnLetter(finalEndCol)}$maxPointsRow',
+      );
+      finalMaxPointsRange.cellStyle.borders.all.lineStyle = LineStyle.thick;
+      finalMaxPointsRange.cellStyle.borders.all.color = '#000000';
+
+      // Computed section: headers (rows 4-7) and max points row (row 8)
+      final computedHeaderRange = sheet.getRangeByName(
+        '${_getColumnLetter(computedStartCol)}$headerStartRow:${_getColumnLetter(computedStartCol + computedGroup - 1)}$headerEndRow',
+      );
+      computedHeaderRange.cellStyle.borders.all.lineStyle = LineStyle.thick;
+      computedHeaderRange.cellStyle.borders.all.color = '#000000';
+
+      final computedMaxPointsRange = sheet.getRangeByName(
+        '${_getColumnLetter(computedStartCol)}$maxPointsRow:${_getColumnLetter(computedStartCol + computedGroup - 1)}$maxPointsRow',
+      );
+      computedMaxPointsRange.cellStyle.borders.all.lineStyle = LineStyle.thick;
+      computedMaxPointsRange.cellStyle.borders.all.color = '#000000';
+
+      // Center all content in student data rows, except name column which is left-aligned
+      if (students.isNotEmpty) {
+        final firstStudentRow = startRow + 1; // First student row (row 9)
+        final lastStudentRow = startRow + students.length;
+
+        // Center columns A-B (No, ID)
+        final noIdRange = sheet.getRangeByName(
+          'A$firstStudentRow:B$lastStudentRow',
+        );
+        noIdRange.cellStyle.hAlign = HAlignType.center;
+        noIdRange.cellStyle.vAlign = VAlignType.center;
+
+        // Center columns D onwards (all grade columns)
+        final gradeColumnsRange = sheet.getRangeByName(
+          'D$firstStudentRow:${_getColumnLetter(totalCols)}$lastStudentRow',
+        );
+        gradeColumnsRange.cellStyle.hAlign = HAlignType.center;
+        gradeColumnsRange.cellStyle.vAlign = VAlignType.center;
+
+        // Name column (C) is already set to left-align in the student data writing loop
       }
 
-      // Now force the row height - this MUST be done after auto-fit
+      // REMOVED: _autoFitColumns(sheet) - it was causing row 7 to auto-expand
+      // Column widths will be set manually to ensure category headers are visible
+
+      // Force row 7 height - ensure it stays fixed
+      // Row index is 0-based, so row 7 is index 6
+      // Note: totalCols is already calculated above
+
+      // Set wrapText = false for non-computed cells - text will be clipped at fixed height
+      // But computed columns need wrapText = true, so we'll set them separately
+      // First, get the computed start column
+      final totalColsBeforeComputed =
+          _totalColumnCount(
+            classStandingItems,
+            quizPrelimItems,
+            midtermExamItems,
+            pitItems,
+            finalClassStandingItems,
+            finalQuizItems,
+            finalExamItems,
+            finalPitItems,
+          ) -
+          8; // 8 is the computed group size
+
+      if (totalColsBeforeComputed > 0) {
+        final nonComputedRange = sheet.getRangeByName(
+          'A7:${_getColumnLetter(totalColsBeforeComputed)}7',
+        );
+        nonComputedRange.cellStyle.wrapText = false;
+      }
+
+      // Computed columns (last 8 columns) should have wrapText = true
+      final computedRange = sheet.getRangeByName(
+        '${_getColumnLetter(totalColsBeforeComputed + 1)}7:${_getColumnLetter(totalCols)}7',
+      );
+      computedRange.cellStyle.wrapText = true;
+      computedRange.cellStyle.hAlign = HAlignType.center;
+      computedRange.cellStyle.vAlign = VAlignType.center;
+
+      // Force the row height - taller to accommodate computed column wrapping
       final row7 = sheet.rows[6];
       if (row7 != null) {
         row7.height =
-            20; // Fixed height - slightly larger to accommodate rotated text
+            30; // Increased height to allow computed column headers to wrap and be visible
       }
+
+      // CRITICAL: Set column widths AFTER all content is written
+      // This ensures columns exist and widths are properly applied
+      _setColumnWidths(sheet, totalCols);
+
+      // CRITICAL: Ensure row 6 category headers are visible even with no items
+      // Set minimum widths for category header merged cells
+      _ensureRow6CategoryHeaderWidths(
+        sheet,
+        classStandingItems,
+        quizPrelimItems,
+        midtermExamItems,
+        pitItems,
+        finalClassStandingItems,
+        finalQuizItems,
+        finalExamItems,
+        finalPitItems,
+      );
 
       await _saveAndOpenFile(workbook, '${sectionName}_ClassRecord');
     } catch (e) {
@@ -1197,14 +1332,14 @@ class ExportService {
           '${_getColumnLetter(col)}$row:${_getColumnLetter(col + midtermGroup - 1)}$row',
         )
         .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Midterm Grade');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#99CCFF';
+    final midtermHeaderRow4 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row',
+    );
+    midtermHeaderRow4.setText('Midterm Grade');
+    midtermHeaderRow4.cellStyle.hAlign = HAlignType.center;
+    midtermHeaderRow4.cellStyle.bold = true;
+    midtermHeaderRow4.cellStyle.backColor = '#99CCFF';
+    // Borders will be applied to complete section rectangle at the end
     col += midtermGroup;
 
     sheet
@@ -1212,12 +1347,14 @@ class ExportService {
           '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalGroup - 1)}$row',
         )
         .merge();
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Final Grade');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#99CCFF';
+    final finalHeaderRow4 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row',
+    );
+    finalHeaderRow4.setText('Final Grade');
+    finalHeaderRow4.cellStyle.hAlign = HAlignType.center;
+    finalHeaderRow4.cellStyle.bold = true;
+    finalHeaderRow4.cellStyle.backColor = '#99CCFF';
+    // Borders will be applied to complete section rectangle at the end
     col += finalGroup;
 
     sheet
@@ -1225,16 +1362,15 @@ class ExportService {
           '${_getColumnLetter(col)}$row:${_getColumnLetter(col + computedGroup - 1)}$row',
         )
         .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Computed Final Grade');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#66BB6A';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.fontColor =
-        '#FFFFFF';
+    final computedHeaderRow4 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row',
+    );
+    computedHeaderRow4.setText('Computed Final Grade');
+    computedHeaderRow4.cellStyle.hAlign = HAlignType.center;
+    computedHeaderRow4.cellStyle.bold = true;
+    computedHeaderRow4.cellStyle.backColor = '#66BB6A';
+    computedHeaderRow4.cellStyle.fontColor = '#FFFFFF';
+    // Borders will be applied to complete section rectangle at the end
 
     // Row 5: Lecture 100% over midterm and final groups
     row = 5;
@@ -1244,37 +1380,35 @@ class ExportService {
           '${_getColumnLetter(col)}$row:${_getColumnLetter(col + midtermGroup - 1)}$row',
         )
         .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Lecture 100%');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFC000';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final midtermLectureRow5 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row',
+    );
+    midtermLectureRow5.setText('Lecture 100%');
+    midtermLectureRow5.cellStyle.backColor = '#FFC000';
+    midtermLectureRow5.cellStyle.bold = true;
+    midtermLectureRow5.cellStyle.hAlign = HAlignType.center;
+    // Borders will be applied to complete section rectangle at the end
 
     col += midtermGroup;
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Lecture 100%');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FFC000';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final finalLectureRow5 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalGroup - 1)}$row',
+    );
+    finalLectureRow5.merge();
+    finalLectureRow5.setText('Lecture 100%');
+    finalLectureRow5.cellStyle.backColor = '#FFC000';
+    finalLectureRow5.cellStyle.bold = true;
+    finalLectureRow5.cellStyle.hAlign = HAlignType.center;
+    // Borders will be applied to complete section rectangle at the end
 
-    // Computed group spacer
+    // Computed group - extend green background from row 4
     col += finalGroup;
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + computedGroup - 1)}$row',
-        )
-        .merge();
+    final computedRow5 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + computedGroup - 1)}$row',
+    );
+    computedRow5.merge();
+    // Apply green background to match row 4
+    computedRow5.cellStyle.backColor = '#66BB6A';
+    // Borders will be applied to complete section rectangle at the end
 
     // Row 6: Category headers for midterm and final groups
     row = 6;
@@ -1284,148 +1418,120 @@ class ExportService {
           '${_getColumnLetter(col)}$row:${_getColumnLetter(col + csGroup - 1)}$row',
         )
         .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Class Standing Performance Items (10%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    // Midterm category headers
+    final csCategoryRow6 = sheet.getRangeByName('${_getColumnLetter(col)}$row');
+    csCategoryRow6.setText('Class Standing Performance Items (10%)');
+    csCategoryRow6.cellStyle.backColor = '#FCF305';
+    csCategoryRow6.cellStyle.bold = true;
+    csCategoryRow6.cellStyle.hAlign = HAlignType.center;
+    // Borders will be applied to complete section rectangle at the end
     col += csGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + qpGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Quiz/Prelim Performance Item (40%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final qpCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + qpGroup - 1)}$row',
+    );
+    qpCategoryRow6.merge();
+    qpCategoryRow6.setText('Quiz/Prelim Performance Item (40%)');
+    qpCategoryRow6.cellStyle.backColor = '#FCF305';
+    qpCategoryRow6.cellStyle.bold = true;
+    qpCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += qpGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + meGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Midterm Exam (30%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final meCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + meGroup - 1)}$row',
+    );
+    meCategoryRow6.merge();
+    meCategoryRow6.setText('Midterm Exam (10%)');
+    meCategoryRow6.cellStyle.backColor = '#FCF305';
+    meCategoryRow6.cellStyle.bold = true;
+    meCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += meGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + pitGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Per Inno Task (20%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final pitCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + pitGroup - 1)}$row',
+    );
+    pitCategoryRow6.merge();
+    pitCategoryRow6.setText('Per Inno Task (20%)');
+    pitCategoryRow6.cellStyle.backColor = '#FCF305';
+    pitCategoryRow6.cellStyle.bold = true;
+    pitCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += pitGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + midLectureGroup - 1)}$row',
-        )
-        .merge();
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Lecture');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final midLectureCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + midLectureGroup - 1)}$row',
+    );
+    midLectureCategoryRow6.merge();
+    midLectureCategoryRow6.setText('Lecture');
+    midLectureCategoryRow6.cellStyle.backColor = '#FCF305';
+    midLectureCategoryRow6.cellStyle.bold = true;
+    midLectureCategoryRow6.cellStyle.hAlign = HAlignType.center;
 
     // Final categories
     col = 4 + midtermGroup;
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fcsGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Class Standing Performance Items (10%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final fcsCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fcsGroup - 1)}$row',
+    );
+    fcsCategoryRow6.merge();
+    fcsCategoryRow6.setText('Class Standing Performance Items (10%)');
+    fcsCategoryRow6.cellStyle.backColor = '#FCF305';
+    fcsCategoryRow6.cellStyle.bold = true;
+    fcsCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += fcsGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fqGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Quiz/Pre-final\nPerformance Item (40%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.wrapText =
-        true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final fqCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fqGroup - 1)}$row',
+    );
+    fqCategoryRow6.merge();
+    fqCategoryRow6.setText('Quiz/Pre-final\nPerformance Item (40%)');
+    fqCategoryRow6.cellStyle.wrapText = true;
+    fqCategoryRow6.cellStyle.backColor = '#FCF305';
+    fqCategoryRow6.cellStyle.bold = true;
+    fqCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += fqGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + feGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Final Exam (30%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final feCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + feGroup - 1)}$row',
+    );
+    feCategoryRow6.merge();
+    feCategoryRow6.setText('Final Exam (10%)');
+    feCategoryRow6.cellStyle.backColor = '#FCF305';
+    feCategoryRow6.cellStyle.bold = true;
+    feCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += feGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fpitGroup - 1)}$row',
-        )
-        .merge();
-    sheet
-        .getRangeByName('${_getColumnLetter(col)}$row')
-        .setText('Per Inno Task (20%)');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final fpitCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + fpitGroup - 1)}$row',
+    );
+    fpitCategoryRow6.merge();
+    fpitCategoryRow6.setText('Per Inno Task (20%)');
+    fpitCategoryRow6.cellStyle.backColor = '#FCF305';
+    fpitCategoryRow6.cellStyle.bold = true;
+    fpitCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += fpitGroup;
 
-    sheet
-        .getRangeByName(
-          '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalLectureGroup - 1)}$row',
-        )
-        .merge();
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').setText('Lecture');
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.backColor =
-        '#FCF305';
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.bold = true;
-    sheet.getRangeByName('${_getColumnLetter(col)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    final finalLectureCategoryRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(col)}$row:${_getColumnLetter(col + finalLectureGroup - 1)}$row',
+    );
+    finalLectureCategoryRow6.merge();
+    finalLectureCategoryRow6.setText('Lecture');
+    finalLectureCategoryRow6.cellStyle.backColor = '#FCF305';
+    finalLectureCategoryRow6.cellStyle.bold = true;
+    finalLectureCategoryRow6.cellStyle.hAlign = HAlignType.center;
+
+    // Computed Final Grade section in row 6 - extend green background from row 4
+    col += finalLectureGroup;
+    final computedColStartRow6 =
+        4 + midtermGroup + finalGroup; // Same as row 4 computed start
+    final computedRow6 = sheet.getRangeByName(
+      '${_getColumnLetter(computedColStartRow6)}$row:${_getColumnLetter(computedColStartRow6 + computedGroup - 1)}$row',
+    );
+    computedRow6.merge();
+    // Apply green background to match row 4
+    computedRow6.cellStyle.backColor = '#66BB6A';
+    computedRow6.cellStyle.hAlign = HAlignType.center;
+    // Borders will be applied to complete section rectangle at the end
+
+    // Column widths will be set at the end after all content is written
 
     // Row 7: Detailed column headers
     row = 7;
@@ -1440,7 +1546,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int csItemsEndCol = col;
     sheet
@@ -1454,7 +1561,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int qpItemsEndCol = col;
     sheet
@@ -1468,7 +1576,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int meItemsEndCol = col;
     int mCol = col;
@@ -1479,7 +1588,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int pitItemsEndCol = col;
     sheet
@@ -1508,7 +1618,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int fcsItemsEndCol = col;
     sheet
@@ -1522,7 +1633,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int fqItemsEndCol = col;
     sheet
@@ -1536,7 +1648,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int feItemsEndCol = col;
     int fCol = col;
@@ -1547,7 +1660,8 @@ class ExportService {
       final title = _truncateHeaderText(item['title'] ?? '');
       final cell = sheet.getRangeByName('${_getColumnLetter(col++)}$row');
       cell.setText(title);
-      cell.cellStyle.wrapText = false;
+      cell.cellStyle.wrapText =
+          false; // No wrapping - text will be clipped at fixed height
     }
     int fpitItemsEndCol = col;
     sheet
@@ -1572,30 +1686,50 @@ class ExportService {
         .setText('Final Period Grade');
 
     int computedStartCol = col;
+    // Computed Final Grade columns - horizontal text with wrapping (NOT rotated)
+    final comp12Col = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp12Col)}$row')
         .setText('1/2 MTG + 1/2 FTG');
+    final comp12RemovalCol = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp12RemovalCol)}$row')
         .setText('1/2 MTG + 1/2 FTG (For Removal)');
+    final comp12AfterCol = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp12AfterCol)}$row')
         .setText('1/2 MTG + 1/2 FTG (After Removal)');
+    final comp12DescCol = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp12DescCol)}$row')
         .setText('Description');
+    final comp13Col = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp13Col)}$row')
         .setText('1/3 MTG + 2/3 FTG');
+    final comp13RemovalCol = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp13RemovalCol)}$row')
         .setText('1/3 MTG + 2/3 FTG (For Removal)');
+    final comp13AfterCol = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp13AfterCol)}$row')
         .setText('1/3 MTG + 2/3 FTG (After Removal)');
+    final comp13DescCol = col++;
     sheet
-        .getRangeByName('${_getColumnLetter(col++)}$row')
+        .getRangeByName('${_getColumnLetter(comp13DescCol)}$row')
         .setText('Description');
+
+    // Set computed columns to horizontal (no rotation) with text wrapping
+    for (int i = computedStartCol; i < col; i++) {
+      final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
+      cell.cellStyle.rotation = 0; // Horizontal text (no rotation)
+      cell.cellStyle.wrapText = true; // Enable text wrapping
+      cell.cellStyle.hAlign = HAlignType.center; // Center align
+      cell.cellStyle.vAlign = VAlignType.center; // Center vertical align
+    }
+
+    // Borders for row 7 will be applied as part of the complete section rectangles at the end
 
     // Set header styling - all normal first
     final headerRange = sheet.getRangeByName(
@@ -1603,7 +1737,7 @@ class ExportService {
     );
     headerRange.cellStyle.bold = false; // Set all to normal first
     headerRange.cellStyle.backColor = '#FFFFFF'; // White background
-    headerRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
+    // Note: Individual section borders are set above, so thin borders are only for cells not in sections
 
     // Set bold for specific columns: Midterm
     sheet.getRangeByName('${_getColumnLetter(cpaMidCol)}$row').cellStyle.bold =
@@ -1687,7 +1821,7 @@ class ExportService {
         cell.cellStyle.rotation =
             90; // 90 degrees rotation (vertical, reading bottom to top)
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // CPA, Total Score columns for midterm
@@ -1702,7 +1836,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(cpaMidCol - 1)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
         .getRangeByName('${_getColumnLetter(cpaMidCol)}$row')
         .cellStyle
@@ -1714,14 +1848,14 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(cpaMidCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     if (qpItemsEndCol > qpItemsStartCol) {
       for (int i = qpItemsStartCol; i < qpItemsEndCol; i++) {
         final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // QA, Total Score columns for midterm
@@ -1736,7 +1870,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(qaMidCol - 1)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
         .getRangeByName('${_getColumnLetter(qaMidCol)}$row')
         .cellStyle
@@ -1744,14 +1878,14 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(qaMidCol)}$row').cellStyle.hAlign =
         HAlignType.center;
     sheet.getRangeByName('${_getColumnLetter(qaMidCol)}$row').cellStyle.vAlign =
-        VAlignType.center;
+        VAlignType.bottom; // Bottom align for row 7
 
     if (meItemsEndCol > meItemsStartCol) {
       for (int i = meItemsStartCol; i < meItemsEndCol; i++) {
         final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // M column
@@ -1760,14 +1894,14 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(mCol)}$row').cellStyle.hAlign =
         HAlignType.center;
     sheet.getRangeByName('${_getColumnLetter(mCol)}$row').cellStyle.vAlign =
-        VAlignType.center;
+        VAlignType.bottom; // Bottom align for row 7
 
     if (pitItemsEndCol > pitItemsStartCol) {
       for (int i = pitItemsStartCol; i < pitItemsEndCol; i++) {
         final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // PIT%, Total Score columns for midterm
@@ -1782,7 +1916,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(pitPercentMidCol - 1)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
         .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
         .cellStyle
@@ -1794,7 +1928,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(pitPercentMidCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // MGA column
     sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.rotation =
@@ -1802,7 +1936,7 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.hAlign =
         HAlignType.center;
     sheet.getRangeByName('${_getColumnLetter(mgaCol)}$row').cellStyle.vAlign =
-        VAlignType.center;
+        VAlignType.bottom; // Bottom align for row 7
 
     // Final item columns
     if (fcsItemsEndCol > fcsItemsStartCol) {
@@ -1810,7 +1944,7 @@ class ExportService {
         final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // CPA, Total Score columns for final
@@ -1825,7 +1959,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(cpaFinalCol - 1)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
         .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
         .cellStyle
@@ -1837,14 +1971,14 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(cpaFinalCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     if (fqItemsEndCol > fqItemsStartCol) {
       for (int i = fqItemsStartCol; i < fqItemsEndCol; i++) {
         final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // QA, Total Score columns for final
@@ -1859,7 +1993,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(qaFinalCol - 1)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
         .getRangeByName('${_getColumnLetter(qaFinalCol)}$row')
         .cellStyle
@@ -1871,14 +2005,14 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(qaFinalCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     if (feItemsEndCol > feItemsStartCol) {
       for (int i = feItemsStartCol; i < feItemsEndCol; i++) {
         final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // F column
@@ -1887,14 +2021,14 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(fCol)}$row').cellStyle.hAlign =
         HAlignType.center;
     sheet.getRangeByName('${_getColumnLetter(fCol)}$row').cellStyle.vAlign =
-        VAlignType.center;
+        VAlignType.bottom; // Bottom align for row 7
 
     if (fpitItemsEndCol > fpitItemsStartCol) {
       for (int i = fpitItemsStartCol; i < fpitItemsEndCol; i++) {
         final cell = sheet.getRangeByName('${_getColumnLetter(i)}$row');
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
-        cell.cellStyle.vAlign = VAlignType.center;
+        cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // PIT%, Total Score columns for final
@@ -1909,7 +2043,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(pitPercentFinalCol - 1)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
         .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
         .cellStyle
@@ -1921,7 +2055,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(pitPercentFinalCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // FGA column
     sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.rotation =
@@ -1929,7 +2063,7 @@ class ExportService {
     sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.hAlign =
         HAlignType.center;
     sheet.getRangeByName('${_getColumnLetter(fgaCol)}$row').cellStyle.vAlign =
-        VAlignType.center;
+        VAlignType.bottom; // Bottom align for row 7
 
     // Mid Lec Grade Point, Mid Grade Point, Midterm Grade columns
     sheet
@@ -1943,7 +2077,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(midLecGradePointCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
         .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
@@ -1956,7 +2090,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(midGradePointCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
         .getRangeByName('${_getColumnLetter(midtermGradeCol)}$row')
@@ -1969,7 +2103,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(midtermGradeCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // Fin Lec Grade Point, Fin Grade Point, Final Period Grade columns
     sheet
@@ -1983,7 +2117,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(finLecGradePointCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
         .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
@@ -1996,7 +2130,7 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(finGradePointCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
         .getRangeByName('${_getColumnLetter(finalPeriodGradeCol)}$row')
@@ -2009,29 +2143,30 @@ class ExportService {
     sheet
         .getRangeByName('${_getColumnLetter(finalPeriodGradeCol)}$row')
         .cellStyle
-        .vAlign = VAlignType.center;
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
-    // Center all content in row 7
-    final row7Range = sheet.getRangeByName(
-      'A$row:${_getColumnLetter(totalColumns)}$row',
-    );
-    row7Range.cellStyle.hAlign = HAlignType.center;
-    row7Range.cellStyle.vAlign = VAlignType.center;
-    // Disable text wrapping to prevent auto-expansion - CRITICAL for fixed height
-    row7Range.cellStyle.wrapText = false;
-
-    // Also set wrapText = false on all individual cells in row 7 to ensure it sticks
-    for (int c = 1; c <= totalColumns; c++) {
-      final cell = sheet.getRangeByName('${_getColumnLetter(c)}$row');
-      cell.cellStyle.wrapText = false;
+    // Align row 7 content - horizontal center, vertical BOTTOM (so text stays at bottom if row expands)
+    // BUT: Computed Final Grade columns should have center vertical alignment and wrapping enabled
+    // So we'll set alignment for non-computed columns first, then computed columns separately
+    if (computedStartCol > 1) {
+      final nonComputedRange = sheet.getRangeByName(
+        'A$row:${_getColumnLetter(computedStartCol - 1)}$row',
+      );
+      nonComputedRange.cellStyle.hAlign = HAlignType.center;
+      nonComputedRange.cellStyle.vAlign = VAlignType.bottom;
+      nonComputedRange.cellStyle.wrapText = false;
     }
 
-    // Set row 7 height immediately after setting up content (before Excel recalculates)
+    // Computed columns already have wrapText = true and center alignment set above
+    // For computed columns to wrap properly, we need a taller row height
+    // Set row 7 height - taller to accommodate wrapped text in computed columns
     // Row index is 0-based, so row 7 is index 6
     final row7 = sheet.rows[6];
     if (row7 != null) {
+      // Computed columns have wrapping enabled, so increase height to show wrapped text
+      // Other columns will still respect this height (rotated text will be clipped at this height)
       row7.height =
-          20; // Fixed height - slightly larger to accommodate rotated text
+          30; // Increased height to allow computed column headers to wrap and be visible
     }
   }
 
@@ -3002,6 +3137,175 @@ class ExportService {
   }
 
   /// Auto-fit columns
+  /// Ensure row 6 category headers have minimum width even when there are no items
+  /// This prevents category names from being truncated when groups are small
+  void _ensureRow6CategoryHeaderWidths(
+    Worksheet sheet,
+    List<Map<String, dynamic>> classStandingItems,
+    List<Map<String, dynamic>> quizPrelimItems,
+    List<Map<String, dynamic>> midtermExamItems,
+    List<Map<String, dynamic>> pitItems,
+    List<Map<String, dynamic>> finalClassStandingItems,
+    List<Map<String, dynamic>> finalQuizItems,
+    List<Map<String, dynamic>> finalExamItems,
+    List<Map<String, dynamic>> finalPitItems,
+  ) {
+    try {
+      // Calculate group sizes (same logic as in _setupCompleteHeaders)
+      final csGroup = classStandingItems.length + 2; // items + SRC + CPA
+      final qpGroup = quizPrelimItems.length + 2; // items + SRQ + QA
+      final meGroup = midtermExamItems.length + 1; // items + M
+      final pitGroup = pitItems.length + 2; // items + total + %
+      final midLectureGroup = 4; // MGA + Mid Lec + Mid GP + Midterm Grade
+      final midtermGroup =
+          csGroup + qpGroup + meGroup + pitGroup + midLectureGroup;
+
+      final fcsGroup = finalClassStandingItems.length + 2;
+      final fqGroup = finalQuizItems.length + 2;
+      final feGroup = finalExamItems.length + 1;
+      final fpitGroup = finalPitItems.length + 2;
+      final finalLectureGroup = 4;
+      final finalGroup =
+          fcsGroup + fqGroup + feGroup + fpitGroup + finalLectureGroup;
+
+      // Minimum width needed for category names (in column width units)
+      // Use different minimum widths for different categories based on name length
+      const defaultColumnWidth = 12;
+      const maxColumnWidth =
+          18; // Maximum width per column to prevent excessive widening
+
+      // Helper function to set column widths for a group
+      void setGroupWidths(
+        int startCol,
+        int groupSize,
+        String categoryName,
+        int minTotalWidth,
+      ) {
+        final currentTotalWidth = groupSize * defaultColumnWidth;
+        if (currentTotalWidth < minTotalWidth) {
+          // Calculate width per column, but cap it at maxColumnWidth
+          final widthPerColumn = ((minTotalWidth / groupSize).ceil()).clamp(
+            defaultColumnWidth,
+            maxColumnWidth,
+          );
+          for (int i = 0; i < groupSize; i++) {
+            try {
+              final range = sheet.getRangeByIndex(1, startCol + i);
+              range.columnWidth = widthPerColumn.toDouble();
+            } catch (e) {
+              // Skip if column doesn't exist
+            }
+          }
+        }
+      }
+
+      // Midterm categories starting at column 4
+      int col = 4;
+
+      // Class Standing Performance Items - needs more width for "Class Standing Performance Items (10%)"
+      // This is the longest category name, so it needs at least 40-45 width units
+      setGroupWidths(col, csGroup, 'Class Standing', 42);
+      col += csGroup;
+
+      // Quiz/Prelim Performance Item - "Quiz/Prelim Performance Item (40%)" is also long
+      setGroupWidths(col, qpGroup, 'Quiz/Prelim', 35);
+      col += qpGroup;
+
+      // Midterm Exam - "Midterm Exam (10%)" is shorter
+      setGroupWidths(col, meGroup, 'Midterm Exam', 25);
+      col += meGroup;
+
+      // Per Inno Task - "Per Inno Task (20%)" is shorter
+      setGroupWidths(col, pitGroup, 'Per Inno Task', 25);
+      col += pitGroup;
+
+      // Lecture (midterm) - usually fine with 4 columns
+      col += midLectureGroup;
+
+      // Final categories starting at column 4 + midtermGroup
+      col = 4 + midtermGroup;
+
+      // Final Class Standing Performance Items - needs more width for "Class Standing Performance Items (10%)"
+      // Same as midterm, needs at least 40-45 width units
+      setGroupWidths(col, fcsGroup, 'Final Class Standing', 42);
+      col += fcsGroup;
+
+      // Quiz/Pre-final Performance Item - "Quiz/Pre-final\nPerformance Item (40%)" is long (with line break)
+      setGroupWidths(col, fqGroup, 'Quiz/Pre-final', 35);
+      col += fqGroup;
+
+      // Final Exam - "Final Exam (10%)" is shorter
+      setGroupWidths(col, feGroup, 'Final Exam', 25);
+      col += feGroup;
+
+      // Final Per Inno Task - "Per Inno Task (20%)" is shorter
+      setGroupWidths(col, fpitGroup, 'Final Per Inno Task', 25);
+
+      // Computed Final Grade section (8 columns with long headers)
+      // Headers like "1/2 MTG + 1/2 FTG (For Removal)" and "1/3 MTG + 2/3 FTG (After Removal)"
+      final computedGroup = 8;
+      col =
+          4 +
+          midtermGroup +
+          finalGroup; // Computed section starts after final group
+
+      // Computed headers are long, so ensure adequate width
+      // Longest header: "1/3 MTG + 2/3 FTG (After Removal)" ~38 chars
+      const computedMinWidth = 35; // Minimum total width for computed section
+      if (computedGroup * defaultColumnWidth < computedMinWidth) {
+        final widthPerColumn = ((computedMinWidth / computedGroup).ceil())
+            .clamp(defaultColumnWidth, maxColumnWidth);
+        for (int i = 0; i < computedGroup; i++) {
+          try {
+            final range = sheet.getRangeByIndex(1, col + i);
+            range.columnWidth = widthPerColumn.toDouble();
+          } catch (e) {
+            // Skip if column doesn't exist
+          }
+        }
+      }
+    } catch (e) {
+      // Silently handle errors
+    }
+  }
+
+  /// Set column widths to ensure category headers in row 6 are fully visible
+  /// Uses getRangeByIndex to access columns by their 1-based index
+  void _setColumnWidths(Worksheet sheet, int totalColumns) {
+    try {
+      // Column A (No.) - narrow since it's just numbers
+      if (totalColumns >= 1) {
+        final rangeA = sheet.getRangeByIndex(1, 1); // Row 1, Column 1 (A)
+        rangeA.columnWidth = 8;
+      }
+
+      // Column B (ID Number) - wider to fit "ID Number" header and long ID numbers
+      if (totalColumns >= 2) {
+        final rangeB = sheet.getRangeByIndex(1, 2); // Row 1, Column 2 (B)
+        rangeB.columnWidth =
+            15; // Wider to accommodate "ID Number" header and ID numbers
+      }
+
+      // Column C (Names) - wider width to accommodate varying name lengths
+      // Use a width that can handle most names, including long ones
+      if (totalColumns >= 3) {
+        final rangeC = sheet.getRangeByIndex(1, 3); // Row 1, Column 3 (C)
+        rangeC.columnWidth =
+            22; // Wider width to accommodate long names like "Ruiz, JM" and longer formats
+      }
+
+      // Set minimum widths for all columns starting from column D (col 4) onwards
+      // This ensures category headers in merged cells are fully visible
+      // Width of 12 per column means merged cells spanning 8 columns = 96 width units
+      for (int c = 4; c <= totalColumns; c++) {
+        final range = sheet.getRangeByIndex(1, c); // Row 1, Column c (1-based)
+        range.columnWidth = 12; // Enough width for category headers when merged
+      }
+    } catch (e) {
+      // Silently handle errors - columns will use default width if setting fails
+    }
+  }
+
   void _autoFitColumns(Worksheet sheet) {
     for (int i = 1; i <= sheet.getLastColumn(); i++) {
       sheet.autoFitColumn(i);

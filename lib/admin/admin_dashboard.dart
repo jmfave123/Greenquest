@@ -377,6 +377,7 @@ class _AdminDashboardState extends State<AdminDashboard>
               instructorData['profileUrl'] ??
               instructorData['profileImageUrl'] ??
               '',
+          'about': instructorData['about'] ?? '',
           'sections': sections,
           'totalSections': sections.length,
           'totalStudents': totalStudents,
@@ -1644,22 +1645,8 @@ class _AdminDashboardState extends State<AdminDashboard>
                                                                 size: 20,
                                                               ),
                                                               onPressed: () {
-                                                                final instructorData = {
-                                                                  'name':
-                                                                      instructor['name'],
-                                                                  'email':
-                                                                      instructor['email'],
-                                                                  'phone':
-                                                                      instructor['phone'] ??
-                                                                      '',
-                                                                  'department':
-                                                                      instructor['department'],
-                                                                  'profileUrl':
-                                                                      instructor['profileUrl'] ??
-                                                                      '',
-                                                                };
                                                                 _showInstructorProfile(
-                                                                  instructorData,
+                                                                  instructor,
                                                                 );
                                                               },
                                                               tooltip:
@@ -2606,7 +2593,9 @@ class InstructorProfileView extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Passionate educator dedicated to inspiring students through environmental science and sustainability education. Committed to creating engaging learning experiences that promote positive environmental impacts.',
+                  (instructor['about']?.toString().trim().isNotEmpty ?? false)
+                      ? instructor['about'].toString()
+                      : 'No information provided yet.',
                   style: TextStyle(
                     fontSize: 15,
                     color: Colors.grey[700],

@@ -426,6 +426,9 @@ class ClassReportController extends GetxController {
         });
       }
 
+      // Sort students alphabetically by last name, first name, middle initial
+      studentList.sort(_sortStudentsAlphabetically);
+
       print('✅ DEBUG: Final student list length: ${studentList.length}');
       students.value = studentList;
       studentCount.value = studentList.length;
@@ -682,6 +685,9 @@ class ClassReportController extends GetxController {
       studentList.add(student);
     }
 
+    // Sort students alphabetically by last name, first name, middle initial
+    studentList.sort(_sortStudentsAlphabetically);
+
     return studentList;
   }
 
@@ -740,6 +746,9 @@ class ClassReportController extends GetxController {
           'enrolledAt': data['enrolledAt'] ?? data['createdAt'],
         });
       }
+
+      // Sort students alphabetically by last name, first name, middle initial
+      studentList.sort(_sortStudentsAlphabetically);
 
       students.value = studentList;
       studentCount.value = studentList.length;
@@ -977,6 +986,52 @@ class ClassReportController extends GetxController {
     // Convert title to lowercase and remove spaces
     String key = title.toLowerCase().replaceAll(' ', '');
     return '${key}_$id';
+  }
+
+  /// Sort students alphabetically by last name, first name, middle initial
+  /// Names are stored as "First Last" or "First Middle Last" format
+  int _sortStudentsAlphabetically(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b,
+  ) {
+    final nameA = (a['name'] as String? ?? '').trim();
+    final nameB = (b['name'] as String? ?? '').trim();
+
+    if (nameA.isEmpty && nameB.isEmpty) return 0;
+    if (nameA.isEmpty) return 1;
+    if (nameB.isEmpty) return -1;
+
+    // Parse names: "First Last" or "First Middle Last"
+    final partsA = nameA.split(' ').where((p) => p.isNotEmpty).toList();
+    final partsB = nameB.split(' ').where((p) => p.isNotEmpty).toList();
+
+    // Get last name (last part)
+    final lastNameA = partsA.isNotEmpty ? partsA.last.toLowerCase() : '';
+    final lastNameB = partsB.isNotEmpty ? partsB.last.toLowerCase() : '';
+
+    // Compare by last name first
+    final lastNameCompare = lastNameA.compareTo(lastNameB);
+    if (lastNameCompare != 0) return lastNameCompare;
+
+    // If last names are equal, compare by first name
+    final firstNameA = partsA.length > 1 ? partsA.first.toLowerCase() : '';
+    final firstNameB = partsB.length > 1 ? partsB.first.toLowerCase() : '';
+
+    final firstNameCompare = firstNameA.compareTo(firstNameB);
+    if (firstNameCompare != 0) return firstNameCompare;
+
+    // If first names are equal, compare by middle name/initial (if exists)
+    if (partsA.length > 2 && partsB.length > 2) {
+      final middleA = partsA[1].toLowerCase();
+      final middleB = partsB[1].toLowerCase();
+      return middleA.compareTo(middleB);
+    } else if (partsA.length > 2) {
+      return 1; // A has middle name, B doesn't - A comes after
+    } else if (partsB.length > 2) {
+      return -1; // B has middle name, A doesn't - B comes after
+    }
+
+    return 0; // Names are identical
   }
 
   /// Get filtered students based on search query

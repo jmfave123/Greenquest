@@ -413,11 +413,6 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.arrow_forward_ios,
-                          color: Color(0xFF34A853),
-                          size: 16,
-                        ),
                       ],
                     ),
                   );

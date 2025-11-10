@@ -262,6 +262,96 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
     }
   }
 
+  /// Helper method to fetch items that don't have a semester assigned
+  /// This ensures items are displayed even if they don't have a semester assigned
+  /// Includes both graded and ungraded items
+  Future<List<Map<String, dynamic>>> _fetchItemsWithoutSemester({
+    required String sectionCode,
+    required String category,
+    required List<String> periods,
+    required List<String>
+    itemTypes, // ['assignment', 'activity', 'quiz', 'pit']
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return [];
+
+      print(
+        '🔍 Fetching items without semester for section: $sectionCode, category: $category',
+      );
+
+      List<Map<String, dynamic>> items = [];
+
+      // Fetch items from each collection type
+      for (String itemType in itemTypes) {
+        String collectionName = '';
+        switch (itemType) {
+          case 'assignment':
+            collectionName = 'assignments';
+            break;
+          case 'activity':
+            collectionName = 'activities';
+            break;
+          case 'quiz':
+            collectionName = 'quizzes';
+            break;
+          case 'pit':
+            collectionName = 'pits';
+            break;
+          default:
+            continue;
+        }
+
+        try {
+          // Query items without assignedSemester or with null assignedSemester
+          // Firestore doesn't support "where field is null" directly, so we need to:
+          // 1. Query all items for the category and section
+          // 2. Filter out items that have assignedSemester.semesterId matching selected semester
+          Query<Map<String, dynamic>> query = _firestore
+              .collection('instructors')
+              .doc(user.uid)
+              .collection(collectionName)
+              .where('category', isEqualTo: category)
+              .where('selectedClasses', arrayContains: sectionCode);
+
+          final snapshot = await query.get();
+
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final assignedSemester =
+                data['assignedSemester'] as Map<String, dynamic>?;
+            final semesterId = assignedSemester?['semesterId'] as String?;
+            final itemPeriod = data['period'] as String?;
+
+            // Include items that don't have a semester assigned (null or empty)
+            // AND match the period filter (if specified)
+            if ((semesterId == null || semesterId.isEmpty) &&
+                (periods.isEmpty ||
+                    (itemPeriod != null && periods.contains(itemPeriod)))) {
+              items.add({
+                'id': doc.id,
+                'title': data['title'] ?? '',
+                'points': data['points'] ?? 0,
+                'type': itemType,
+                'category': category,
+              });
+            }
+          }
+        } catch (e) {
+          print('  ⚠️ Error fetching $itemType items: $e');
+        }
+      }
+
+      print(
+        '✅ Found ${items.length} items without semester for category $category',
+      );
+      return items;
+    } catch (e) {
+      print('❌ Error fetching items without semester: $e');
+      return [];
+    }
+  }
+
   // Fetch class standing items from database (all item types) - filtered by current section
   Future<void> _fetchClassStandingItems() async {
     try {
@@ -396,6 +486,31 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           'category': doc.data()['category'],
         });
       }
+
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      final itemsWithoutSemester = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'class_standing',
+        periods: ['Prelim', 'Midterm'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester (includes both graded and ungraded)
+      for (var item in itemsWithoutSemester) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
 
       // Sort items by title to ensure proper order (Quiz 1, Quiz 2, etc.)
       items.sort((a, b) => a['title'].compareTo(b['title']));
@@ -549,6 +664,31 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         });
       }
 
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      final itemsWithoutSemester = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'quiz_prelim',
+        periods: ['Prelim', 'Midterm'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester (includes both graded and ungraded)
+      for (var item in itemsWithoutSemester) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
+
       // Sort items by title to ensure proper order (Quiz 1, Quiz 2, etc.)
       items.sort((a, b) => a['title'].compareTo(b['title']));
 
@@ -689,6 +829,31 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         }
       }
 
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      final itemsWithoutSemester = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'class_standing',
+        periods: ['Final'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester (includes both graded and ungraded)
+      for (var item in itemsWithoutSemester) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
+
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalClassStandingItems = items);
     } catch (e) {
@@ -813,6 +978,31 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           });
         }
       }
+
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      final itemsWithoutSemester = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'quiz_prelim',
+        periods: ['Final'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester (includes both graded and ungraded)
+      for (var item in itemsWithoutSemester) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
 
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalQuizItems = items);
@@ -1039,6 +1229,44 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         }
       }
 
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      // Fetch for both final_exam category and midterm_exam with Final period
+      final itemsWithoutSemesterFinalExam = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'final_exam',
+        periods: [], // final_exam doesn't use periods
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      final itemsWithoutSemesterMidtermFinal = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'midterm_exam',
+        periods: ['Final'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester from final_exam category
+      for (var item in itemsWithoutSemesterFinalExam) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester from midterm_exam with Final period
+      for (var item in itemsWithoutSemesterMidtermFinal) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
+
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalExamItems = items);
     } catch (e) {
@@ -1163,6 +1391,31 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           });
         }
       }
+
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      final itemsWithoutSemester = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'pit',
+        periods: ['Final'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester (includes both graded and ungraded)
+      for (var item in itemsWithoutSemester) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
 
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalPitItems = items);
@@ -1301,6 +1554,31 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           'category': doc.data()['category'],
         });
       }
+
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      final itemsWithoutSemester = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'midterm_exam',
+        periods: ['Prelim', 'Midterm'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester (includes both graded and ungraded)
+      for (var item in itemsWithoutSemester) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
 
       // Sort items by title to ensure proper order
       items.sort((a, b) => a['title'].compareTo(b['title']));
@@ -1458,6 +1736,31 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           });
         }
       }
+
+      // Also fetch items without semester assigned (includes both graded and ungraded)
+      // This ensures all items are displayed even if they don't have a semester assigned
+      final itemsWithoutSemester = await _fetchItemsWithoutSemester(
+        sectionCode: currentSectionCode,
+        category: 'pit',
+        periods: ['Midterm'],
+        itemTypes: ['assignment', 'activity', 'quiz', 'pit'],
+      );
+
+      // Merge items: use a Map to track by ID to avoid duplicates
+      Map<String, Map<String, dynamic>> itemsMap = {};
+
+      // Add items from semester filter first
+      for (var item in items) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Add items without semester (includes both graded and ungraded)
+      for (var item in itemsWithoutSemester) {
+        itemsMap[item['id'] as String] = item;
+      }
+
+      // Convert back to list
+      items = itemsMap.values.toList();
 
       // Sort items by title to ensure proper order
       items.sort((a, b) => a['title'].compareTo(b['title']));

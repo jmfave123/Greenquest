@@ -13,7 +13,6 @@ import '../../shared/utils/file_type_utils.dart';
 import '../../shared/widgets/file_display_widgets.dart';
 import '../../shared/services/file_download_service.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/widgets/skeleton_loading.dart';
 
@@ -172,6 +171,10 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
 
     if (_isUploading) return; // Prevent double sending
 
+    // Capture ScaffoldMessenger before async operations to avoid context lookup issues
+    if (!mounted) return;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
       setState(() {
         _isUploading = true;
@@ -194,11 +197,14 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
           folder: 'greenquest/messages',
         );
 
+        if (!mounted) return;
+
         if (response != null) {
           // Send message with file attachment
           await MessageService.sendMessageWithFile(
             receiverId: widget.student['id'],
-            content: content.isEmpty ? 'Sent a file' : content,
+            content:
+                content, // Send empty string if no content, file name will be shown in UI
             fileName: file.name,
             fileUrl: response.url,
             fileType: file.extension ?? 'unknown',
@@ -206,20 +212,21 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
             senderType: 'instructor',
           );
 
+          if (!mounted) return;
+
           // Clear preview and text
           setState(() {
             _previewFile = null;
           });
           _controller.clear();
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('File sent successfully'),
-                backgroundColor: Color(0xFF22C55E),
-              ),
-            );
-          }
+          // Use captured scaffoldMessenger instead of context lookup
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('File sent successfully'),
+              backgroundColor: Color(0xFF22C55E),
+            ),
+          );
         } else {
           throw Exception('Upload failed');
         }
@@ -231,14 +238,16 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
           senderType: 'instructor',
         );
 
+        if (!mounted) return;
         _controller.clear();
       }
     } catch (e) {
       print('Error sending message: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        // Use captured scaffoldMessenger instead of context lookup
+        scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('Failed to send message: $e'),
+            content: Text('Failed to send message: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -285,32 +294,16 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
     }
   }
 
-  Future<void> _openFile(String fileUrl) async {
-    try {
-      final uri = Uri.parse(fileUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        throw Exception('Could not open file');
-      }
-    } catch (e) {
-      print('Error opening file: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to open file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   /// Open image in full-screen viewer
-  void _openImageViewer(String imageUrl) {
+  void _openImageViewer(String imageUrl, String fileName, String fileType) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => _ImageViewerScreen(imageUrl: imageUrl),
+        builder:
+            (context) => _ImageViewerScreen(
+              imageUrl: imageUrl,
+              fileName: fileName,
+              fileType: fileType,
+            ),
       ),
     );
   }
@@ -326,14 +319,25 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
           imageUrl: attachment.fileUrl,
           maxWidth: 250,
           maxHeight: 300,
-          onTap: () => _openImageViewer(attachment.fileUrl),
+          onTap:
+              () => _openImageViewer(
+                attachment.fileUrl,
+                attachment.fileName,
+                attachment.fileType,
+              ),
         );
       } else if (FileTypeUtils.isVideoFile(fileType)) {
         return VideoDisplayWidget(
           videoUrl: attachment.fileUrl,
           maxWidth: 250,
           maxHeight: 200,
-          onTap: () => _openFile(attachment.fileUrl),
+          onTap:
+              () => FileDownloadService.handleFileAction(
+                fileUrl: attachment.fileUrl,
+                fileName: attachment.fileName,
+                fileType: attachment.fileType,
+                context: context,
+              ),
         );
       }
     }
@@ -1076,21 +1080,31 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                                                       msg.fileAttachment!,
                                                                       isMe,
                                                                     ),
-                                                                    if (msg.content !=
-                                                                            'Sent a file' &&
-                                                                        msg
-                                                                            .content
-                                                                            .isNotEmpty)
+                                                                    // Show text content if present (no "Sent a file" text - file name is in the widget)
+                                                                    if (msg
+                                                                        .content
+                                                                        .isNotEmpty) ...[
                                                                       const SizedBox(
                                                                         height:
                                                                             8,
                                                                       ),
+                                                                      Text(
+                                                                        msg.content,
+                                                                        style: TextStyle(
+                                                                          color:
+                                                                              isMe
+                                                                                  ? Colors.white
+                                                                                  : Colors.black87,
+                                                                          fontSize:
+                                                                              15,
+                                                                        ),
+                                                                      ),
+                                                                    ],
                                                                   ],
-                                                                  // Display text content (or unsent message)
-                                                                  if (msg.content !=
-                                                                          'Sent a file' ||
-                                                                      msg.fileAttachment ==
-                                                                          null)
+                                                                  // Display text content for text-only messages or unsent messages
+                                                                  if (msg.fileAttachment ==
+                                                                          null ||
+                                                                      msg.isUnsent)
                                                                     Text(
                                                                       msg.isUnsent
                                                                           ? (isMe
@@ -1412,8 +1426,14 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
 /// Full-screen image viewer for mobile devices
 class _ImageViewerScreen extends StatelessWidget {
   final String imageUrl;
+  final String fileName;
+  final String fileType;
 
-  const _ImageViewerScreen({required this.imageUrl});
+  const _ImageViewerScreen({
+    required this.imageUrl,
+    required this.fileName,
+    required this.fileType,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1425,17 +1445,20 @@ class _ImageViewerScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('Image', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
+        title: Text(
+          fileName,
+          style: const TextStyle(color: Colors.white),
+          overflow: TextOverflow.ellipsis,
+        ),
+        centerTitle: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.download, color: Colors.white),
             onPressed:
                 () => FileDownloadService.handleFileAction(
                   fileUrl: imageUrl,
-                  fileName:
-                      'image_${DateTime.now().millisecondsSinceEpoch}.jpg',
-                  fileType: 'jpg',
+                  fileName: fileName,
+                  fileType: fileType,
                   context: context,
                 ),
             tooltip: 'Download image',

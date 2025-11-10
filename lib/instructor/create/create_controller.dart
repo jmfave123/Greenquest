@@ -65,6 +65,9 @@ class CreateController extends GetxController {
       // Get instructor's assigned semester
       final semester = await _getInstructorSemester(user.uid);
 
+      // Fetch instructor name from instructors collection
+      final instructorNameToUse = await _getInstructorName(user.uid);
+
       final assignmentData = {
         'title': title,
         'instruction': instruction,
@@ -75,7 +78,7 @@ class CreateController extends GetxController {
         'attachments': attachments ?? [],
         'category': category ?? 'class_standing',
         'instructorId': user.uid,
-        'instructorName': user.displayName ?? 'Unknown Instructor',
+        'instructorName': instructorNameToUse,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
@@ -101,10 +104,7 @@ class CreateController extends GetxController {
       await InAppNotificationService.createSectionNotification(
         type: 'assignment',
         instructorId: user.uid,
-        instructorName:
-            instructorName.value.isNotEmpty
-                ? instructorName.value
-                : 'Unknown Instructor',
+        instructorName: instructorNameToUse,
         itemId: docRef.id,
         title: title,
         targetSections: selectedClasses,
@@ -168,6 +168,9 @@ class CreateController extends GetxController {
       // Get instructor's assigned semester
       final semester = await _getInstructorSemester(user.uid);
 
+      // Fetch instructor name from instructors collection
+      final instructorNameToUse = await _getInstructorName(user.uid);
+
       final activityData = {
         'title': title,
         'instruction': instruction,
@@ -178,7 +181,7 @@ class CreateController extends GetxController {
         'attachments': attachments ?? [],
         'category': category ?? 'class_standing',
         'instructorId': user.uid,
-        'instructorName': user.displayName ?? 'Unknown Instructor',
+        'instructorName': instructorNameToUse,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
@@ -204,10 +207,7 @@ class CreateController extends GetxController {
       await InAppNotificationService.createSectionNotification(
         type: 'activity',
         instructorId: user.uid,
-        instructorName:
-            instructorName.value.isNotEmpty
-                ? instructorName.value
-                : 'Unknown Instructor',
+        instructorName: instructorNameToUse,
         itemId: docRef.id,
         title: title,
         targetSections: selectedClasses,
@@ -271,6 +271,9 @@ class CreateController extends GetxController {
       // Get instructor's assigned semester
       final semester = await _getInstructorSemester(user.uid);
 
+      // Fetch instructor name from instructors collection
+      final instructorNameToUse = await _getInstructorName(user.uid);
+
       final quizData = {
         'title': title,
         'instruction': instruction,
@@ -281,7 +284,7 @@ class CreateController extends GetxController {
         'attachments': attachments ?? [],
         'category': category ?? 'quiz_prelim',
         'instructorId': user.uid,
-        'instructorName': user.displayName ?? 'Unknown Instructor',
+        'instructorName': instructorNameToUse,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
@@ -307,10 +310,7 @@ class CreateController extends GetxController {
       await InAppNotificationService.createSectionNotification(
         type: 'quiz',
         instructorId: user.uid,
-        instructorName:
-            instructorName.value.isNotEmpty
-                ? instructorName.value
-                : 'Unknown Instructor',
+        instructorName: instructorNameToUse,
         itemId: docRef.id,
         title: title,
         targetSections: selectedClasses,
@@ -374,6 +374,9 @@ class CreateController extends GetxController {
       // Get instructor's assigned semester
       final semester = await _getInstructorSemester(user.uid);
 
+      // Fetch instructor name from instructors collection
+      final instructorNameToUse = await _getInstructorName(user.uid);
+
       final pitData = {
         'title': title,
         'instruction': instruction,
@@ -384,7 +387,7 @@ class CreateController extends GetxController {
         'attachments': attachments ?? [],
         'category': category ?? 'pit',
         'instructorId': user.uid,
-        'instructorName': user.displayName ?? 'Unknown Instructor',
+        'instructorName': instructorNameToUse,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
@@ -408,10 +411,7 @@ class CreateController extends GetxController {
       await InAppNotificationService.createSectionNotification(
         type: 'pit',
         instructorId: user.uid,
-        instructorName:
-            instructorName.value.isNotEmpty
-                ? instructorName.value
-                : 'Unknown Instructor',
+        instructorName: instructorNameToUse,
         itemId: docRef.id,
         title: title,
         targetSections: selectedClasses,
@@ -471,13 +471,16 @@ class CreateController extends GetxController {
       // Get instructor's assigned semester
       final semester = await _getInstructorSemester(user.uid);
 
+      // Fetch instructor name from instructors collection
+      final instructorNameToUse = await _getInstructorName(user.uid);
+
       final materialData = {
         'title': title,
         'description': description,
         'selectedClasses': selectedClasses,
         'attachments': attachments ?? [],
         'instructorId': user.uid,
-        'instructorName': user.displayName ?? 'Unknown Instructor',
+        'instructorName': instructorNameToUse,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
@@ -503,27 +506,16 @@ class CreateController extends GetxController {
       await InAppNotificationService.createSectionNotification(
         type: 'material',
         instructorId: user.uid,
-        instructorName:
-            instructorName.value.isNotEmpty
-                ? instructorName.value
-                : 'Unknown Instructor',
+        instructorName: instructorNameToUse,
         itemId: docRef.id,
         title: title,
         targetSections: selectedClasses,
         description: description,
       );
 
-      // Refresh the list
-      await loadCreatedItems();
-
-      Get.snackbar(
-        'Success',
-        'Material created successfully!',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFF34A853),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
+      // Don't refresh the list here - let the create screen handle it after navigation
+      // This prevents any potential interference with navigation
+      // The create screen will call _refreshData() in the .then() callback
 
       return true;
     } catch (e) {
@@ -1328,6 +1320,44 @@ class CreateController extends GetxController {
       print('Error getting instructor semester: $e');
       return null;
     }
+  }
+
+  /// Fetch instructor name from instructors collection
+  /// Returns the instructor name from the 'name' field in instructors collection
+  Future<String> _getInstructorName(String userId) async {
+    try {
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(userId).get();
+
+      if (instructorDoc.exists) {
+        final instructorData = instructorDoc.data();
+        final nameFromDoc = instructorData?['name']?.toString();
+
+        if (nameFromDoc != null && nameFromDoc.isNotEmpty) {
+          return nameFromDoc;
+        } else if (instructorName.value.isNotEmpty) {
+          // Fallback to loaded instructor name if name field is empty
+          return instructorName.value;
+        }
+      } else if (instructorName.value.isNotEmpty) {
+        // Fallback to loaded instructor name if document doesn't exist
+        return instructorName.value;
+      }
+    } catch (e) {
+      print('⚠️ Error fetching instructor name: $e');
+      // Fallback to loaded instructor name
+      if (instructorName.value.isNotEmpty) {
+        return instructorName.value;
+      }
+    }
+
+    // Final fallback
+    final user = _auth.currentUser;
+    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+      return user.displayName!;
+    }
+
+    return 'Unknown Instructor';
   }
 
   /// Load instructor name using FirebaseAuth user.uid

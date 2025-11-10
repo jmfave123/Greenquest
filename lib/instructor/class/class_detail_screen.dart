@@ -15,6 +15,7 @@ import '../submissions/submission_detail_screen.dart';
 import '../submissions/submissions_controller.dart';
 import 'class_screen_controller.dart';
 import '../instructor_dashboard_controller.dart';
+import '../../user/materials/materials_detail_screen.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   final Map<String, dynamic> classData;
@@ -455,16 +456,140 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     try {
       if (timestamp is Timestamp) {
         final dateTime = timestamp.toDate();
-        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+        return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
       } else if (timestamp is DateTime) {
-        return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+        return '${timestamp.month}/${timestamp.day}/${timestamp.year}';
       } else if (timestamp is String) {
-        final dateTime = DateTime.parse(timestamp);
-        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+        // Check if it's already a formatted date string
+        // Handle formats like:
+        // - "November 8, 2025 at 8:26:40 PM UTC+8" (full month name)
+        // - "Nov 08, 2025 08:21 PM" (abbreviated month)
+        final monthAbbrevs = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+        final monthNames = [
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ];
+
+        final hasMonthAbbrev = monthAbbrevs.any(
+          (month) => timestamp.contains(month),
+        );
+        final hasMonthName = monthNames.any(
+          (month) => timestamp.contains(month),
+        );
+
+        // If it's already formatted with month name or abbreviation, extract date parts
+        if (hasMonthName || hasMonthAbbrev) {
+          // Try to extract date using regex for full month names: "November 8, 2025"
+          final fullMonthMatch = RegExp(
+            r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})',
+          ).firstMatch(timestamp);
+
+          if (fullMonthMatch != null) {
+            final monthStr = fullMonthMatch.group(1)!;
+            final dayStr = fullMonthMatch.group(2)!;
+            final yearStr = fullMonthMatch.group(3)!;
+
+            final monthIndex = monthNames.indexOf(monthStr);
+            if (monthIndex != -1) {
+              final month = monthIndex + 1;
+              final day = int.tryParse(dayStr);
+              final year = int.tryParse(yearStr);
+
+              if (day != null && year != null) {
+                return '$month/$day/$year';
+              }
+            }
+          }
+
+          // Try to extract date using regex for abbreviated months: "Nov 08, 2025" or "Nov 8, 2025"
+          final abbrevMonthMatch = RegExp(
+            r'(\w{3})\s+(\d{1,2}),\s+(\d{4})',
+          ).firstMatch(timestamp);
+
+          if (abbrevMonthMatch != null) {
+            final monthStr = abbrevMonthMatch.group(1)!;
+            final dayStr = abbrevMonthMatch.group(2)!;
+            final yearStr = abbrevMonthMatch.group(3)!;
+
+            final monthIndex = monthAbbrevs.indexOf(monthStr);
+            if (monthIndex != -1) {
+              final month = monthIndex + 1;
+              final day = int.tryParse(dayStr);
+              final year = int.tryParse(yearStr);
+
+              if (day != null && year != null) {
+                return '$month/$day/$year';
+              }
+            }
+          }
+
+          // If regex doesn't match, try simple split
+          final parts = timestamp.split(' ');
+          if (parts.length >= 3) {
+            final monthStr = parts[0];
+            final dayStr = parts[1].replaceAll(',', '');
+            final yearStr = parts[2];
+
+            // Try full month name first
+            var monthIndex = monthNames.indexOf(monthStr);
+            if (monthIndex == -1) {
+              // Try abbreviated month
+              monthIndex = monthAbbrevs.indexOf(monthStr);
+            }
+
+            if (monthIndex != -1) {
+              final month = monthIndex + 1;
+              final day = int.tryParse(dayStr);
+              final year = int.tryParse(yearStr);
+
+              if (day != null && year != null) {
+                return '$month/$day/$year';
+              }
+            }
+          }
+        }
+
+        // Try to parse as ISO format or standard date format
+        try {
+          final dateTime = DateTime.parse(timestamp);
+          return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
+        } catch (e) {
+          // If parsing fails and it's not a formatted string, return as-is
+          return timestamp;
+        }
       }
       return 'Unknown';
     } catch (e) {
-      print('Error formatting timestamp: $e, type: ${timestamp.runtimeType}');
+      print(
+        'Error formatting timestamp: $e, type: ${timestamp.runtimeType}, value: $timestamp',
+      );
+      // If it's a string that failed, return it as-is instead of "Unknown"
+      if (timestamp is String) {
+        return timestamp;
+      }
       return 'Unknown';
     }
   }
@@ -520,9 +645,40 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                 children: [
                                   _buildTab('Class', 0),
                                   const SizedBox(width: 32),
-                                  _buildTab('Students', 1),
+                                  Obx(() {
+                                    final sectionCode =
+                                        widget.classData['section'] ?? '';
+                                    // Access classStudents directly to ensure GetX tracks it
+                                    final students =
+                                        _classController
+                                            .classStudents[sectionCode] ??
+                                        [];
+                                    final pendingCount =
+                                        students
+                                            .where(
+                                              (s) =>
+                                                  (s['enrollmentStatus'] ??
+                                                      'pending') ==
+                                                  'pending',
+                                            )
+                                            .length;
+                                    return _buildTab(
+                                      'Students',
+                                      1,
+                                      badgeCount: pendingCount,
+                                    );
+                                  }),
                                   const SizedBox(width: 32),
-                                  _buildTab('Classwork', 2),
+                                  Obx(
+                                    () => _buildTab(
+                                      'Classwork',
+                                      2,
+                                      badgeCount:
+                                          _submissionsController
+                                              .submissionStats['pending'] ??
+                                          0,
+                                    ),
+                                  ),
                                   const SizedBox(width: 32),
                                   _buildTab('Trees', 3),
                                 ],
@@ -588,19 +744,53 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     );
   }
 
-  Widget _buildTab(String title, int index) {
+  Widget _buildTab(String title, int index, {int badgeCount = 0}) {
     bool isSelected = _selectedTabIndex == index;
+    bool showBadge = badgeCount > 0;
+
     return GestureDetector(
       onTap: () => _selectTab(index),
       child: Column(
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              color: isSelected ? const Color(0xFF34A853) : Colors.black54,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? const Color(0xFF34A853) : Colors.black54,
+                ),
+              ),
+              if (showBadge) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  child: Center(
+                    child: Text(
+                      badgeCount >= 9 ? '9+' : badgeCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 8),
           Container(
@@ -1544,7 +1734,10 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
     try {
       if (timestamp is DateTime) {
-        return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+        return '${timestamp.month}/${timestamp.day}/${timestamp.year}';
+      } else if (timestamp is Timestamp) {
+        final dateTime = timestamp.toDate();
+        return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
       }
       // Handle Firestore Timestamp
       return 'Recently enrolled';
@@ -2427,6 +2620,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     final sectionCode = widget.classData['section'] ?? '';
 
     switch (itemType.toLowerCase()) {
+      case 'material':
+        // Navigate to material detail screen for materials
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MaterialsDetailScreen(material: item),
+          ),
+        );
+        break;
       case 'assignment':
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -2461,7 +2662,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         );
         break;
       default:
-        // Default navigation to submissions screen
+        // Default navigation to submissions screen for other types
         Navigator.of(context).push(
           MaterialPageRoute(
             builder:
@@ -2637,7 +2838,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         return 'Recently submitted';
       }
 
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+      return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
     } catch (e) {
       print('❌ Error formatting submission date: $e');
       return 'Recently submitted';

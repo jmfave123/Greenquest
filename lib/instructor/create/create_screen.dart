@@ -191,7 +191,22 @@ class _CreateScreenState extends State<CreateScreen>
       result,
     ) {
       // Always refresh data when returning to show newly created/updated items
-      _refreshData();
+      if (result == true) {
+        // Material was created/updated successfully
+        _refreshData();
+        // Show success message
+        Get.snackbar(
+          'Success',
+          'Material created successfully!',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: const Color(0xFF34A853),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        // Just refresh data if returning without success
+        _refreshData();
+      }
     });
   }
 

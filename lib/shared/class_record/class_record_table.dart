@@ -1432,18 +1432,30 @@ class ClassRecordDataSource extends DataGridSource {
   Function(Map<String, dynamic> student, String itemKey, String value)?
   onCellValueChanged;
 
-  /// Format name from "First Last" to "Last, First" format
+  /// Format name from "First Middle Last" to "Last, First M." format
+  /// Handles: "First Last" -> "Last, First"
+  ///          "First Middle Last" -> "Last, First M."
   String _formatStudentName(String name) {
     if (name.isEmpty) return '';
 
-    final parts = name.trim().split(' ');
+    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.length < 2) return name; // Return as-is if only one part
 
-    // Get the last part (last name) and all other parts (first/middle names)
+    // Get the last part (last name)
     final lastName = parts.last;
-    final firstMiddleNames = parts.take(parts.length - 1).join(' ');
 
-    return '$lastName, $firstMiddleNames';
+    // Get first name and middle initial
+    if (parts.length == 2) {
+      // "First Last" -> "Last, First"
+      return '$lastName, ${parts[0]}';
+    } else if (parts.length >= 3) {
+      // "First Middle Last" -> "Last, First M."
+      final firstName = parts[0];
+      final middleInitial = parts[1][0].toUpperCase();
+      return '$lastName, $firstName $middleInitial.';
+    }
+
+    return name;
   }
 
   ClassRecordDataSource({

@@ -2,19 +2,40 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'announcement_controller.dart';
+import '../../shared/login/custom_drawer.dart';
 
-class AnnouncementScreenWrapper extends StatelessWidget {
+class AnnouncementScreenWrapper extends StatefulWidget {
   const AnnouncementScreenWrapper({super.key});
+
+  @override
+  State<AnnouncementScreenWrapper> createState() =>
+      _AnnouncementScreenWrapperState();
+}
+
+class _AnnouncementScreenWrapperState extends State<AnnouncementScreenWrapper> {
+  int selectedDrawerIndex = 2;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: CustomDrawer(
+        selectedIndex: selectedDrawerIndex,
+        onSelect: (i) {
+          setState(() => selectedDrawerIndex = i);
+          Navigator.pop(context);
+        },
+      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
+        leading: Builder(
+          builder:
+              (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.black),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
         ),
         title: const Text(
           'Announcements',

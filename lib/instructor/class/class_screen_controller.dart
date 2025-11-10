@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'models/class_schedule.dart';
+import '../../shared/services/in_app_notification_service.dart';
 
 class ClassController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -619,6 +620,12 @@ class ClassController extends GetxController {
 
       print('✅ Student $studentId online status set to true');
 
+      // Get instructor name (used for notification)
+      final instructorNameValue =
+          instructorName.value.isNotEmpty
+              ? instructorName.value
+              : user.displayName ?? 'Your instructor';
+
       // Get student data from users collection
       final studentDoc =
           await _firestore.collection('users').doc(studentId).get();
@@ -654,6 +661,32 @@ class ClassController extends GetxController {
         print(
           '✅ Student document created in instructors/{instructorId}/students',
         );
+
+        // Send push notification to student about approval
+        try {
+          await InAppNotificationService.createIndividualNotification(
+            type: 'enrollment_approved',
+            instructorId: user.uid,
+            instructorName: instructorNameValue,
+            itemId: sectionCode, // Use section code as itemId
+            title:
+                'Your enrollment request has been approved by $instructorNameValue. You can now access the dashboard.',
+            targetUserIds: [studentId],
+            description:
+                'Your enrollment request has been approved by $instructorNameValue. You can now access the dashboard.',
+            metadata: {
+              'sectionCode': sectionCode,
+              'studentId': studentId,
+              'studentName': studentName,
+              'approvedAt': DateTime.now().toIso8601String(),
+            },
+          );
+
+          print('✅ Push notification sent to student: $studentId');
+        } catch (e) {
+          print('⚠️ Error sending approval notification: $e');
+          // Don't fail the approval if notification fails
+        }
       }
 
       // Update local data - search through all sections
@@ -711,13 +744,66 @@ class ClassController extends GetxController {
       final User? user = _auth.currentUser;
       if (user == null) return false;
 
+      // Get instructor name (used for notification)
+      final instructorNameValue =
+          instructorName.value.isNotEmpty
+              ? instructorName.value
+              : user.displayName ?? 'Your instructor';
+
+      // Build rejection reason
+      final rejectionReason = reason ?? 'No reason provided';
+
       // Update student status in the users collection
       await _firestore.collection('users').doc(studentId).update({
         'enrollmentStatus': 'rejected',
         'rejectedAt': FieldValue.serverTimestamp(),
         'rejectedBy': user.uid,
-        'rejectionReason': reason ?? 'No reason provided',
+        'rejectionReason': rejectionReason,
       });
+
+      // Get student data for notification
+      try {
+        final studentDoc =
+            await _firestore.collection('users').doc(studentId).get();
+        if (studentDoc.exists) {
+          final studentData = studentDoc.data() as Map<String, dynamic>;
+          final studentName =
+              studentData['fullName'] ??
+              studentData['name'] ??
+              studentData['displayName'] ??
+              'Student';
+
+          // Build rejection message
+          final rejectionMessage =
+              rejectionReason.isNotEmpty &&
+                      rejectionReason != 'No reason provided'
+                  ? 'Your enrollment request has been rejected by $instructorNameValue. Reason: $rejectionReason'
+                  : 'Your enrollment request has been rejected by $instructorNameValue.';
+
+          // Send push notification to student about rejection
+          await InAppNotificationService.createIndividualNotification(
+            type: 'enrollment_rejected',
+            instructorId: user.uid,
+            instructorName: instructorNameValue,
+            itemId: sectionCode, // Use section code as itemId
+            title: rejectionMessage,
+            targetUserIds: [studentId],
+            description: rejectionMessage,
+            metadata: {
+              'sectionCode': sectionCode,
+              'studentId': studentId,
+              'studentName': studentName,
+              'rejectionReason': rejectionReason,
+              'rejectedAt': DateTime.now().toIso8601String(),
+            },
+          );
+
+          print('✅ Push notification sent to student: $studentId');
+        }
+      } catch (e) {
+        print('⚠️ Error sending rejection notification: $e');
+        // Don't fail the rejection if notification fails
+      }
 
       // Update local data - search through all sections
       for (String section in classStudents.keys) {
@@ -729,8 +815,7 @@ class ClassController extends GetxController {
           students[studentIndex]['enrollmentStatus'] = 'rejected';
           students[studentIndex]['rejectedAt'] = DateTime.now();
           students[studentIndex]['rejectedBy'] = user.uid;
-          students[studentIndex]['rejectionReason'] =
-              reason ?? 'No reason provided';
+          students[studentIndex]['rejectionReason'] = rejectionReason;
           break;
         }
       }

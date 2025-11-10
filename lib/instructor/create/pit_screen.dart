@@ -52,7 +52,8 @@ class _PITScreenState extends State<PITScreen> {
   final Map<String, String> _categories = {
     'class_standing': 'Class Standing Performance Items (10%)',
     'quiz_prelim': 'Quiz/Prelim Performance Item (40%)',
-    'final_exam': 'Final Exam (30%)',
+    'midterm_exam': 'Midterm Exam (10%)',
+    'final_exam': 'Final Exam (10%)',
     'pit': 'Per Inno Task (20%)',
   };
 
@@ -178,8 +179,8 @@ class _PITScreenState extends State<PITScreen> {
           _selectedCategory = 'final_exam';
         });
       }
-    } else {
-      // If period is not Final and category is final_exam, change to midterm_exam
+    } else if (widget.period == 'Prelim' || widget.period == 'Midterm') {
+      // If period is Prelim or Midterm and category is final_exam, change to midterm_exam
       if (_selectedCategory == 'final_exam') {
         setState(() {
           _selectedCategory = 'midterm_exam';
@@ -776,49 +777,61 @@ class _PITScreenState extends State<PITScreen> {
                   ),
                   child: Column(
                     children:
-                        _categories.entries.map((entry) {
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedCategory = entry.key;
-                                _showCategoryDropdown = false;
-                              });
-                              // Auto-update category if period is Final
-                              _updateCategoryBasedOnPeriod();
-                            },
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    _selectedCategory == entry.key
-                                        ? const Color(
-                                          0xFF34A853,
-                                        ).withOpacity(0.1)
-                                        : Colors.transparent,
-                              ),
-                              child: Text(
-                                entry.value,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color:
-                                      _selectedCategory == entry.key
-                                          ? const Color(0xFF34A853)
-                                          : Colors.black,
-                                  fontWeight:
-                                      _selectedCategory == entry.key
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
+                        _categories.entries
+                            .where((entry) {
+                              // Filter categories based on period
+                              if (widget.period == 'Final') {
+                                // For Final period, only show final_exam (hide midterm_exam)
+                                return entry.key != 'midterm_exam';
+                              } else {
+                                // For Prelim/Midterm periods, only show midterm_exam (hide final_exam)
+                                return entry.key != 'final_exam';
+                              }
+                            })
+                            .map((entry) {
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedCategory = entry.key;
+                                    _showCategoryDropdown = false;
+                                  });
+                                  // Auto-update category if period is Final
+                                  _updateCategoryBasedOnPeriod();
+                                },
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        _selectedCategory == entry.key
+                                            ? const Color(
+                                              0xFF34A853,
+                                            ).withOpacity(0.1)
+                                            : Colors.transparent,
+                                  ),
+                                  child: Text(
+                                    entry.value,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color:
+                                          _selectedCategory == entry.key
+                                              ? const Color(0xFF34A853)
+                                              : Colors.black,
+                                      fontWeight:
+                                          _selectedCategory == entry.key
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 2,
+                                  ),
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 2,
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                              );
+                            })
+                            .toList(),
                   ),
                 ),
               const SizedBox(height: 15),

@@ -855,6 +855,14 @@ class FileDownloadService {
     Function(int, int)? onProgress,
   }) async {
     try {
+      // For web, use web download method
+      if (kIsWeb) {
+        final fileName = customFileName ?? url.split('/').last;
+        await _triggerWebDownload(url, fileName);
+        return 'web_download'; // Return a placeholder for web
+      }
+
+      // For Android/iOS, use file system download
       final permission = await Permission.storage.request();
       if (!permission.isGranted) {
         throw Exception('Storage permission denied');

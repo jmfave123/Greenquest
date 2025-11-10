@@ -130,6 +130,14 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         }
 
         final instructorData = instructorDoc.data();
+
+        // Only check approved instructors - skip pending and rejected
+        final instructorStatus =
+            instructorData['status']?.toString() ?? 'Pending';
+        if (instructorStatus != 'Approved') {
+          continue;
+        }
+
         final assignments = instructorData['assignments'] as List<dynamic>?;
 
         if (assignments != null && assignments.isNotEmpty) {

@@ -214,57 +214,68 @@ class FileAttachmentWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final category = FileTypeUtils.getFileCategory(fileType);
     final icon = FileTypeUtils.getFileIcon(fileType);
     final color = FileTypeUtils.getFileColor(fileType);
 
+    // Get screen width and set max width to 75% of screen or 250, whichever is smaller
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxWidth = (screenWidth * 0.75).clamp(150.0, 250.0);
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: backgroundColor ?? Color(color).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Color(color).withOpacity(0.3), width: 1),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: maxWidth, // Limit maximum width to prevent overflow
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 24)),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    fileName,
-                    style: TextStyle(
-                      color: textColor ?? Colors.black87,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: backgroundColor ?? Color(color).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Color(color).withOpacity(0.3), width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(icon, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      fileName,
+                      style: TextStyle(
+                        color: textColor ?? Colors.black87,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatFileSize(fileSize),
-                    style: TextStyle(
-                      color: textColor?.withOpacity(0.7) ?? Colors.black54,
-                      fontSize: 12,
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatFileSize(fileSize),
+                      style: TextStyle(
+                        color: textColor?.withOpacity(0.7) ?? Colors.black54,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.download,
-              color: textColor?.withOpacity(0.7) ?? Colors.black54,
-              size: 20,
-            ),
-          ],
+              const SizedBox(width: 8),
+              Icon(
+                Icons.download,
+                color: textColor?.withOpacity(0.7) ?? Colors.black54,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
