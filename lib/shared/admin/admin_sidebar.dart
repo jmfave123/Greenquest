@@ -61,6 +61,12 @@ class _AdminSidebarState extends State<AdminSidebar> {
       item: AdminNavigationItem.manageClasses,
       route: '/admin-manage-classes',
     ),
+    AdminNavigationItemData(
+      label: 'Manage Trees',
+      iconPath: 'assets/instructor/icons/lucide_trees.png',
+      item: AdminNavigationItem.manageTrees,
+      route: '/admin-manage-trees',
+    ),
   ];
 
   void _handleNavigationSelect(AdminNavigationItem item) {
@@ -196,13 +202,13 @@ class _AdminSidebarState extends State<AdminSidebar> {
               ),
               child: Row(
                 children: [
-                  SafeAssetImage(
-                    assetPath:
-                        'assets/admin_icons/fluent_hat-graduation-12-regular.png',
-                    width: 32,
-                    height: 32,
+                  const SafeAssetImage(
+                    assetPath: 'assets/images/GreenQuest Logo.jpg',
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.contain,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 20),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

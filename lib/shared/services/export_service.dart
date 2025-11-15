@@ -17,8 +17,9 @@ class ExportService {
     if (name.isEmpty) return '';
 
     final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
-    if (parts.length < 2)
+    if (parts.length < 2) {
       return name.toUpperCase(); // Return uppercase if only one part
+    }
 
     // Get the last part (last name)
     final lastName = parts.last;

@@ -19,6 +19,7 @@ import 'admin/admin_dashboard.dart';
 import 'admin/manage_instructors_screen.dart';
 import 'admin/department_management_screen.dart';
 import 'admin/admin_class_management_screen.dart';
+import 'admin/manage_trees.dart';
 import 'instructor/instructor_register_screen.dart';
 import 'instructor/instructor_forgot_password_screen.dart';
 import 'instructor/email_verification_screen.dart';
@@ -109,6 +110,10 @@ class GreenQuestApp extends StatelessWidget {
         GetPage(
           name: '/admin-manage-classes',
           page: () => const AdminClassManagementScreen(),
+        ),
+        GetPage(
+          name: '/admin-manage-trees',
+          page: () => const ManageTreesScreen(),
         ),
         GetPage(
           name: '/instructor-dashboard',

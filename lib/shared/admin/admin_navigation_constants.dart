@@ -3,6 +3,7 @@ enum AdminNavigationItem {
   manageInstructors,
   manageDepartments,
   manageClasses,
+  manageTrees,
 }
 
 class AdminNavigationHelper {
@@ -16,6 +17,8 @@ class AdminNavigationHelper {
         return '/admin-manage-departments';
       case AdminNavigationItem.manageClasses:
         return '/admin-manage-classes';
+      case AdminNavigationItem.manageTrees:
+        return '/admin-manage-trees';
     }
   }
 }

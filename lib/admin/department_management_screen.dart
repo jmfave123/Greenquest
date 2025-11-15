@@ -2144,24 +2144,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                                 color: Colors.grey[800],
                               ),
                             ),
-                            ElevatedButton.icon(
-                              onPressed: _createDepartment,
-                              icon: const Icon(Icons.add_rounded, size: 20),
-                              label: const Text('Create Department'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF34A853),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 14,
-                                ),
-                              ),
-                            ),
+                            const SizedBox.shrink(),
                           ],
                         ),
                         const SizedBox(height: 24),

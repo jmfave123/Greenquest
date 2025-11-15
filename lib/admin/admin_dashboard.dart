@@ -25,6 +25,8 @@ class _AdminDashboardState extends State<AdminDashboard>
   String selectedProgram = 'All Programs';
   bool _isLoading = true;
   final ScrollController _programScrollController = ScrollController();
+  int _totalTreeCount = 0;
+  bool _isTreeCountLoading = true;
 
   @override
   void initState() {
@@ -69,6 +71,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     try {
       setState(() {
         _isLoading = true;
+        _isTreeCountLoading = true;
       });
 
       // Load departments for program filtering
@@ -76,6 +79,9 @@ class _AdminDashboardState extends State<AdminDashboard>
 
       // Load instructors with their classes and students
       await _loadInstructors();
+
+      // Load planted tree statistics
+      await _loadTreeStats();
 
       setState(() {
         _isLoading = false;
@@ -90,6 +96,36 @@ class _AdminDashboardState extends State<AdminDashboard>
       );
       setState(() {
         _isLoading = false;
+        _isTreeCountLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadTreeStats() async {
+    try {
+      final treesSnapshot = await _firestore.collectionGroup('trees').get();
+      int totalQuantity = 0;
+      for (final doc in treesSnapshot.docs) {
+        final data = doc.data();
+        final quantity = data['quantity'];
+        if (quantity is num) {
+          totalQuantity += quantity.toInt();
+        } else {
+          totalQuantity += 1;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _totalTreeCount = totalQuantity;
+        _isTreeCountLoading = false;
+      });
+    } catch (e) {
+      print('Error loading tree stats: $e');
+      if (!mounted) return;
+      setState(() {
+        _totalTreeCount = 0;
+        _isTreeCountLoading = false;
       });
     }
   }
@@ -968,6 +1004,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     });
     return sum + studentsCount;
   });
+  int get totalTrees => _totalTreeCount;
 
   // Helper function to get initials from name (e.g., "Jv P. Tenefrancia" -> "JT")
   String _getInitials(String name) {
@@ -1165,6 +1202,16 @@ class _AdminDashboardState extends State<AdminDashboard>
                                       'assets/admin_icons/lucide_users-round (2).png',
                                       highlight: true,
                                     ),
+                                    const SizedBox(height: 12),
+                                    _summaryCard(
+                                      'Total Trees',
+                                      _isTreeCountLoading
+                                          ? '...'
+                                          : totalTrees.toString(),
+                                      'Trees planted across NSTP',
+                                      'assets/instructor/icons/lucide_trees.png',
+                                      highlight: true,
+                                    ),
                                   ],
                                 )
                                 : isTablet
@@ -1191,6 +1238,15 @@ class _AdminDashboardState extends State<AdminDashboard>
                                       'assets/admin_icons/lucide_users-round (2).png',
                                       highlight: true,
                                     ),
+                                    _summaryCard(
+                                      'Total Trees',
+                                      _isTreeCountLoading
+                                          ? '...'
+                                          : totalTrees.toString(),
+                                      'Trees planted across NSTP',
+                                      'assets/instructor/icons/lucide_trees.png',
+                                      highlight: true,
+                                    ),
                                   ],
                                 )
                                 : Row(
@@ -1214,6 +1270,15 @@ class _AdminDashboardState extends State<AdminDashboard>
                                       totalStudents.toString(),
                                       'Enrolled in NSTP program',
                                       'assets/admin_icons/lucide_users-round (2).png',
+                                      highlight: true,
+                                    ),
+                                    _summaryCard(
+                                      'Total Trees',
+                                      _isTreeCountLoading
+                                          ? '...'
+                                          : totalTrees.toString(),
+                                      'Trees planted across NSTP',
+                                      'assets/instructor/icons/lucide_trees.png',
                                       highlight: true,
                                     ),
                                   ],
