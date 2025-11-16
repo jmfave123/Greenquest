@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
+import '../../shared/widgets/safe_asset_image.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -129,6 +130,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Center(
+                      child: SafeAssetImage(
+                        assetPath: 'assets/images/GreenQuest Logo.jpg',
+                        height: 120,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     const Text(
                       "Let's create your account",
                       style: TextStyle(

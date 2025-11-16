@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
 import '../../shared/widgets/forgot_password_dialog.dart';
+import '../../shared/widgets/safe_asset_image.dart';
 
 class LoginScreenApp extends StatefulWidget {
   const LoginScreenApp({super.key});
@@ -44,7 +45,11 @@ class _LoginScreenAppState extends State<LoginScreenApp> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 80),
-              Image.asset('assets/images/GreenQuest Logo.jpg', height: 150),
+              const SafeAssetImage(
+                assetPath: 'assets/images/GreenQuest Logo.jpg',
+                height: 150,
+                fit: BoxFit.contain,
+              ),
               const Text(
                 "Let's sign you in",
                 style: TextStyle(

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
+import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import '../shared/widgets/confirmation_dialog.dart';
 
@@ -1984,85 +1985,26 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
           Expanded(
             child: Column(
               children: [
-                // Header
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(getResponsivePadding()),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    border: Border(
-                      bottom: BorderSide(color: Color(0xFFE5E7EB), width: 1),
-                    ),
+                AdminPageHero(
+                  leading: SafeAssetImage(
+                    assetPath:
+                        'assets/admin_icons/fluent_hat-graduation-12-regular.png',
+                    width: isMobile ? 28 : 32,
+                    height: isMobile ? 28 : 32,
                   ),
-                  child:
-                      isMobile
-                          ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  SafeAssetImage(
-                                    assetPath:
-                                        'assets/admin_icons/fluent_hat-graduation-12-regular.png',
-                                    width: 28,
-                                    height: 28,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Expanded(
-                                    child: Text(
-                                      'Department Management',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 20,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Manage departments and sections',
-                                style: TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          )
-                          : Row(
-                            children: [
-                              SafeAssetImage(
-                                assetPath:
-                                    'assets/admin_icons/fluent_hat-graduation-12-regular.png',
-                                width: 32,
-                                height: 32,
-                              ),
-                              const SizedBox(width: 16),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Department Management',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 24,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Manage departments and sections',
-                                      style: TextStyle(
-                                        color: Colors.black54,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                  title: 'Department Management',
+                  subtitle: 'Manage departments and sections',
+                  heroTitle: 'Department & Section Management',
+                  heroDescription:
+                      'Create departments and sections, assign instructors to specific areas',
+                  headerPadding: EdgeInsets.all(getResponsivePadding()),
+                  heroPadding: EdgeInsets.all(isMobile ? 16 : 24),
+                  heroMargin: EdgeInsets.fromLTRB(
+                    getResponsivePadding(),
+                    12,
+                    getResponsivePadding(),
+                    24,
+                  ),
                 ),
                 // Content
                 Expanded(

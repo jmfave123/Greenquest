@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../shared/widgets/safe_asset_image.dart';
 import 'instructor_register_controller.dart';
 
 class InstructorRegisterScreen extends StatefulWidget {
@@ -89,6 +90,23 @@ class _InstructorRegisterScreenState extends State<InstructorRegisterScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      SafeAssetImage(
+                        assetPath: 'assets/images/GreenQuest Logo.jpg',
+                        width:
+                            isMobile
+                                ? 84
+                                : isTablet
+                                ? 92
+                                : 108,
+                        height:
+                            isMobile
+                                ? 84
+                                : isTablet
+                                ? 92
+                                : 108,
+                        fit: BoxFit.contain,
+                      ),
+                      SizedBox(height: isMobile ? 12 : 16),
                       Text(
                         'Instructor Sign Up',
                         style: TextStyle(

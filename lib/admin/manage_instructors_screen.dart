@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
+import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import 'multiple_assignment_dialog.dart';
 
@@ -478,6 +479,8 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
+    final double responsivePadding = getResponsivePadding();
+    final bool mobile = isMobile;
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       body: Row(
@@ -491,85 +494,28 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
           Expanded(
             child: Column(
               children: [
-                // Header
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(getResponsivePadding()),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    border: Border(
-                      bottom: BorderSide(color: Color(0xFFE5E7EB), width: 1),
-                    ),
+                AdminPageHero(
+                  leading: SafeAssetImage(
+                    assetPath: 'assets/admin_icons/lucide_users-round.png',
+                    width: mobile ? 28 : 32,
+                    height: mobile ? 28 : 32,
                   ),
-                  child:
-                      isMobile
-                          ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  SafeAssetImage(
-                                    assetPath:
-                                        'assets/admin_icons/lucide_users-round.png',
-                                    width: 28,
-                                    height: 28,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Expanded(
-                                    child: Text(
-                                      'Manage Instructors',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 20,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'View, approve, and manage all instructor accounts',
-                                style: TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          )
-                          : Row(
-                            children: [
-                              SafeAssetImage(
-                                assetPath:
-                                    'assets/admin_icons/lucide_users-round.png',
-                                width: 32,
-                                height: 32,
-                              ),
-                              const SizedBox(width: 16),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Manage Instructors',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 24,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                    Text(
-                                      'View, approve, and manage all instructor accounts',
-                                      style: TextStyle(
-                                        color: Colors.black54,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                  title: 'Manage Instructors',
+                  subtitle: 'View, approve, and manage all instructor accounts',
+                  heroTitle: 'Instructor Oversight',
+                  heroDescription:
+                      'Review approvals, assignments, and instructor activity in one place.',
+                  headerPadding: EdgeInsets.symmetric(
+                    horizontal: responsivePadding,
+                    vertical: mobile ? 12 : 16,
+                  ),
+                  heroPadding: EdgeInsets.all(mobile ? 16 : 24),
+                  heroMargin: EdgeInsets.fromLTRB(
+                    responsivePadding,
+                    mobile ? 12 : 20,
+                    responsivePadding,
+                    24,
+                  ),
                 ),
                 // Content
                 Expanded(

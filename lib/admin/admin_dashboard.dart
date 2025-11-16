@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
+import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -1075,106 +1076,36 @@ class _AdminDashboardState extends State<AdminDashboard>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header
-                            Container(
-                              width: double.infinity,
-                              padding: EdgeInsets.all(isMobile ? 16 : 28),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF34A853),
-                                borderRadius: BorderRadius.circular(18),
+                            AdminPageHero(
+                              leading: SafeAssetImage(
+                                assetPath:
+                                    'assets/admin_icons/fluent_hat-graduation-12-regular.png',
+                                width: isMobile ? 32 : 40,
+                                height: isMobile ? 32 : 40,
                               ),
-                              child:
-                                  isMobile
-                                      ? Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              SafeAssetImage(
-                                                assetPath:
-                                                    'assets/admin_icons/fluent_hat-graduation-12-regular.png',
-                                                width: 32,
-                                                height: 32,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: const Text(
-                                                  'Admin Dashboard',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 22,
-                                                  ),
-                                                ),
-                                              ),
-                                              IconButton(
-                                                onPressed: _loadData,
-                                                icon: const Icon(
-                                                  Icons.refresh,
-                                                  color: Colors.white,
-                                                  size: 22,
-                                                ),
-                                                tooltip: 'Refresh Data',
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          const Text(
-                                            'National Service Training Program',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                      : Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          SafeAssetImage(
-                                            assetPath:
-                                                'assets/admin_icons/fluent_hat-graduation-12-regular.png',
-                                            width: 40,
-                                            height: 40,
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: const [
-                                                Text(
-                                                  'Admin Dashboard',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 32,
-                                                  ),
-                                                ),
-                                                SizedBox(height: 4),
-                                                Text(
-                                                  'National Service Training Program - Manage instructors, sections, and students',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 15,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          IconButton(
-                                            onPressed: _loadData,
-                                            icon: const Icon(
-                                              Icons.refresh,
-                                              color: Colors.white,
-                                              size: 28,
-                                            ),
-                                            tooltip: 'Refresh Data',
-                                          ),
-                                        ],
-                                      ),
+                              title: 'Admin Dashboard',
+                              subtitle: 'National Service Training Program',
+                              heroTitle: 'Admin Dashboard',
+                              heroDescription:
+                                  'National Service Training Program - Manage instructors, sections, and students',
+                              action: IconButton(
+                                onPressed: _loadData,
+                                icon: Icon(
+                                  Icons.refresh,
+                                  color:
+                                      isMobile ? Colors.black87 : Colors.white,
+                                  size: isMobile ? 22 : 28,
+                                ),
+                                tooltip: 'Refresh Data',
+                              ),
+                              headerPadding: EdgeInsets.all(isMobile ? 12 : 18),
+                              heroPadding: EdgeInsets.all(isMobile ? 16 : 28),
+                              heroMargin: EdgeInsets.fromLTRB(
+                                getResponsivePadding(),
+                                isMobile ? 12 : 20,
+                                getResponsivePadding(),
+                                24,
+                              ),
                             ),
                             const SizedBox(height: 28),
                             // Summary Cards

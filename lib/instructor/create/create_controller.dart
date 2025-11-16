@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../shared/services/in_app_notification_service.dart';
+import '../../shared/services/instructor_class_service.dart';
 
 class CreateController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -13,6 +14,7 @@ class CreateController extends GetxController {
   var createdItems = <Map<String, dynamic>>[].obs;
   var errorMessage = ''.obs;
   var instructorName = ''.obs;
+  var instructorClasses = <String>[].obs;
 
   // Add mounted check
   bool _isDisposed = false;
@@ -32,7 +34,17 @@ class CreateController extends GetxController {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       loadInstructor(); // Load instructor name (lightweight operation)
       loadCreatedItems(); // Load created items once when screen first appears
+      _loadInstructorClasses();
     });
+  }
+
+  Future<void> _loadInstructorClasses() async {
+    try {
+      final classes = await InstructorClassService.getInstructorSectionCodes();
+      instructorClasses.value = classes;
+    } catch (e) {
+      debugPrint('Error loading instructor classes: $e');
+    }
   }
 
   @override
@@ -664,6 +676,8 @@ class CreateController extends GetxController {
 
         for (var doc in assignmentsQuery.docs) {
           final data = doc.data();
+          final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
+          final dueDateRaw = _toDateTime(data['dueDate']);
           print('📊 Assignment data: $data');
           print(
             '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
@@ -676,11 +690,12 @@ class CreateController extends GetxController {
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']), // Formatted for display
-            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
+            'dueDateRaw': dueDateRaw,
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
+            'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
           });
@@ -703,6 +718,8 @@ class CreateController extends GetxController {
 
         for (var doc in activitiesQuery.docs) {
           final data = doc.data();
+          final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
+          final dueDateRaw = _toDateTime(data['dueDate']);
           print('📊 Activity data: $data');
           print(
             '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
@@ -715,11 +732,12 @@ class CreateController extends GetxController {
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']), // Formatted for display
-            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
+            'dueDateRaw': dueDateRaw,
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
+            'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
           });
@@ -742,6 +760,8 @@ class CreateController extends GetxController {
 
         for (var doc in quizzesQuery.docs) {
           final data = doc.data();
+          final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
+          final dueDateRaw = _toDateTime(data['dueDate']);
           print('📊 Quiz data: $data');
           print(
             '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
@@ -754,11 +774,12 @@ class CreateController extends GetxController {
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']), // Formatted for display
-            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
+            'dueDateRaw': dueDateRaw,
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
+            'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
           });
@@ -781,6 +802,8 @@ class CreateController extends GetxController {
 
         for (var doc in pitsQuery.docs) {
           final data = doc.data();
+          final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
+          final dueDateRaw = _toDateTime(data['dueDate']);
           print('📊 PIT data: $data');
           print(
             '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
@@ -793,11 +816,12 @@ class CreateController extends GetxController {
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
             'dueDate': _formatDate(data['dueDate']), // Formatted for display
-            'dueDateRaw': data['dueDate'], // Raw DateTime/Timestamp for editing
+            'dueDateRaw': dueDateRaw,
             'points': data['points']?.toString() ?? '0',
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
+            'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
           });
@@ -820,6 +844,7 @@ class CreateController extends GetxController {
 
         for (var doc in materialsQuery.docs) {
           final data = doc.data();
+          final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
           print('📊 Material data: $data');
 
           allItems.add({
@@ -830,6 +855,7 @@ class CreateController extends GetxController {
             'selectedClasses': data['selectedClasses'] ?? [],
             'attachments': data['attachments'] ?? [],
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
+            'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
           });
         }
@@ -839,8 +865,12 @@ class CreateController extends GetxController {
 
       // Sort all items by creation date
       allItems.sort((a, b) {
-        final dateA = a['createdAt'] ?? 'Unknown';
-        final dateB = b['createdAt'] ?? 'Unknown';
+        final dateA =
+            a['createdAtRaw'] as DateTime? ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB =
+            b['createdAtRaw'] as DateTime? ??
+            DateTime.fromMillisecondsSinceEpoch(0);
         return dateB.compareTo(dateA);
       });
 
@@ -865,28 +895,22 @@ class CreateController extends GetxController {
     }
   }
 
+  DateTime? _toDateTime(dynamic timestamp) {
+    if (timestamp == null) return null;
+    if (timestamp is Timestamp) return timestamp.toDate();
+    if (timestamp is DateTime) return timestamp;
+    if (timestamp is String) {
+      return DateTime.tryParse(timestamp);
+    }
+    return null;
+  }
+
   // Helper method to format Firestore Timestamp to date string
   String? _formatDate(dynamic timestamp) {
-    if (timestamp == null) return null;
+    final date = _toDateTime(timestamp);
+    if (date == null) return null;
 
     try {
-      DateTime date;
-      if (timestamp is Timestamp) {
-        date = timestamp.toDate();
-      } else if (timestamp is DateTime) {
-        date = timestamp;
-      } else if (timestamp is String) {
-        // If it's already a string, try to parse and format it
-        try {
-          date = DateTime.parse(timestamp);
-        } catch (e) {
-          // If parsing fails, return the original string
-          return timestamp;
-        }
-      } else {
-        return null;
-      }
-
       // Format as "MMM dd, yyyy hh:mm AM/PM"
       const months = [
         'Jan',

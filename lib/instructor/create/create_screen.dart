@@ -7,15 +7,18 @@ import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/widgets/safe_asset_image.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../../shared/widgets/filter/created_items_filter_bar.dart';
 import '../../shared/services/instructor_class_service.dart';
-import 'assignment_screen.dart';
-import 'activity_screen.dart';
-import 'quiz_screen_new.dart';
-import 'pit_screen.dart';
-import 'material_screen.dart';
-import 'create_controller.dart';
-import 'quiz_controller.dart';
+import '../../shared/utils/date_range_filter.dart';
+import '../../shared/utils/item_filter_utils.dart';
 import '../instructor_dashboard_controller.dart';
+import 'activity_screen.dart';
+import 'assignment_screen.dart';
+import 'create_controller.dart';
+import 'material_screen.dart';
+import 'pit_screen.dart';
+import 'quiz_controller.dart';
+import 'quiz_screen_new.dart';
 
 class CreateScreen extends StatefulWidget {
   const CreateScreen({super.key});
@@ -40,6 +43,11 @@ class _CreateScreenState extends State<CreateScreen>
   String? _hoveredPeriod; // Track which period is being hovered
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _typeFilter;
+  String? _classFilter;
+  String? _periodFilter;
+  DateRangePreset _selectedPreset = DateRangePreset.all;
+  DateTimeRange? _customDateRange;
 
   final List<String> _types = [
     'Assignment',
@@ -92,6 +100,55 @@ class _CreateScreenState extends State<CreateScreen>
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
+  }
+
+  DateTimeRange? _currentDateRange() {
+    return resolveDateRange(_selectedPreset, customRange: _customDateRange);
+  }
+
+  void _handlePresetChange(DateRangePreset preset) {
+    setState(() {
+      _selectedPreset = preset;
+      if (preset != DateRangePreset.custom) {
+        _customDateRange = null;
+      }
+    });
+  }
+
+  Future<DateTimeRange?> _pickCustomRange(BuildContext context) async {
+    final now = DateTime.now();
+    final initialRange =
+        _customDateRange ??
+        DateTimeRange(start: now.subtract(const Duration(days: 6)), end: now);
+
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: initialRange,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 1),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(primary: Color(0xFF34A853)),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
+              child: child!,
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _customDateRange = picked;
+        _selectedPreset = DateRangePreset.custom;
+      });
+    }
+
+    return picked;
   }
 
   void _refreshData() {
@@ -332,14 +389,15 @@ class _CreateScreenState extends State<CreateScreen>
   }
 
   List<Map<String, dynamic>> _getFilteredItems() {
-    if (_searchQuery.isEmpty) {
-      return _createController.createdItems.toList();
-    }
-
-    return _createController.createdItems.where((item) {
-      final title = (item['title'] ?? '').toString().toLowerCase();
-      return title.contains(_searchQuery);
-    }).toList();
+    final items = _createController.createdItems.toList();
+    return filterCreatedItems(
+      items: items,
+      typeFilter: _typeFilter,
+      dateRange: _currentDateRange(),
+      searchQuery: _searchQuery,
+      classFilter: _classFilter,
+      periodFilter: _periodFilter,
+    );
   }
 
   Widget _buildCreatedItemsList() {
@@ -381,6 +439,34 @@ class _CreateScreenState extends State<CreateScreen>
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          CreatedItemsFilterBar(
+            typeOptions: _types,
+            selectedType: _typeFilter,
+            onTypeChanged: (value) {
+              setState(() {
+                _typeFilter = value;
+              });
+            },
+            classOptions: _createController.instructorClasses.toList(),
+            selectedClass: _classFilter,
+            onClassChanged: (value) {
+              setState(() {
+                _classFilter = value;
+              });
+            },
+            periodOptions: _periods,
+            selectedPeriod: _periodFilter,
+            onPeriodChanged: (value) {
+              setState(() {
+                _periodFilter = value;
+              });
+            },
+            datePreset: _selectedPreset,
+            customRange: _customDateRange,
+            onPresetChanged: _handlePresetChange,
+            onRequestCustomRange: () => _pickCustomRange(context),
           ),
           const SizedBox(height: 16),
           // Search bar

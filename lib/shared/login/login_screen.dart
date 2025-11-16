@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'login_screen_controller.dart';
 import '../widgets/forgot_password_dialog.dart';
+import '../widgets/safe_asset_image.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -57,6 +58,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        const SafeAssetImage(
+                          assetPath: 'assets/images/GreenQuest Logo.jpg',
+                          width: 96,
+                          height: 96,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 12),
                         const Text(
                           'Sign In',
                           style: TextStyle(
