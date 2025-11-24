@@ -21,6 +21,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
   AdminNavigationItem _selectedItem = AdminNavigationItem.manageInstructors;
   String _searchQuery = '';
   String _selectedStatus = 'All';
+  String _selectedActivityStatus = 'All'; // New filter for active/inactive
 
   final List<String> _statusOptions = [
     'All',
@@ -28,6 +29,8 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
     'Approved',
     'Rejected',
   ];
+
+  final List<String> _activityStatusOptions = ['All', 'Active', 'Inactive'];
 
   // Responsive helpers
   bool get isMobile {
@@ -363,9 +366,17 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
     );
   }
 
-  Future<void> _deleteInstructor(String instructorId) async {
+  Future<void> _toggleInstructorStatus(
+    String instructorId,
+    bool currentStatus,
+    String instructorName,
+  ) async {
     try {
-      final shouldDelete = await showDialog<bool>(
+      final newStatus = !currentStatus;
+      final action = newStatus ? 'set as active' : 'set as inactive';
+      final actionCapitalized = newStatus ? 'Set as Active' : 'Set as Inactive';
+
+      final shouldToggle = await showDialog<bool>(
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
@@ -382,29 +393,30 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: (newStatus ? Colors.green : Colors.orange)
+                        .withOpacity(0.1),
                     borderRadius: BorderRadius.circular(30),
                   ),
-                  child: const Icon(
-                    Icons.delete_forever,
-                    color: Colors.red,
+                  child: Icon(
+                    newStatus ? Icons.check_circle_outline : Icons.block,
+                    color: newStatus ? Colors.green : Colors.orange,
                     size: 30,
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Delete Instructor',
-                  style: TextStyle(
+                Text(
+                  actionCapitalized,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 20,
                     color: Colors.black,
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Are you sure you want to permanently delete this instructor? This action cannot be undone.',
+                Text(
+                  'Are you sure you want to $action "$instructorName"? ${newStatus ? 'They will be able to access their account and manage classes.' : 'They will no longer be able to access their account.'}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54, fontSize: 15),
+                  style: const TextStyle(color: Colors.black54, fontSize: 15),
                 ),
                 const SizedBox(height: 28),
                 Row(
@@ -412,7 +424,8 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                   children: [
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor:
+                            newStatus ? Colors.green : Colors.orange,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -422,9 +435,9 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                         ),
                       ),
                       onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text(
-                        'Delete',
-                        style: TextStyle(
+                      child: Text(
+                        actionCapitalized,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
@@ -457,11 +470,14 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
         },
       );
 
-      if (shouldDelete == true) {
-        await _firestore.collection('instructors').doc(instructorId).delete();
+      if (shouldToggle == true) {
+        await _firestore.collection('instructors').doc(instructorId).update({
+          'isActive': newStatus,
+          'statusUpdatedAt': FieldValue.serverTimestamp(),
+        });
         Get.snackbar(
           'Success',
-          'Instructor deleted successfully!',
+          'Instructor set as ${newStatus ? "active" : "inactive"} successfully!',
           backgroundColor: Colors.green,
           colorText: Colors.white,
         );
@@ -469,7 +485,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to delete instructor: $e',
+        'Failed to update instructor status: $e',
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
@@ -669,6 +685,43 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                               ),
                                           items:
                                               _statusOptions.map((status) {
+                                                return DropdownMenuItem<String>(
+                                                  value: status,
+                                                  child: Text(status),
+                                                );
+                                              }).toList(),
+                                          underline: const SizedBox(),
+                                          isExpanded: false,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Container(
+                                        width: 120,
+                                        height: 50,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: const Color(0xFFE5E7EB),
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: DropdownButton<String>(
+                                          value: _selectedActivityStatus,
+                                          onChanged:
+                                              (value) => setState(
+                                                () =>
+                                                    _selectedActivityStatus =
+                                                        value!,
+                                              ),
+                                          items:
+                                              _activityStatusOptions.map((
+                                                status,
+                                              ) {
                                                 return DropdownMenuItem<String>(
                                                   value: status,
                                                   child: Text(status),
@@ -912,6 +965,21 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                           data['status']?.toString() ??
                                           'Pending';
                                       return status == _selectedStatus;
+                                    }).toList();
+                              }
+
+                              // Filter by activity status
+                              if (_selectedActivityStatus != 'All') {
+                                instructors =
+                                    instructors.where((doc) {
+                                      final data =
+                                          doc.data() as Map<String, dynamic>;
+                                      final isActive = data['isActive'] ?? true;
+                                      if (_selectedActivityStatus == 'Active') {
+                                        return isActive == true;
+                                      } else {
+                                        return isActive == false;
+                                      }
                                     }).toList();
                               }
 
@@ -1518,101 +1586,123 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                               ),
                                             ),
                                             const SizedBox(height: 8),
-                                            SizedBox(
-                                              width: 140,
-                                              child: OutlinedButton.icon(
-                                                onPressed:
-                                                    () => _showAssignmentDialog(
-                                                      doc.id,
-                                                      data['name'] ?? 'Unknown',
-                                                      data['assignments'] !=
-                                                              null
-                                                          ? List<
-                                                            Map<String, dynamic>
-                                                          >.from(
-                                                            data['assignments'],
-                                                          )
-                                                          : null,
-                                                      status,
-                                                    ),
-                                                icon: const Icon(
-                                                  Icons.school_outlined,
-                                                  size: 18,
-                                                ),
-                                                label: const Text(
-                                                  'Assign',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: const Color(
-                                                    0xFF34A853,
-                                                  ),
-                                                  side: const BorderSide(
-                                                    color: Color(0xFF34A853),
-                                                    width: 1.5,
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                        vertical: 12,
+                                            // Assign button (only for Approved instructors)
+                                            if (status == 'Approved') ...[
+                                              SizedBox(
+                                                width: 140,
+                                                child: OutlinedButton.icon(
+                                                  onPressed:
+                                                      () => _showAssignmentDialog(
+                                                        doc.id,
+                                                        data['name'] ??
+                                                            'Unknown',
+                                                        data['assignments'] !=
+                                                                null
+                                                            ? List<
+                                                              Map<
+                                                                String,
+                                                                dynamic
+                                                              >
+                                                            >.from(
+                                                              data['assignments'],
+                                                            )
+                                                            : null,
+                                                        status,
                                                       ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
+                                                  icon: const Icon(
+                                                    Icons.school_outlined,
+                                                    size: 18,
+                                                  ),
+                                                  label: const Text(
+                                                    'Assign',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor:
+                                                        const Color(0xFF34A853),
+                                                    side: const BorderSide(
+                                                      color: Color(0xFF34A853),
+                                                      width: 1.5,
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
                                                         ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 12),
-                                            // Divider
-                                            Container(
-                                              width: 140,
-                                              height: 1,
-                                              color: Colors.grey[300],
-                                            ),
-                                            const SizedBox(height: 12),
-                                            // Destructive Action
-                                            SizedBox(
-                                              width: 140,
-                                              child: OutlinedButton.icon(
-                                                onPressed:
-                                                    () => _deleteInstructor(
-                                                      doc.id,
-                                                    ),
-                                                icon: const Icon(
-                                                  Icons.delete_outline,
-                                                  size: 18,
-                                                ),
-                                                label: const Text(
-                                                  'Delete',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: Colors.red,
-                                                  side: const BorderSide(
-                                                    color: Colors.red,
-                                                    width: 1.5,
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                        vertical: 12,
+                                              const SizedBox(height: 12),
+                                            ],
+                                            // Toggle Active Status (only for Approved instructors)
+                                            if (status == 'Approved') ...[
+                                              // Divider
+                                              Container(
+                                                width: 140,
+                                                height: 1,
+                                                color: Colors.grey[300],
+                                              ),
+                                              const SizedBox(height: 12),
+                                              SizedBox(
+                                                width: 140,
+                                                child: OutlinedButton.icon(
+                                                  onPressed:
+                                                      () => _toggleInstructorStatus(
+                                                        doc.id,
+                                                        isActive,
+                                                        data['name'] ??
+                                                            'Unknown Instructor',
                                                       ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
+                                                  icon: Icon(
+                                                    isActive
+                                                        ? Icons.block
+                                                        : Icons
+                                                            .check_circle_outline,
+                                                    size: 18,
+                                                  ),
+                                                  label: Text(
+                                                    isActive
+                                                        ? 'Set Inactive'
+                                                        : 'Set Active',
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor:
+                                                        isActive
+                                                            ? Colors.orange
+                                                            : Colors.green,
+                                                    side: BorderSide(
+                                                      color:
+                                                          isActive
+                                                              ? Colors.orange
+                                                              : Colors.green,
+                                                      width: 1.5,
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
                                                         ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                            ),
+                                            ],
                                           ],
                                         ),
                                       ],

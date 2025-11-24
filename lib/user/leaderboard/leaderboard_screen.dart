@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../shared/login/custom_drawer.dart';
 import 'leaderboard_controller.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
+import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -119,50 +120,55 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 final remainingStudents = leaderboardController!
                     .getRemainingStudents(selectedTab);
 
-                return Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    // Top 3 Podium
-                    _buildPodium(topThree),
-                    const SizedBox(height: 24),
-                    // Remaining students list
-                    Expanded(
-                      child: Container(
-                        width: double.infinity,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(32),
-                            topRight: Radius.circular(32),
+                return PullToRefreshWrapper(
+                  onRefresh: () async {
+                    await leaderboardController!.refreshLeaderboard();
+                  },
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      // Top 3 Podium
+                      _buildPodium(topThree),
+                      const SizedBox(height: 24),
+                      // Remaining students list
+                      Expanded(
+                        child: Container(
+                          width: double.infinity,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(32),
+                              topRight: Radius.circular(32),
+                            ),
+                            border: Border.fromBorderSide(
+                              BorderSide(color: Colors.black12),
+                            ),
                           ),
-                          border: Border.fromBorderSide(
-                            BorderSide(color: Colors.black12),
-                          ),
-                        ),
-                        child:
-                            remainingStudents.isEmpty
-                                ? const Center(
-                                  child: Text(
-                                    'No students found',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 16,
+                          child:
+                              remainingStudents.isEmpty
+                                  ? const Center(
+                                    child: Text(
+                                      'No students found',
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 16,
+                                      ),
                                     ),
+                                  )
+                                  : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                    itemCount: remainingStudents.length,
+                                    itemBuilder: (context, i) {
+                                      final student = remainingStudents[i];
+                                      return _buildStudentItem(student, i + 4);
+                                    },
                                   ),
-                                )
-                                : ListView.builder(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  itemCount: remainingStudents.length,
-                                  itemBuilder: (context, i) {
-                                    final student = remainingStudents[i];
-                                    return _buildStudentItem(student, i + 4);
-                                  },
-                                ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               }),
     );

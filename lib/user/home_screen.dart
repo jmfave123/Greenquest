@@ -9,6 +9,7 @@ import 'package:greenquest/user/submit/quiz_new/quiz_list_screen.dart';
 import 'package:greenquest/user/submit/pit/pit_list_screen.dart';
 import 'package:greenquest/user/home_screen_controller.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
+import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -144,802 +145,798 @@ class _HomeScreenState extends State<HomeScreen> {
                           .toList()
                       : <Map<String, dynamic>>[];
 
-              return SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Column(
-                    children: [
-                      // Seedling Progress Card - Real-time updates via StreamBuilder
-                      Container(
-                        width: double.infinity,
-                        height: 320,
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F8FA),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child:
-                                  isLoadingProgress
-                                      ? const SizedBox(
-                                        width: 40,
-                                        height: 40,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Color(0xFF34A853),
-                                              ),
-                                        ),
-                                      )
-                                      : Text(
-                                        // Real-time progress percentage from StreamBuilder
-                                        '${(progress * 100).round()}%\nComplete',
-                                        textAlign: TextAlign.left,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
+              return PullToRefreshWrapper(
+                onRefresh: () async {
+                  await controller.refreshStatus();
+                  await controller.refreshTreeProgress();
+                },
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Column(
+                  children: [
+                    // Seedling Progress Card - Real-time updates via StreamBuilder
+                    Container(
+                      width: double.infinity,
+                      height: 320,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF7F8FA),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child:
+                                isLoadingProgress
+                                    ? const SizedBox(
+                                      width: 40,
+                                      height: 40,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF34A853),
+                                            ),
                                       ),
-                            ),
-                            Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 250,
-                                  height: 250,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: CircularProgressIndicator(
-                                      // Real-time progress value from StreamBuilder
-                                      value: progress,
-                                      strokeWidth: 25,
-                                      color: Colors.white,
-                                      backgroundColor: const Color(0xFFE0E0E0),
-                                      valueColor: const AlwaysStoppedAnimation(
-                                        Color(0xFF34A853),
+                                    )
+                                    : Text(
+                                      // Real-time progress percentage from StreamBuilder
+                                      '${(progress * 100).round()}%\nComplete',
+                                      textAlign: TextAlign.left,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
                                       ),
+                                    ),
+                          ),
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox(
+                                width: 250,
+                                height: 250,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: CircularProgressIndicator(
+                                    // Real-time progress value from StreamBuilder
+                                    value: progress,
+                                    strokeWidth: 25,
+                                    color: Colors.white,
+                                    backgroundColor: const Color(0xFFE0E0E0),
+                                    valueColor: const AlwaysStoppedAnimation(
+                                      Color(0xFF34A853),
                                     ),
                                   ),
                                 ),
-                                // Real-time plant image based on progress from StreamBuilder
-                                Image.asset(plantImage(progress), height: 150),
+                              ),
+                              // Real-time plant image based on progress from StreamBuilder
+                              Image.asset(plantImage(progress), height: 150),
+                            ],
+                          ),
+                          // Current Grade at bottom of seedling
+                          Positioned(
+                            bottom: 60,
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Current Grade:',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                // Real-time grade value from StreamBuilder
+                                Builder(
+                                  builder: (context) {
+                                    final grade =
+                                        isLoadingProgress
+                                            ? 5.00
+                                            : computedGrade;
+
+                                    // Color: Green for 1.00-3.00 (passing), Red for 3.01-5.00 (failing)
+                                    final gradeColor =
+                                        grade <= 3.00
+                                            ? const Color(
+                                              0xFF34A853,
+                                            ) // Green for passing
+                                            : const Color(
+                                              0xFFE53935,
+                                            ); // Red for failing
+
+                                    return Text(
+                                      grade.toStringAsFixed(2),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: gradeColor,
+                                      ),
+                                    );
+                                  },
+                                ),
                               ],
                             ),
-                            // Current Grade at bottom of seedling
-                            Positioned(
-                              bottom: 60,
-                              child: Column(
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            child: Text(
+                              // Real-time progress message from StreamBuilder
+                              isLoadingProgress
+                                  ? 'Loading progress...'
+                                  : _getProgressMessage(progress),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Category Completion Cards - Real-time updates via StreamBuilder
+                    Builder(
+                      builder: (context) {
+                        // Combine midterm and final completions from stream data
+                        final allCompletions = [
+                          ...midtermCompletions,
+                          ...finalCompletions,
+                        ];
+
+                        if (allCompletions.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  Text(
-                                    'Current Grade:',
+                                  Icon(
+                                    Icons.checklist_rounded,
+                                    color: Color(0xFF34A853),
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Category Completion',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[700],
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Display real-time category completion data from StreamBuilder
+                              ...allCompletions.map((completion) {
+                                // Real-time values from stream
+                                final completed =
+                                    (completion['completed'] ?? 0) as int;
+                                final total = (completion['total'] ?? 0) as int;
+                                final displayName =
+                                    (completion['displayName'] ?? '') as String;
+                                final percentage =
+                                    (completion['percentage'] ?? 0.0) as double;
+                                final period =
+                                    (completion['period'] ?? 'midterm')
+                                        as String;
+                                final isComplete =
+                                    completed == total && total > 0;
+                                final hasItems = total > 0;
+
+                                // Always show category, even if 0/0 (no items created yet)
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        hasItems
+                                            ? (isComplete
+                                                ? Color(0xFFE8F5E9)
+                                                : Color(0xFFFFF3E0))
+                                            : Color(
+                                              0xFFF5F5F5,
+                                            ), // Gray for no items
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color:
+                                          hasItems
+                                              ? (isComplete
+                                                  ? Color(0xFF81C784)
+                                                  : Color(0xFFFFB74D))
+                                              : Color(
+                                                0xFFE0E0E0,
+                                              ), // Light gray border
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        hasItems
+                                            ? (isComplete
+                                                ? Icons.check_circle
+                                                : Icons.pending_outlined)
+                                            : Icons.radio_button_unchecked,
+                                        color:
+                                            hasItems
+                                                ? (isComplete
+                                                    ? Color(0xFF4CAF50)
+                                                    : Color(0xFFFF9800))
+                                                : Colors.grey[400],
+                                        size: 28,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    displayName,
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color:
+                                                          hasItems
+                                                              ? (isComplete
+                                                                  ? Color(
+                                                                    0xFF2E7D32,
+                                                                  )
+                                                                  : Color(
+                                                                    0xFFE65100,
+                                                                  ))
+                                                              : Colors
+                                                                  .grey[600],
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (period.isNotEmpty) ...[
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.grey
+                                                          .withOpacity(0.1),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            4,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      period == 'midterm'
+                                                          ? 'Prelim/Midterm'
+                                                          : period == 'final'
+                                                          ? 'Final'
+                                                          : period,
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: Colors.black54,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              children: [
+                                                // Real-time completion count from StreamBuilder
+                                                Text(
+                                                  '$completed/$total completed',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.grey[700],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                if (hasItems)
+                                                  Expanded(
+                                                    child: ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            4,
+                                                          ),
+                                                      child: LinearProgressIndicator(
+                                                        // Real-time percentage from StreamBuilder
+                                                        value: percentage,
+                                                        minHeight: 6,
+                                                        backgroundColor:
+                                                            Colors.grey[300],
+                                                        valueColor:
+                                                            AlwaysStoppedAnimation<
+                                                              Color
+                                                            >(
+                                                              isComplete
+                                                                  ? Color(
+                                                                    0xFF4CAF50,
+                                                                  )
+                                                                  : Color(
+                                                                    0xFFFF9800,
+                                                                  ),
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                if (!hasItems)
+                                                  Expanded(
+                                                    child: Container(
+                                                      height: 6,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.grey[200],
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                      ),
+                                                      child: Center(
+                                                        child: Text(
+                                                          'No items yet',
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            color:
+                                                                Colors
+                                                                    .grey[500],
+                                                            fontStyle:
+                                                                FontStyle
+                                                                    .italic,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                const SizedBox(width: 8),
+                                                if (hasItems)
+                                                  // Real-time percentage display from StreamBuilder
+                                                  Text(
+                                                    '${(percentage * 100).round()}%',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color:
+                                                          isComplete
+                                                              ? Color(
+                                                                0xFF2E7D32,
+                                                              )
+                                                              : Color(
+                                                                0xFFE65100,
+                                                              ),
+                                                    ),
+                                                  ),
+                                                if (!hasItems)
+                                                  Text(
+                                                    '-',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.grey[400],
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    // Submit Your Work
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF70E774),
+                                      Color(0xFF28863D),
+                                    ],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Image.asset(
+                                    'assets/icons/fluent_task-list-20-filled.png',
+                                    width: 28,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    'Submit Your Work',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
                                     ),
                                   ),
                                   SizedBox(height: 2),
-                                  // Real-time grade value from StreamBuilder
-                                  Builder(
-                                    builder: (context) {
-                                      final grade =
-                                          isLoadingProgress
-                                              ? 5.00
-                                              : computedGrade;
-
-                                      // Color: Green for 1.00-3.00 (passing), Red for 3.01-5.00 (failing)
-                                      final gradeColor =
-                                          grade <= 3.00
-                                              ? const Color(
-                                                0xFF34A853,
-                                              ) // Green for passing
-                                              : const Color(
-                                                0xFFE53935,
-                                              ); // Red for failing
-
-                                      return Text(
-                                        grade.toStringAsFixed(2),
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: gradeColor,
+                                  Text(
+                                    'Complete tasks to grow your\nlearning tree',
+                                    style: TextStyle(
+                                      color: Color(0xFF6B7280),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          // Submit Activity
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ActivityListScreen(),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F5E9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFB6F5C3),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFC6F6D5),
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Image.asset(
+                                        'assets/icons/Vector (4).png',
+                                        width: 28,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Submit Activity',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: Color(0xFF43A047),
+                                          ),
                                         ),
-                                      );
-                                    },
+                                        SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Image.asset(
+                                              'assets/icons/Vector (5).png',
+                                              width: 24,
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              'Complete your daily learning\ntask',
+                                              style: TextStyle(
+                                                color: Color(0xFF6B7280),
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                            Positioned(
-                              bottom: 0,
-                              child: Text(
-                                // Real-time progress message from StreamBuilder
-                                isLoadingProgress
-                                    ? 'Loading progress...'
-                                    : _getProgressMessage(progress),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
+                          ),
+                          // Submit Assignment
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AssignmentListScreen(),
                                 ),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE3F0FF),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Color(0xFFB6D5F5)),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Category Completion Cards - Real-time updates via StreamBuilder
-                      Builder(
-                        builder: (context) {
-                          // Combine midterm and final completions from stream data
-                          final allCompletions = [
-                            ...midtermCompletions,
-                            ...finalCompletions,
-                          ];
-
-                          if (allCompletions.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.checklist_rounded,
-                                      color: Color(0xFF34A853),
-                                      size: 24,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Category Completion',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                // Display real-time category completion data from StreamBuilder
-                                ...allCompletions.map((completion) {
-                                  // Real-time values from stream
-                                  final completed =
-                                      (completion['completed'] ?? 0) as int;
-                                  final total =
-                                      (completion['total'] ?? 0) as int;
-                                  final displayName =
-                                      (completion['displayName'] ?? '')
-                                          as String;
-                                  final percentage =
-                                      (completion['percentage'] ?? 0.0)
-                                          as double;
-                                  final period =
-                                      (completion['period'] ?? 'midterm')
-                                          as String;
-                                  final isComplete =
-                                      completed == total && total > 0;
-                                  final hasItems = total > 0;
-
-                                  // Always show category, even if 0/0 (no items created yet)
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
                                     decoration: BoxDecoration(
-                                      color:
-                                          hasItems
-                                              ? (isComplete
-                                                  ? Color(0xFFE8F5E9)
-                                                  : Color(0xFFFFF3E0))
-                                              : Color(
-                                                0xFFF5F5F5,
-                                              ), // Gray for no items
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color:
-                                            hasItems
-                                                ? (isComplete
-                                                    ? Color(0xFF81C784)
-                                                    : Color(0xFFFFB74D))
-                                                : Color(
-                                                  0xFFE0E0E0,
-                                                ), // Light gray border
-                                        width: 1.5,
+                                      color: const Color(0xFFD6E4FF),
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Image.asset(
+                                        'assets/icons/Vector (0).png',
+                                        width: 28,
+                                        color: Color(0xFF2886D7),
                                       ),
                                     ),
-                                    child: Row(
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Icon(
-                                          hasItems
-                                              ? (isComplete
-                                                  ? Icons.check_circle
-                                                  : Icons.pending_outlined)
-                                              : Icons.radio_button_unchecked,
-                                          color:
-                                              hasItems
-                                                  ? (isComplete
-                                                      ? Color(0xFF4CAF50)
-                                                      : Color(0xFFFF9800))
-                                                  : Colors.grey[400],
-                                          size: 28,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      displayName,
-                                                      style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 16,
-                                                        color:
-                                                            hasItems
-                                                                ? (isComplete
-                                                                    ? Color(
-                                                                      0xFF2E7D32,
-                                                                    )
-                                                                    : Color(
-                                                                      0xFFE65100,
-                                                                    ))
-                                                                : Colors
-                                                                    .grey[600],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  if (period.isNotEmpty) ...[
-                                                    const SizedBox(width: 8),
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 2,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.grey
-                                                            .withOpacity(0.1),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                      ),
-                                                      child: Text(
-                                                        period == 'midterm'
-                                                            ? 'Prelim/Midterm'
-                                                            : period == 'final'
-                                                            ? 'Final'
-                                                            : period,
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: Colors.black54,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  // Real-time completion count from StreamBuilder
-                                                  Text(
-                                                    '$completed/$total completed',
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      color: Colors.grey[700],
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  if (hasItems)
-                                                    Expanded(
-                                                      child: ClipRRect(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                        child: LinearProgressIndicator(
-                                                          // Real-time percentage from StreamBuilder
-                                                          value: percentage,
-                                                          minHeight: 6,
-                                                          backgroundColor:
-                                                              Colors.grey[300],
-                                                          valueColor:
-                                                              AlwaysStoppedAnimation<
-                                                                Color
-                                                              >(
-                                                                isComplete
-                                                                    ? Color(
-                                                                      0xFF4CAF50,
-                                                                    )
-                                                                    : Color(
-                                                                      0xFFFF9800,
-                                                                    ),
-                                                              ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  if (!hasItems)
-                                                    Expanded(
-                                                      child: Container(
-                                                        height: 6,
-                                                        decoration: BoxDecoration(
-                                                          color:
-                                                              Colors.grey[200],
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                4,
-                                                              ),
-                                                        ),
-                                                        child: Center(
-                                                          child: Text(
-                                                            'No items yet',
-                                                            style: TextStyle(
-                                                              fontSize: 10,
-                                                              color:
-                                                                  Colors
-                                                                      .grey[500],
-                                                              fontStyle:
-                                                                  FontStyle
-                                                                      .italic,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  const SizedBox(width: 8),
-                                                  if (hasItems)
-                                                    // Real-time percentage display from StreamBuilder
-                                                    Text(
-                                                      '${(percentage * 100).round()}%',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color:
-                                                            isComplete
-                                                                ? Color(
-                                                                  0xFF2E7D32,
-                                                                )
-                                                                : Color(
-                                                                  0xFFE65100,
-                                                                ),
-                                                      ),
-                                                    ),
-                                                  if (!hasItems)
-                                                    Text(
-                                                      '-',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: Colors.grey[400],
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            ],
+                                        Text(
+                                          'Submit Assignment',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: Color(0xFF2886D7),
                                           ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Image.asset(
+                                              'assets/icons/Vector (6).png',
+                                              width: 24,
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              'Turn in your major project',
+                                              style: TextStyle(
+                                                color: Color(0xFF6B7280),
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      // Submit Your Work
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF70E774),
-                                        Color(0xFF28863D),
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                    ),
                                   ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Image.asset(
-                                      'assets/icons/fluent_task-list-20-filled.png',
-                                      width: 28,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    Text(
-                                      'Submit Your Work',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'Complete tasks to grow your\nlearning tree',
-                                      style: TextStyle(
-                                        color: Color(0xFF6B7280),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            // Submit Activity
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const ActivityListScreen(),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                width: double.infinity,
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE8F5E9),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFFB6F5C3),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFC6F6D5),
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Image.asset(
-                                          'assets/icons/Vector (4).png',
-                                          width: 28,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Submit Activity',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: Color(0xFF43A047),
-                                            ),
-                                          ),
-                                          SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              Image.asset(
-                                                'assets/icons/Vector (5).png',
-                                                width: 24,
-                                              ),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                'Complete your daily learning\ntask',
-                                                style: TextStyle(
-                                                  color: Color(0xFF6B7280),
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                ],
                               ),
                             ),
-                            // Submit Assignment
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => const AssignmentListScreen(),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                margin: const EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE3F0FF),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Color(0xFFB6D5F5)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFD6E4FF),
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Image.asset(
-                                          'assets/icons/Vector (0).png',
-                                          width: 28,
-                                          color: Color(0xFF2886D7),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Submit Assignment',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: Color(0xFF2886D7),
-                                            ),
-                                          ),
-                                          SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              Image.asset(
-                                                'assets/icons/Vector (6).png',
-                                                width: 24,
-                                              ),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                'Turn in your major project',
-                                                style: TextStyle(
-                                                  color: Color(0xFF6B7280),
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                          ),
 
-                            // Submit Quizzes
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const QuizListScreen(),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                margin: const EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF6F1FF),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Color.fromARGB(255, 215, 199, 245),
-                                  ),
+                          // Submit Quizzes
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const QuizListScreen(),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFE9D8FD),
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Image.asset(
-                                          'assets/icons/Vector (0).png',
-                                          width: 28,
-                                          color: Color(0xFF8B5CF6),
-                                        ),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF6F1FF),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Color.fromARGB(255, 215, 199, 245),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE9D8FD),
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Image.asset(
+                                        'assets/icons/Vector (0).png',
+                                        width: 28,
+                                        color: Color(0xFF8B5CF6),
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Submit Quizzes',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Submit Quizzes',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: Color(0xFF8B5CF6),
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Image.asset(
+                                              'assets/icons/Vector (6).png',
+                                              width: 24,
+
                                               color: Color(0xFF8B5CF6),
                                             ),
-                                          ),
-                                          SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              Image.asset(
-                                                'assets/icons/Vector (6).png',
-                                                width: 24,
-
-                                                color: Color(0xFF8B5CF6),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              'Turn in your quizzes',
+                                              style: TextStyle(
+                                                color: Color(0xFF6B7280),
+                                                fontSize: 13,
                                               ),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                'Turn in your quizzes',
-                                                style: TextStyle(
-                                                  color: Color(0xFF6B7280),
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
+                          ),
 
-                            // Submit PIT
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const PitListScreen(),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3E0),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Color(0xFFFFB74D)),
+                          // Submit PIT
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const PitListScreen(),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFE0B2),
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Icon(
-                                          Icons.engineering,
-                                          size: 28,
-                                          color: Color(0xFFFF9800),
-                                        ),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF3E0),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Color(0xFFFFB74D)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFE0B2),
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Icon(
+                                        Icons.engineering,
+                                        size: 28,
+                                        color: Color(0xFFFF9800),
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Submit PIT',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Submit PIT',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: Color(0xFFFF9800),
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.upload_file,
+                                              size: 24,
                                               color: Color(0xFFFF9800),
                                             ),
-                                          ),
-                                          SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.upload_file,
-                                                size: 24,
-                                                color: Color(0xFFFF9800),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              'Turn in your PIT project',
+                                              style: TextStyle(
+                                                color: Color(0xFF6B7280),
+                                                fontSize: 13,
                                               ),
-                                              const SizedBox(width: 5),
-                                              Text(
-                                                'Turn in your PIT project',
-                                                style: TextStyle(
-                                                  color: Color(0xFF6B7280),
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             },

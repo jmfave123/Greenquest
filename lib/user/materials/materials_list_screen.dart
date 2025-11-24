@@ -4,6 +4,7 @@ import 'materials_list_screen_controller.dart';
 import 'materials_detail_screen.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 import 'package:greenquest/shared/login/custom_drawer.dart';
+import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
 class MaterialsListScreen extends StatefulWidget {
   const MaterialsListScreen({super.key});
@@ -258,11 +259,13 @@ class _MaterialsListScreenState extends State<MaterialsListScreen> {
         final iconSize = isMobile ? 14.0 : (isTablet ? 16.0 : 18.0);
 
         return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-            ),
+          child: PullToRefreshWrapper(
+            onRefresh: () async {
+              await controller!.refreshMaterials();
+            },
+            wrapContent: false,
             child: GridView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.symmetric(
                 horizontal: gridPadding,
                 vertical: gridPadding,

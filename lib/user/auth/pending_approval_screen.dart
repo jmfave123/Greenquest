@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'auth_controller.dart';
 import '../../shared/widgets/responsive_layout.dart';
+import '../../shared/widgets/pull_to_refresh_wrapper.dart';
 
 class PendingApprovalScreen extends StatefulWidget {
   const PendingApprovalScreen({super.key});
@@ -628,7 +629,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
     }
   }
 
-  void _refreshStatus() async {
+  Future<void> _refreshStatus() async {
     setState(() {
       isLoading = true;
     });
@@ -825,17 +826,23 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            return SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: MediaQuery.of(context).size.width * 0.06,
-                      vertical: MediaQuery.of(context).size.height * 0.02,
+            return PullToRefreshWrapper(
+              onRefresh: () async {
+                await _refreshStatus();
+              },
+              wrapContent: false,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: MediaQuery.of(context).size.width * 0.06,
+                        vertical: MediaQuery.of(context).size.height * 0.02,
+                      ),
+                      child: _buildContent(context),
                     ),
-                    child: _buildContent(context),
                   ),
                 ),
               ),

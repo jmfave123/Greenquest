@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:greenquest/user/submit/activity/activity_detail_screen.dart';
 import 'activity_controller.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
+import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
 class ActivityListScreen extends StatefulWidget {
   const ActivityListScreen({super.key});
@@ -417,157 +418,164 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                           };
                         }).toList();
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      itemCount: activities.length,
-                      itemBuilder: (context, i) {
-                        final activity = activities[i];
+                    return PullToRefreshWrapper(
+                      onRefresh: () async {
+                        await controller!.refreshActivities();
+                      },
+                      wrapContent: false,
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        itemCount: activities.length,
+                        itemBuilder: (context, i) {
+                          final activity = activities[i];
 
-                        // Validate activity data before navigation
-                        if (activity.isEmpty) {
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'Invalid Activity',
-                                style: TextStyle(color: Colors.grey),
+                          // Validate activity data before navigation
+                          if (activity.isEmpty) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Invalid Activity',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return GestureDetector(
+                            onTap: () {
+                              if (activity.isNotEmpty && controller != null) {
+                                controller!.setSelectedActivity(activity);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => ActivityDetailScreen(
+                                          activity: activity,
+                                        ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFE0E0E0),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF34A853),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.assignment,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                '${activity['instructorName']} posted new activity: ${activity['title']}',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 15,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (activity['period'] != null &&
+                                                activity['period']
+                                                    .toString()
+                                                    .isNotEmpty) ...[
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  activity['period'].toString(),
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.black54,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _formatDisplayDate(
+                                            activity['createdAt'],
+                                          ),
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Status Badge
+                                  Obx(() {
+                                    final activityId =
+                                        activity['id']?.toString();
+                                    final status =
+                                        controller
+                                            ?.submissionStatus[activityId] ??
+                                        'not_submitted';
+                                    return _buildStatusBadge(status);
+                                  }),
+                                ],
                               ),
                             ),
                           );
-                        }
-
-                        return GestureDetector(
-                          onTap: () {
-                            if (activity.isNotEmpty && controller != null) {
-                              controller!.setSelectedActivity(activity);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => ActivityDetailScreen(
-                                        activity: activity,
-                                      ),
-                                ),
-                              );
-                            }
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFFE0E0E0),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF34A853),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.assignment,
-                                    color: Colors.white,
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              '${activity['instructorName']} posted new activity: ${activity['title']}',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w500,
-                                                fontSize: 15,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          if (activity['period'] != null &&
-                                              activity['period']
-                                                  .toString()
-                                                  .isNotEmpty) ...[
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey.withOpacity(
-                                                  0.1,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                activity['period'].toString(),
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.black54,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _formatDisplayDate(
-                                          activity['createdAt'],
-                                        ),
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                // Status Badge
-                                Obx(() {
-                                  final activityId = activity['id']?.toString();
-                                  final status =
-                                      controller
-                                          ?.submissionStatus[activityId] ??
-                                      'not_submitted';
-                                  return _buildStatusBadge(status);
-                                }),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                        },
+                      ),
                     );
                   },
                 );
