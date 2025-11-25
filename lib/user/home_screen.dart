@@ -114,6 +114,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   snapshot.connectionState == ConnectionState.waiting;
               final computedGrade =
                   snapshot.hasData ? snapshot.data!.computedFinalGrade : 5.00;
+              final activePeriodName =
+                  snapshot.hasData ? snapshot.data!.activePeriodName : null;
+              final activePeriodType =
+                  snapshot.hasData ? snapshot.data!.activePeriodType : null;
               final midtermCompletions =
                   snapshot.hasData
                       ? snapshot.data!.midtermCompletions
@@ -156,6 +160,70 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Column(
                   children: [
+                    // Active Period Indicator
+                    if (activePeriodName != null && activePeriodType != null)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              activePeriodType == 'Midterm'
+                                  ? Colors.blue.shade50
+                                  : Colors.purple.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color:
+                                activePeriodType == 'Midterm'
+                                    ? Colors.blue.shade200
+                                    : Colors.purple.shade200,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              color:
+                                  activePeriodType == 'Midterm'
+                                      ? Colors.blue.shade700
+                                      : Colors.purple.shade700,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Current Period: $activePeriodType',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color:
+                                          activePeriodType == 'Midterm'
+                                              ? Colors.blue.shade900
+                                              : Colors.purple.shade900,
+                                    ),
+                                  ),
+                                  Text(
+                                    activePeriodName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color:
+                                          activePeriodType == 'Midterm'
+                                              ? Colors.blue.shade700
+                                              : Colors.purple.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     // Seedling Progress Card - Real-time updates via StreamBuilder
                     Container(
                       width: double.infinity,
@@ -281,11 +349,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Category Completion Cards - Real-time updates via StreamBuilder
                     Builder(
                       builder: (context) {
-                        // Combine midterm and final completions from stream data
-                        final allCompletions = [
-                          ...midtermCompletions,
-                          ...finalCompletions,
-                        ];
+                        // Filter completions based on active period
+                        List<Map<String, dynamic>> allCompletions;
+                        if (activePeriodType == 'Midterm') {
+                          // Show only midterm completions
+                          allCompletions = midtermCompletions;
+                        } else if (activePeriodType == 'Final') {
+                          // Show only final completions
+                          allCompletions = finalCompletions;
+                        } else {
+                          // No active period set - show both
+                          allCompletions = [
+                            ...midtermCompletions,
+                            ...finalCompletions,
+                          ];
+                        }
 
                         if (allCompletions.isEmpty) {
                           return const SizedBox.shrink();

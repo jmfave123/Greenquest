@@ -28,12 +28,16 @@ class ProgressResult {
   computedFinalGrade; // The computed final grade value (e.g., 4.88)
   final List<CategoryCompletion> midtermCompletions;
   final List<CategoryCompletion> finalCompletions;
+  final String? activePeriodName; // Name of active period
+  final String? activePeriodType; // Type: 'Midterm' or 'Final'
 
   ProgressResult({
     required this.progress,
     required this.computedFinalGrade,
     required this.midtermCompletions,
     required this.finalCompletions,
+    this.activePeriodName,
+    this.activePeriodType,
   });
 }
 
@@ -61,6 +65,8 @@ class TreeProgressService {
             computedFinalGrade: 5.00,
             midtermCompletions: [],
             finalCompletions: [],
+            activePeriodName: null,
+            activePeriodType: null,
           ),
         );
       }
@@ -68,6 +74,25 @@ class TreeProgressService {
       // Stream that combines user document and all submission collections
       return _createProgressStream(user.uid);
     });
+  }
+
+  /// Fetch active period from Firebase
+  Future<Map<String, dynamic>?> _getActivePeriod() async {
+    try {
+      final snapshot =
+          await _firestore
+              .collection('periods')
+              .where('isActive', isEqualTo: true)
+              .limit(1)
+              .get();
+
+      if (snapshot.docs.isEmpty) return null;
+
+      return {'id': snapshot.docs.first.id, ...snapshot.docs.first.data()};
+    } catch (e) {
+      print('Error getting active period: $e');
+      return null;
+    }
   }
 
   /// Create progress stream by combining multiple Firestore streams
@@ -83,6 +108,8 @@ class TreeProgressService {
             computedFinalGrade: 5.00,
             midtermCompletions: [],
             finalCompletions: [],
+            activePeriodName: null,
+            activePeriodType: null,
           ),
         );
       }
@@ -103,6 +130,8 @@ class TreeProgressService {
             computedFinalGrade: 5.00,
             midtermCompletions: [],
             finalCompletions: [],
+            activePeriodName: null,
+            activePeriodType: null,
           ),
         );
       }
@@ -196,6 +225,12 @@ class TreeProgressService {
     try {
       String? semesterId;
 
+      // Get active period
+      final activePeriod = await _getActivePeriod();
+      final activePeriodType =
+          activePeriod?['type'] as String?; // 'Midterm' or 'Final'
+      final activePeriodName = activePeriod?['semesterName'] as String?;
+
       // Fetch all items grouped by category and period
       final itemsData = await _fetchAllItems(
         instructorId,
@@ -222,14 +257,20 @@ class TreeProgressService {
         isMidterm: false,
       );
 
-      // Calculate progress and computed final grade based on available data
-      final result = _calculateProgressFromItems(itemsData, studentGrades);
+      // Calculate progress based on active period
+      final result = _calculateProgressFromItems(
+        itemsData,
+        studentGrades,
+        activePeriodType: activePeriodType,
+      );
 
       return ProgressResult(
         progress: result['progress'] as double,
         computedFinalGrade: result['computedFinalGrade'] as double,
         midtermCompletions: midtermCompletions,
         finalCompletions: finalCompletions,
+        activePeriodName: activePeriodName,
+        activePeriodType: activePeriodType,
       );
     } catch (e) {
       print('❌ Error calculating tree progress: $e');
@@ -238,6 +279,8 @@ class TreeProgressService {
         computedFinalGrade: 5.00,
         midtermCompletions: [],
         finalCompletions: [],
+        activePeriodName: null,
+        activePeriodType: null,
       );
     }
   }
@@ -252,6 +295,8 @@ class TreeProgressService {
           computedFinalGrade: 5.00,
           midtermCompletions: [],
           finalCompletions: [],
+          activePeriodName: null,
+          activePeriodType: null,
         );
       }
 
@@ -263,6 +308,8 @@ class TreeProgressService {
           computedFinalGrade: 5.00,
           midtermCompletions: [],
           finalCompletions: [],
+          activePeriodName: null,
+          activePeriodType: null,
         );
       }
 
@@ -282,8 +329,16 @@ class TreeProgressService {
           computedFinalGrade: 5.00,
           midtermCompletions: [],
           finalCompletions: [],
+          activePeriodName: null,
+          activePeriodType: null,
         );
       }
+
+      // Get active period
+      final activePeriod = await _getActivePeriod();
+      final activePeriodType =
+          activePeriod?['type'] as String?; // 'Midterm' or 'Final'
+      final activePeriodName = activePeriod?['semesterName'] as String?;
 
       // Get current semester (you may need to fetch from semester settings)
       // For now, we'll fetch items without semester filter
@@ -315,14 +370,20 @@ class TreeProgressService {
         isMidterm: false,
       );
 
-      // Calculate progress and computed final grade based on available data
-      final result = _calculateProgressFromItems(itemsData, studentGrades);
+      // Calculate progress and computed final grade based on active period
+      final result = _calculateProgressFromItems(
+        itemsData,
+        studentGrades,
+        activePeriodType: activePeriodType,
+      );
 
       return ProgressResult(
         progress: result['progress'] as double,
         computedFinalGrade: result['computedFinalGrade'] as double,
         midtermCompletions: midtermCompletions,
         finalCompletions: finalCompletions,
+        activePeriodName: activePeriodName,
+        activePeriodType: activePeriodType,
       );
     } catch (e) {
       print('❌ Error calculating tree progress: $e');
@@ -331,6 +392,8 @@ class TreeProgressService {
         computedFinalGrade: 5.00,
         midtermCompletions: [],
         finalCompletions: [],
+        activePeriodName: null,
+        activePeriodType: null,
       );
     }
   }
@@ -768,10 +831,50 @@ class TreeProgressService {
   /// Calculate progress and computed final grade from items and student grades
   /// Uses Computed Final Grade (same as class record) instead of raw MGA
   /// Returns Map with 'progress' and 'computedFinalGrade'
+  /// If activePeriodType is provided, only calculates for that period
   Map<String, double> _calculateProgressFromItems(
     Map<String, dynamic> itemsData,
-    Map<String, double> studentGrades,
-  ) {
+    Map<String, double> studentGrades, {
+    String? activePeriodType,
+  }) {
+    // If active period is specified, only calculate for that period
+    if (activePeriodType == 'Midterm') {
+      // Only show midterm grades
+      final midtermMGA = _calculateMGA(
+        itemsData['classStandingItems'] as List<Map<String, dynamic>>,
+        itemsData['quizPrelimItems'] as List<Map<String, dynamic>>,
+        itemsData['midtermExamItems'] as List<Map<String, dynamic>>,
+        itemsData['pitItems'] as List<Map<String, dynamic>>,
+        studentGrades,
+      );
+
+      if (midtermMGA > 0) {
+        final midtermGradePoint = _mgaToGradePoint(midtermMGA);
+        final midtermGrade = _gradePointToGrade(midtermGradePoint);
+        final progress = _gradeToProgress(midtermGrade);
+        return {'progress': progress, 'computedFinalGrade': midtermGrade};
+      }
+      return {'progress': 0.0, 'computedFinalGrade': 5.00};
+    } else if (activePeriodType == 'Final') {
+      // Only show final grades
+      final finalMGA = _calculateMGA(
+        itemsData['finalClassStandingItems'] as List<Map<String, dynamic>>,
+        itemsData['finalQuizItems'] as List<Map<String, dynamic>>,
+        itemsData['finalExamItems'] as List<Map<String, dynamic>>,
+        itemsData['finalPitItems'] as List<Map<String, dynamic>>,
+        studentGrades,
+      );
+
+      if (finalMGA > 0) {
+        final finalGradePoint = _mgaToGradePoint(finalMGA);
+        final finalGrade = _gradePointToGrade(finalGradePoint);
+        final progress = _gradeToProgress(finalGrade);
+        return {'progress': progress, 'computedFinalGrade': finalGrade};
+      }
+      return {'progress': 0.0, 'computedFinalGrade': 5.00};
+    }
+
+    // No active period set - calculate combined (original behavior)
     // Calculate midterm MGA
     final midtermMGA = _calculateMGA(
       itemsData['classStandingItems'] as List<Map<String, dynamic>>,

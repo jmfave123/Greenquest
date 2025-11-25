@@ -113,7 +113,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
         break;
       default: // 'not_submitted'
         badgeColor = const Color(0xFF9E9E9E); // Gray
-        badgeText = 'Not Started';
+        badgeText = 'Not Yet Submitted';
         badgeIcon = Icons.radio_button_unchecked;
         break;
     }

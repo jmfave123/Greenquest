@@ -5,6 +5,7 @@ import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
+import 'widgets/period_management_card.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -1214,6 +1215,9 @@ class _AdminDashboardState extends State<AdminDashboard>
                                     ),
                                   ],
                                 ),
+                            const SizedBox(height: 24),
+                            // Period Management Card
+                            const PeriodManagementCard(),
                             const SizedBox(height: 24),
                             // Search and Filter
                             Container(

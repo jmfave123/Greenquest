@@ -144,6 +144,11 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
         directSubmissions.add({'id': doc.id, 'type': itemType, ...data});
       }
 
+      // Load enrolled students if section is specified
+      if (sectionId != null && sectionId.isNotEmpty) {
+        await submissionsController.loadEnrolledStudents(sectionId);
+      }
+
       // Update observables directly - async operations are done, build phase is complete
       submissionsController.submissions.assignAll(directSubmissions);
       submissionsController.updateStats();
@@ -173,8 +178,26 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
   }
 
   List<Map<String, dynamic>> _getFilteredSubmissions() {
-    // Return all submissions from controller
-    return submissionsController.submissions;
+    // If filter is "All", combine submissions and non-submitted students
+    if (submissionsController.selectedFilter.value == 'All') {
+      final allStudents = <Map<String, dynamic>>[];
+
+      // Add all submissions first
+      allStudents.addAll(submissionsController.submissions);
+
+      // Add students who haven't submitted
+      allStudents.addAll(submissionsController.getStudentsWithoutSubmission());
+
+      return allStudents;
+    }
+
+    // If filter is "Not Yet Submitted", return students without submissions
+    if (submissionsController.selectedFilter.value == 'Not Yet Submitted') {
+      return submissionsController.getStudentsWithoutSubmission();
+    }
+
+    // Otherwise return filtered submissions from controller
+    return submissionsController.filteredSubmissions;
   }
 
   Color _getStatusColor(String status) {
@@ -369,10 +392,11 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                                 ),
                                 const SizedBox(width: 16),
                                 _buildStatCard(
-                                  'Late',
-                                  submissionsController.submissionStats['late']
+                                  'Not Yet Submitted',
+                                  submissionsController
+                                      .submissionStats['notSubmitted']
                                       .toString(),
-                                  Icons.schedule,
+                                  Icons.cancel_outlined,
                                   Colors.red,
                                 ),
                               ],
@@ -380,6 +404,74 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
+
+                        // Filter Dropdown
+                        Obx(
+                          () => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.filter_list,
+                                  color: Color(0xFF34A853),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Filter:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DropdownButton<String>(
+                                    value:
+                                        submissionsController
+                                            .selectedFilter
+                                            .value,
+                                    isExpanded: true,
+                                    underline: const SizedBox(),
+                                    items:
+                                        submissionsController.filterOptions.map(
+                                          (String filter) {
+                                            return DropdownMenuItem<String>(
+                                              value: filter,
+                                              child: Text(
+                                                filter,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ).toList(),
+                                    onChanged: (String? newValue) {
+                                      if (newValue != null) {
+                                        submissionsController.setFilter(
+                                          newValue,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
 
                         // Submissions List
                         Expanded(
@@ -506,11 +598,24 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
   }
 
   Widget _buildSubmissionCard(Map<String, dynamic> submission) {
+    // Check if this is a student without submission
+    final bool isNotSubmitted =
+        submission['status'] == null &&
+        submission['files'] == null &&
+        submission['submittedAt'] == null;
+
+    if (isNotSubmitted) {
+      return _buildNotSubmittedCard(submission);
+    }
+
     final files = submission['files'] as List<dynamic>? ?? [];
     final submittedAt = submission['submittedAt'];
     final studentName = submission['studentName'] ?? 'Unknown Student';
     final studentId =
-        submission['studentIdNumber'] ?? submission['studentId'] ?? 'N/A';
+        submission['idNumber'] ??
+        submission['studentIdNumber'] ??
+        submission['studentId'] ??
+        'N/A';
     final status = submission['status'] ?? 'submitted';
     final grade = submission['grade'];
     final maxScore = widget.activityData['points'] ?? 100;
@@ -680,6 +785,118 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
             const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNotSubmittedCard(Map<String, dynamic> student) {
+    final studentName = student['studentName'] ?? 'Unknown Student';
+    // Try multiple possible ID field names
+    final studentId =
+        student['idNumber'] ??
+        student['studentIdNumber'] ??
+        student['studentId'] ??
+        'N/A';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Student Avatar - Greyed out
+          CircleAvatar(
+            radius: 25,
+            backgroundColor: Colors.grey.shade300,
+            child: Text(
+              studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Student Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      studentName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '($studentId)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'No submission yet',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red.shade600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Not Submitted Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.cancel_outlined,
+                  size: 16,
+                  color: Colors.red.shade700,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Not Submitted',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

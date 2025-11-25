@@ -22,8 +22,19 @@ class SubmissionsController extends GetxController {
   final RxString selectedFilter = 'All'.obs;
   final RxMap<String, int> submissionStats = <String, int>{}.obs;
 
+  // Students data for tracking who submitted/not submitted
+  final RxList<Map<String, dynamic>> enrolledStudents =
+      <Map<String, dynamic>>[].obs;
+  String? _currentActivityId;
+  String? _currentActivityType;
+
   // Filters
-  final List<String> filterOptions = ['All', 'Submitted', 'Graded', 'Late'];
+  final List<String> filterOptions = [
+    'All',
+    'Submitted',
+    'Not Yet Submitted',
+    'Graded',
+  ];
   final List<String> categoryOptions = [
     'All',
     'Activities',
@@ -47,7 +58,7 @@ class SubmissionsController extends GetxController {
       'total': 0,
       'submitted': 0,
       'graded': 0,
-      'late': 0,
+      'notSubmitted': 0,
       'pending': 0,
     };
   }
@@ -208,6 +219,11 @@ class SubmissionsController extends GetxController {
       }
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
+
+      // Load enrolled students if section is specified
+      if (sectionId != null && sectionId.isNotEmpty) {
+        await loadEnrolledStudents(sectionId);
+      }
 
       // Update observables directly - async operations are done, build phase is complete
       submissions.assignAll(loadedSubmissions);
@@ -393,6 +409,11 @@ class SubmissionsController extends GetxController {
       }
 
       print('  - Total loaded submissions: ${loadedSubmissions.length}');
+
+      // Load enrolled students if section is specified
+      if (sectionId != null && sectionId.isNotEmpty) {
+        await loadEnrolledStudents(sectionId);
+      }
 
       // Update observables directly - async operations are done, build phase is complete
       submissions.assignAll(loadedSubmissions);
@@ -610,22 +631,105 @@ class SubmissionsController extends GetxController {
     final graded = submissions.where((s) => s['status'] == 'graded').length;
     // Pending submissions are those with status 'submitted' (not yet graded)
     final pending = submissions.where((s) => s['status'] == 'submitted').length;
-    final late = submissions.where((s) => _isLateSubmission(s)).length;
+
+    // Calculate students who haven't submitted
+    // This is the count of enrolled students minus those who have submitted
+    final notSubmitted = enrolledStudents.length - submitted;
 
     submissionStats.value = {
-      'total': total,
+      'total':
+          submitted, // Total submissions (only those who submitted or graded)
       'submitted': submitted,
       'graded': graded,
-      'late': late,
+      'notSubmitted': notSubmitted >= 0 ? notSubmitted : 0,
       'pending': pending,
     };
   }
 
-  // Check if submission is late
-  bool _isLateSubmission(Map<String, dynamic> submission) {
-    // This would need to be implemented based on the assignment/activity due date
-    // For now, return false as a placeholder
-    return false;
+  /// Load enrolled students for a specific section
+  Future<void> loadEnrolledStudents(String? sectionId) async {
+    if (sectionId == null || sectionId.isEmpty) {
+      enrolledStudents.clear();
+      return;
+    }
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      List<Map<String, dynamic>> students = [];
+
+      // Load approved students from instructors/{instructorId}/students collection
+      final approvedStudentsSnapshot =
+          await _firestore
+              .collection('instructors')
+              .doc(user.uid)
+              .collection('students')
+              .where('selectedSectionCode', isEqualTo: sectionId)
+              .get();
+
+      for (var doc in approvedStudentsSnapshot.docs) {
+        final data = doc.data();
+        final studentId = data['studentId'] ?? doc.id;
+        final email = data['email'] ?? '';
+
+        // Fetch idNumber from users collection using email
+        String idNumber = 'N/A';
+        try {
+          if (email.isNotEmpty) {
+            final userQuery =
+                await _firestore
+                    .collection('users')
+                    .where('email', isEqualTo: email)
+                    .limit(1)
+                    .get();
+
+            if (userQuery.docs.isNotEmpty) {
+              final userData = userQuery.docs.first.data();
+              idNumber =
+                  userData['idNumber'] ?? userData['studentIdNumber'] ?? 'N/A';
+            }
+          }
+        } catch (e) {
+          print('⚠️ Could not fetch idNumber for email $email: $e');
+        }
+
+        students.add({
+          'id': doc.id,
+          'studentId': studentId,
+          'studentName': data['studentName'] ?? 'Unknown Student',
+          'email': email,
+          'idNumber': idNumber,
+          'selectedSectionCode': data['selectedSectionCode'] ?? sectionId,
+          'enrollmentStatus': 'approved',
+        });
+      }
+
+      enrolledStudents.assignAll(students);
+      print(
+        '📚 Loaded ${students.length} enrolled students for section: $sectionId',
+      );
+    } catch (e) {
+      print('❌ Error loading enrolled students: $e');
+      enrolledStudents.clear();
+    }
+  }
+
+  /// Get list of students who haven't submitted
+  List<Map<String, dynamic>> getStudentsWithoutSubmission() {
+    if (enrolledStudents.isEmpty) return [];
+
+    // Get student IDs who have submitted
+    final submittedStudentIds =
+        submissions
+            .map((s) => s['studentId']?.toString() ?? '')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+
+    // Filter enrolled students to find those who haven't submitted
+    return enrolledStudents
+        .where((student) => !submittedStudentIds.contains(student['studentId']))
+        .toList();
   }
 
   // Filter submissions
@@ -653,15 +757,21 @@ class SubmissionsController extends GetxController {
 
     // Apply status filter
     if (selectedFilter.value != 'All') {
+      if (selectedFilter.value == 'Not Yet Submitted') {
+        // Return empty list here - we'll handle "Not Yet Submitted" differently in the UI
+        // since these are students WITHOUT submissions
+        return [];
+      }
+
       filtered =
           filtered.where((submission) {
             switch (selectedFilter.value) {
               case 'Submitted':
-                return submission['status'] == 'submitted';
+                // Show both submitted and graded (all who have submitted)
+                return submission['status'] == 'submitted' ||
+                    submission['status'] == 'graded';
               case 'Graded':
                 return submission['status'] == 'graded';
-              case 'Late':
-                return _isLateSubmission(submission);
               default:
                 return true;
             }
