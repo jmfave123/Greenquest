@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../services/file_upload_service.dart';
@@ -12,6 +13,7 @@ class FileSubmissionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FileUploadService _fileUploadService = FileUploadService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   // Observable variables
   final RxBool isUploading = false.obs;
@@ -59,6 +61,53 @@ class FileSubmissionController extends GetxController {
       Get.snackbar(
         'Error',
         'Failed to pick files: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  // Take photo using camera
+  Future<void> takePhoto() async {
+    try {
+      errorMessage.value = '';
+
+      final XFile? photo = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+        maxWidth: 1920,
+        maxHeight: 1080,
+      );
+
+      if (photo != null) {
+        // Convert XFile to PlatformFile
+        final bytes = await photo.readAsBytes();
+        final platformFile = PlatformFile(
+          name: photo.name,
+          size: bytes.length,
+          bytes: bytes,
+          path: photo.path,
+        );
+
+        selectedFiles.add(platformFile);
+        log('✅ Photo captured and added to selection');
+
+        Get.snackbar(
+          'Photo Captured',
+          'Photo added successfully',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+      }
+    } catch (e) {
+      log('❌ Error taking photo: $e');
+      errorMessage.value = 'Failed to take photo: $e';
+      Get.snackbar(
+        'Error',
+        'Failed to take photo: $e',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,

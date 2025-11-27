@@ -25,6 +25,13 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
   DateTime _selectedDate = DateTime.now();
 
   @override
+  void initState() {
+    super.initState();
+    // Load tree submissions when screen opens
+    _controller.loadMyTreeSubmissions();
+  }
+
+  @override
   void dispose() {
     _quantityController.dispose();
     _locationController.dispose();
@@ -140,6 +147,9 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
           backgroundColor: const Color(0xFF34A853),
           colorText: Colors.white,
         );
+
+        // Reload submissions to show the new one
+        await _controller.loadMyTreeSubmissions();
 
         // Clear form
         _quantityController.clear();
@@ -351,42 +361,88 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
             Obx(
               () =>
                   _fileController.selectedFiles.isEmpty
-                      ? GestureDetector(
-                        onTap: () async {
-                          await _fileController.pickFiles();
-                          setState(() {});
-                        },
-                        child: Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.grey.shade300,
-                              width: 2,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            color: Colors.grey.shade50,
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.add_photo_alternate,
-                                  size: 40,
-                                  color: Colors.grey.shade400,
+                      ? Column(
+                        children: [
+                          // Camera Button
+                          GestureDetector(
+                            onTap: () async {
+                              await _fileController.takePhoto();
+                              setState(() {});
+                            },
+                            child: Container(
+                              height: 80,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFF34A853),
+                                  width: 2,
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Tap to upload photos',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade600,
-                                  ),
+                                borderRadius: BorderRadius.circular(12),
+                                color: const Color(0xFF34A853).withOpacity(0.1),
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.camera_alt,
+                                      size: 32,
+                                      color: Color(0xFF34A853),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Take Photo',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          // Gallery Button
+                          GestureDetector(
+                            onTap: () async {
+                              await _fileController.pickFiles();
+                              setState(() {});
+                            },
+                            child: Container(
+                              height: 80,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.grey.shade50,
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.photo_library,
+                                      size: 32,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Choose from Gallery',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       )
                       : Column(
                         children: [
@@ -438,19 +494,42 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
                             },
                           ),
                           const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: () async {
-                              await _fileController.pickFiles();
-                              setState(() {});
-                            },
-                            icon: const Icon(
-                              Icons.add,
-                              color: Color(0xFF34A853),
-                            ),
-                            label: const Text(
-                              'Add More Photos',
-                              style: TextStyle(color: Color(0xFF34A853)),
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton.icon(
+                                  onPressed: () async {
+                                    await _fileController.takePhoto();
+                                    setState(() {});
+                                  },
+                                  icon: const Icon(
+                                    Icons.camera_alt,
+                                    color: Color(0xFF34A853),
+                                  ),
+                                  label: const Text(
+                                    'Take Photo',
+                                    style: TextStyle(color: Color(0xFF34A853)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextButton.icon(
+                                  onPressed: () async {
+                                    await _fileController.pickFiles();
+                                    setState(() {});
+                                  },
+                                  icon: const Icon(
+                                    Icons.photo_library,
+                                    color: Color(0xFF34A853),
+                                  ),
+                                  label: const Text(
+                                    'Add from Gallery',
+                                    style: TextStyle(color: Color(0xFF34A853)),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

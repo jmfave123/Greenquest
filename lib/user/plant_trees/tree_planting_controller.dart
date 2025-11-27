@@ -122,7 +122,6 @@ class TreePlantingController extends GetxController {
               .collection('submissions')
               .where('activityType', isEqualTo: 'tree_planting')
               .where('studentId', isEqualTo: user.uid)
-              .orderBy('submittedAt', descending: true)
               .get();
 
       final submissions =
@@ -130,6 +129,16 @@ class TreePlantingController extends GetxController {
             final data = doc.data();
             return {'id': doc.id, ...data};
           }).toList();
+
+      // Sort by submittedAt in memory to avoid Firebase index requirement
+      submissions.sort((a, b) {
+        final aTime = a['submittedAt'] as Timestamp?;
+        final bTime = b['submittedAt'] as Timestamp?;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime); // Descending order
+      });
 
       myTreeSubmissions.value = submissions;
 
