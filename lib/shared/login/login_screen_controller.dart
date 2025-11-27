@@ -228,29 +228,38 @@ class LoginScreenController extends GetxController {
           final isActive = instructorData['isActive'] ?? false;
           final isPhoneVerified = instructorData['isPhoneVerified'] ?? false;
 
-          if (status == 'Approved' && isActive) {
-            userType = 'instructor';
-            debugPrint('Found approved instructor');
-
-            // Check if phone is verified (required for first login after approval)
-            if (!isPhoneVerified) {
-              debugPrint(
-                'Instructor phone not verified. Redirecting to OTP verification.',
-              );
-              // Set user as online (will be set again after OTP verification)
-              await OnlineStatusService().setOnline();
-
-              // Navigate to phone OTP verification screen
-              Get.offAllNamed('/instructor-phone-otp-verification');
-              return;
-            }
-          } else {
-            debugPrint(
-              'Instructor not approved yet. Status: $status, Active: $isActive',
-            );
+          // Check if account is not approved
+          if (status != 'Approved') {
+            debugPrint('Instructor not approved. Status: $status');
             errorMessage.value =
                 'Your instructor account is pending admin approval. Please wait for approval before logging in.';
-            await _auth.signOut(); // Sign out from Firebase Auth
+            await _auth.signOut();
+            return;
+          }
+
+          // Check if account is inactive
+          if (!isActive) {
+            debugPrint('Instructor account is inactive');
+            errorMessage.value =
+                'Your account has been deactivated. Please contact the administrator for assistance.';
+            await _auth.signOut();
+            return;
+          }
+
+          // Account is approved and active
+          userType = 'instructor';
+          debugPrint('Found approved and active instructor');
+
+          // Check if phone is verified (required for first login after approval)
+          if (!isPhoneVerified) {
+            debugPrint(
+              'Instructor phone not verified. Redirecting to OTP verification.',
+            );
+            // Set user as online (will be set again after OTP verification)
+            await OnlineStatusService().setOnline();
+
+            // Navigate to phone OTP verification screen
+            Get.offAllNamed('/instructor-phone-otp-verification');
             return;
           }
         }

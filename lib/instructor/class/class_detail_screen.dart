@@ -20,6 +20,8 @@ import '../topics/topic_controller.dart';
 import 'class_screen_controller.dart';
 import '../instructor_dashboard_controller.dart';
 import '../../user/materials/materials_detail_screen.dart';
+import '../../shared/services/notify_service.dart';
+import '../../shared/services/in_app_notification_service.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   final Map<String, dynamic> classData;
@@ -4208,6 +4210,49 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               'gradedBy': FirebaseAuth.instance.currentUser?.uid,
             });
 
+        // Send push notification to student
+        final studentId = submission['studentId'];
+        if (studentId != null) {
+          try {
+            final playerId = await OneSignalHelper.getPlayerIdForUser(
+              studentId,
+            );
+            if (playerId != null) {
+              await NotifServices.sendIndividualNotification(
+                playerId: playerId,
+                heading: '🌳 Tree Planting Approved!',
+                content:
+                    result['feedback'].isEmpty
+                        ? 'Your tree planting submission has been approved. Great work!'
+                        : 'Your tree planting has been approved! Feedback: ${result['feedback']}',
+              );
+            }
+
+            // Create in-app notification
+            final instructorName = _instructorController.instructorName.value;
+            await InAppNotificationService.createIndividualNotification(
+              type: 'tree_approved',
+              instructorId: FirebaseAuth.instance.currentUser?.uid ?? '',
+              instructorName: instructorName,
+              itemId: submission['id'],
+              title: 'Tree Planting Approved',
+              targetUserIds: [studentId],
+              description:
+                  result['feedback'].isEmpty
+                      ? 'Your tree planting submission (${submission['quantity']} trees) has been approved. Great work!'
+                      : 'Your tree planting (${submission['quantity']} trees) has been approved! Feedback: ${result['feedback']}',
+              metadata: {
+                'quantity': submission['quantity'],
+                'location': submission['location'],
+                'plantDate': submission['plantDate'],
+                'status': 'approved',
+              },
+            );
+          } catch (e) {
+            print('Error sending notification: $e');
+          }
+        }
+
         Get.snackbar(
           'Success',
           'Tree planting approved',
@@ -4254,6 +4299,46 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               'gradedAt': FieldValue.serverTimestamp(),
               'gradedBy': FirebaseAuth.instance.currentUser?.uid,
             });
+
+        // Send push notification to student
+        final studentId = submission['studentId'];
+        if (studentId != null) {
+          try {
+            final playerId = await OneSignalHelper.getPlayerIdForUser(
+              studentId,
+            );
+            if (playerId != null) {
+              await NotifServices.sendIndividualNotification(
+                playerId: playerId,
+                heading: '🌳 Tree Planting Needs Revision',
+                content:
+                    'Your tree planting submission was not accepted. Reason: ${result['feedback']}',
+              );
+            }
+
+            // Create in-app notification
+            final instructorName = _instructorController.instructorName.value;
+            await InAppNotificationService.createIndividualNotification(
+              type: 'tree_rejected',
+              instructorId: FirebaseAuth.instance.currentUser?.uid ?? '',
+              instructorName: instructorName,
+              itemId: submission['id'],
+              title: 'Tree Planting Needs Revision',
+              targetUserIds: [studentId],
+              description:
+                  'Your tree planting submission (${submission['quantity']} trees) needs revision. Reason: ${result['feedback']}',
+              metadata: {
+                'quantity': submission['quantity'],
+                'location': submission['location'],
+                'plantDate': submission['plantDate'],
+                'status': 'rejected',
+                'feedback': result['feedback'],
+              },
+            );
+          } catch (e) {
+            print('Error sending notification: $e');
+          }
+        }
 
         Get.snackbar(
           'Success',

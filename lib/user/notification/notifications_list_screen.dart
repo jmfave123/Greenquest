@@ -41,6 +41,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         return const Color(0xFFFF9800);
       case 'material':
         return const Color(0xFF34A853);
+      case 'tree_approved':
+        return const Color(0xFF34A853);
+      case 'tree_rejected':
+        return Colors.orange;
       default:
         return const Color(0xFF34A853);
     }
@@ -58,6 +62,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
         return Icons.engineering;
       case 'material':
         return Icons.book;
+      case 'tree_approved':
+        return Icons.eco;
+      case 'tree_rejected':
+        return Icons.eco;
       default:
         return Icons.notifications;
     }
@@ -258,6 +266,15 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                   .doc(itemId)
                   .get();
           break;
+        case 'tree_approved':
+        case 'tree_rejected':
+          // For tree notifications, get from submissions collection
+          doc =
+              await FirebaseFirestore.instance
+                  .collection('submissions')
+                  .doc(itemId)
+                  .get();
+          break;
         default:
           Get.back(); // Close loading dialog
           Get.snackbar(
@@ -336,6 +353,11 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           // Show announcement dialog and update views
           _showAnnouncementDialogFromNotification(data, instructorId);
           break;
+        case 'tree_approved':
+        case 'tree_rejected':
+          // Show tree submission details dialog
+          _showTreeSubmissionDialog(data);
+          break;
       }
     } catch (e) {
       Get.back(); // Close loading dialog
@@ -385,6 +407,277 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
     // Show the announcement dialog
     _showAnnouncementDialogInNotifications(announcementData);
+  }
+
+  // Show tree submission details dialog
+  void _showTreeSubmissionDialog(Map<String, dynamic> submission) {
+    final status = submission['status'] ?? 'submitted';
+    final quantity = submission['quantity'] ?? 0;
+    final location = submission['location'] ?? 'Unknown location';
+    final feedback = submission['feedback'] ?? '';
+    final plantDate = submission['plantDate'];
+    final files = submission['files'] as List<dynamic>? ?? [];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxWidth: 500,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors:
+                          status == 'approved'
+                              ? [
+                                const Color(0xFF34A853),
+                                const Color(0xFF28863D),
+                              ]
+                              : [Colors.orange, Colors.deepOrange],
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        status == 'approved'
+                            ? Icons.check_circle
+                            : Icons.info_outline,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              status == 'approved'
+                                  ? '🌳 Tree Planting Approved!'
+                                  : '🌳 Tree Planting Needs Revision',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$quantity tree(s)',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                // Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Location
+                        _buildDetailRow(
+                          Icons.location_on,
+                          'Location',
+                          location,
+                        ),
+                        const SizedBox(height: 16),
+                        // Plant Date
+                        if (plantDate != null)
+                          _buildDetailRow(
+                            Icons.calendar_today,
+                            'Plant Date',
+                            _formatTimestamp(plantDate),
+                          ),
+                        if (plantDate != null) const SizedBox(height: 16),
+                        // Feedback
+                        if (feedback.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color:
+                                  status == 'approved'
+                                      ? Colors.green.shade50
+                                      : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color:
+                                    status == 'approved'
+                                        ? Colors.green.shade200
+                                        : Colors.orange.shade200,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.feedback,
+                                      size: 20,
+                                      color:
+                                          status == 'approved'
+                                              ? Colors.green
+                                              : Colors.orange,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      status == 'approved'
+                                          ? 'Feedback'
+                                          : 'Reason for Revision',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color:
+                                            status == 'approved'
+                                                ? Colors.green.shade900
+                                                : Colors.orange.shade900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  feedback,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        // Evidence Photos
+                        if (files.isNotEmpty) ...[
+                          const Text(
+                            'Evidence Photos',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                ),
+                            itemCount: files.length,
+                            itemBuilder: (context, index) {
+                              final file = files[index];
+                              final fileUrl = file['url'] ?? '';
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  fileUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(Icons.broken_image),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                // Close button
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF34A853),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Close',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: const Color(0xFF34A853)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   // Show announcement dialog (extracted from announcement_screen_wrapper)
