@@ -39,14 +39,8 @@ class LeaderboardController extends GetxController {
       final instructorId = instructorInfo['instructorId']!;
       currentInstructorId.value = instructorId;
 
-      // Load total points leaderboard (All)
-      await _loadTotalLeaderboard(instructorId);
-
-      // Load quizzes leaderboard
-      await _loadQuizzesLeaderboard(instructorId);
-
-      // Load activities leaderboard
-      await _loadActivitiesLeaderboard(instructorId);
+      // Load all leaderboards in parallel using optimized queries
+      await _loadAllLeaderboardsOptimized(instructorId);
     } catch (e) {
       print('Error loading leaderboard data: $e');
     } finally {
@@ -81,255 +75,140 @@ class LeaderboardController extends GetxController {
     }
   }
 
-  /// Load total points leaderboard (All submissions)
-  Future<void> _loadTotalLeaderboard(String instructorId) async {
+  /// Optimized method to load all leaderboards with minimal queries
+  Future<void> _loadAllLeaderboardsOptimized(String instructorId) async {
     try {
-      // Get all students enrolled with this instructor
+      // Step 1: Get all students for this instructor (1 query)
       final studentsQuery =
           await _firestore
               .collection('users')
               .where('selectedInstructorId', isEqualTo: instructorId)
               .get();
 
-      List<Map<String, dynamic>> studentsWithPoints = [];
-
-      for (var studentDoc in studentsQuery.docs) {
-        final studentData = studentDoc.data();
-        final studentId = studentDoc.id;
-
-        // Calculate total points from all submissions
-        int totalPoints = await _calculateTotalPoints(studentId, instructorId);
-
-        studentsWithPoints.add({
-          'name':
-              (studentData['fullName'] as String?) ??
-              (studentData['name'] as String?) ??
-              'Unknown Student',
-          'class':
-              (studentData['selectedSectionCode'] as String?) ??
-              (studentData['sectionCode'] as String?) ??
-              'Unknown Class',
-          'points': totalPoints,
-          'profileImageUrl':
-              (studentData['profileImage'] as String?) ??
-              (studentData['profileImageUrl'] as String?) ??
-              (studentData['profileUrl']
-                  as String?), // Will use initials fallback
-          'initials': _getInitials(
-            studentData['fullName'] ?? studentData['name'] ?? 'Unknown Student',
-          ),
-        });
+      if (studentsQuery.docs.isEmpty) {
+        leaderboardData['All'] = [];
+        leaderboardData['Quizzes'] = [];
+        leaderboardData['Activities'] = [];
+        return;
       }
 
-      // Sort by points (highest first)
-      studentsWithPoints.sort(
-        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
-      );
-
-      leaderboardData['All'] = studentsWithPoints;
-    } catch (e) {
-      print('Error loading total leaderboard: $e');
-      leaderboardData['All'] = [];
-    }
-  }
-
-  /// Load quizzes leaderboard
-  Future<void> _loadQuizzesLeaderboard(String instructorId) async {
-    try {
-      // Get all students enrolled with this instructor
-      final studentsQuery =
-          await _firestore
-              .collection('users')
-              .where('selectedInstructorId', isEqualTo: instructorId)
-              .get();
-
-      List<Map<String, dynamic>> studentsWithPoints = [];
-
-      for (var studentDoc in studentsQuery.docs) {
-        final studentData = studentDoc.data();
-        final studentId = studentDoc.id;
-
-        // Calculate points from quiz submissions only
-        int quizPoints = await _calculateQuizPoints(studentId, instructorId);
-
-        studentsWithPoints.add({
-          'name':
-              (studentData['fullName'] as String?) ??
-              (studentData['name'] as String?) ??
-              'Unknown Student',
-          'class':
-              (studentData['selectedSectionCode'] as String?) ??
-              (studentData['sectionCode'] as String?) ??
-              'Unknown Class',
-          'points': quizPoints,
-          'profileImageUrl':
-              (studentData['profileImage'] as String?) ??
-              (studentData['profileImageUrl'] as String?) ??
-              (studentData['profileUrl']
-                  as String?), // Will use initials fallback
-          'initials': _getInitials(
-            studentData['fullName'] ?? studentData['name'] ?? 'Unknown Student',
-          ),
-        });
-      }
-
-      // Sort by points (highest first)
-      studentsWithPoints.sort(
-        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
-      );
-
-      leaderboardData['Quizzes'] = studentsWithPoints;
-    } catch (e) {
-      print('Error loading quizzes leaderboard: $e');
-      leaderboardData['Quizzes'] = [];
-    }
-  }
-
-  /// Load activities leaderboard
-  Future<void> _loadActivitiesLeaderboard(String instructorId) async {
-    try {
-      // Get all students enrolled with this instructor
-      final studentsQuery =
-          await _firestore
-              .collection('users')
-              .where('selectedInstructorId', isEqualTo: instructorId)
-              .get();
-
-      List<Map<String, dynamic>> studentsWithPoints = [];
-
-      for (var studentDoc in studentsQuery.docs) {
-        final studentData = studentDoc.data();
-        final studentId = studentDoc.id;
-
-        // Calculate points from activity submissions only
-        int activityPoints = await _calculateActivityPoints(
-          studentId,
-          instructorId,
-        );
-
-        studentsWithPoints.add({
-          'name':
-              (studentData['fullName'] as String?) ??
-              (studentData['name'] as String?) ??
-              'Unknown Student',
-          'class':
-              (studentData['selectedSectionCode'] as String?) ??
-              (studentData['sectionCode'] as String?) ??
-              'Unknown Class',
-          'points': activityPoints,
-          'profileImageUrl':
-              (studentData['profileImage'] as String?) ??
-              (studentData['profileImageUrl'] as String?) ??
-              (studentData['profileUrl']
-                  as String?), // Will use initials fallback
-          'initials': _getInitials(
-            studentData['fullName'] ?? studentData['name'] ?? 'Unknown Student',
-          ),
-        });
-      }
-
-      // Sort by points (highest first)
-      studentsWithPoints.sort(
-        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
-      );
-
-      leaderboardData['Activities'] = studentsWithPoints;
-    } catch (e) {
-      print('Error loading activities leaderboard: $e');
-      leaderboardData['Activities'] = [];
-    }
-  }
-
-  /// Calculate total points for a student from all submissions
-  Future<int> _calculateTotalPoints(
-    String studentId,
-    String instructorId,
-  ) async {
-    try {
-      int totalPoints = 0;
-
-      // Get all submissions from unified collection (single query)
+      // Step 2: Get ALL submissions for this instructor in one query
       final allSubmissions =
           await _firestore
               .collection('submissions')
-              .where('studentId', isEqualTo: studentId)
               .where('instructorId', isEqualTo: instructorId)
               .get();
 
-      for (var doc in allSubmissions.docs) {
-        final data = doc.data();
+      // Step 3: Build points map for each student by category
+      Map<String, Map<String, int>> studentPoints = {};
+
+      for (var submissionDoc in allSubmissions.docs) {
+        final data = submissionDoc.data();
+        final studentId = data['studentId'] as String?;
+        final activityType = data['activityType'] as String?;
         final grade = data['grade'];
-        if (grade != null && grade is num) {
-          totalPoints += grade.toInt();
+
+        if (studentId == null || grade == null) continue;
+
+        final points = (grade is num) ? grade.toInt() : 0;
+
+        // Initialize student entry if not exists
+        if (!studentPoints.containsKey(studentId)) {
+          studentPoints[studentId] = {'total': 0, 'quiz': 0, 'activity': 0};
+        }
+
+        // Add points to total
+        studentPoints[studentId]!['total'] =
+            (studentPoints[studentId]!['total'] ?? 0) + points;
+
+        // Add points to specific category
+        if (activityType == 'quiz') {
+          studentPoints[studentId]!['quiz'] =
+              (studentPoints[studentId]!['quiz'] ?? 0) + points;
+        } else if (activityType == 'activity') {
+          studentPoints[studentId]!['activity'] =
+              (studentPoints[studentId]!['activity'] ?? 0) + points;
         }
       }
 
-      return totalPoints;
-    } catch (e) {
-      print('Error calculating total points: $e');
-      return 0;
-    }
-  }
+      // Step 4: Build leaderboard lists
+      List<Map<String, dynamic>> allLeaderboard = [];
+      List<Map<String, dynamic>> quizLeaderboard = [];
+      List<Map<String, dynamic>> activityLeaderboard = [];
 
-  /// Calculate points from quiz submissions only
-  Future<int> _calculateQuizPoints(
-    String studentId,
-    String instructorId,
-  ) async {
-    try {
-      int points = 0;
+      for (var studentDoc in studentsQuery.docs) {
+        final studentData = studentDoc.data();
+        final studentId = studentDoc.id;
+        final studentName =
+            (studentData['fullName'] as String?) ??
+            (studentData['name'] as String?) ??
+            'Unknown Student';
 
-      final quizSubmissions =
-          await _firestore
-              .collection('submissions')
-              .where('activityType', isEqualTo: 'quiz')
-              .where('studentId', isEqualTo: studentId)
-              .where('instructorId', isEqualTo: instructorId)
-              .get();
+        final studentClass =
+            (studentData['selectedSectionCode'] as String?) ??
+            (studentData['sectionCode'] as String?) ??
+            'Unknown Class';
 
-      for (var doc in quizSubmissions.docs) {
-        final data = doc.data();
-        final grade = data['grade'];
-        if (grade != null && grade is num) {
-          points += grade.toInt();
-        }
+        final profileImageUrl =
+            (studentData['profileImage'] as String?) ??
+            (studentData['profileImageUrl'] as String?) ??
+            (studentData['profileUrl'] as String?);
+
+        final initials = _getInitials(studentName);
+
+        // Get points for this student (default to 0 if no submissions)
+        final totalPoints = studentPoints[studentId]?['total'] ?? 0;
+        final quizPoints = studentPoints[studentId]?['quiz'] ?? 0;
+        final activityPoints = studentPoints[studentId]?['activity'] ?? 0;
+
+        // Add to all leaderboard
+        allLeaderboard.add({
+          'name': studentName,
+          'class': studentClass,
+          'points': totalPoints,
+          'profileImageUrl': profileImageUrl,
+          'initials': initials,
+        });
+
+        // Add to quiz leaderboard
+        quizLeaderboard.add({
+          'name': studentName,
+          'class': studentClass,
+          'points': quizPoints,
+          'profileImageUrl': profileImageUrl,
+          'initials': initials,
+        });
+
+        // Add to activity leaderboard
+        activityLeaderboard.add({
+          'name': studentName,
+          'class': studentClass,
+          'points': activityPoints,
+          'profileImageUrl': profileImageUrl,
+          'initials': initials,
+        });
       }
 
-      return points;
+      // Step 5: Sort all leaderboards by points (highest first)
+      allLeaderboard.sort(
+        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
+      );
+      quizLeaderboard.sort(
+        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
+      );
+      activityLeaderboard.sort(
+        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
+      );
+
+      // Step 6: Update observable data
+      leaderboardData['All'] = allLeaderboard;
+      leaderboardData['Quizzes'] = quizLeaderboard;
+      leaderboardData['Activities'] = activityLeaderboard;
     } catch (e) {
-      print('Error calculating quiz points: $e');
-      return 0;
-    }
-  }
-
-  /// Calculate points from activity submissions only
-  Future<int> _calculateActivityPoints(
-    String studentId,
-    String instructorId,
-  ) async {
-    try {
-      int points = 0;
-
-      final activitySubmissions =
-          await _firestore
-              .collection('submissions')
-              .where('activityType', isEqualTo: 'activity')
-              .where('studentId', isEqualTo: studentId)
-              .where('instructorId', isEqualTo: instructorId)
-              .get();
-
-      for (var doc in activitySubmissions.docs) {
-        final data = doc.data();
-        final grade = data['grade'];
-        if (grade != null && grade is num) {
-          points += grade.toInt();
-        }
-      }
-
-      return points;
-    } catch (e) {
-      print('Error calculating activity points: $e');
-      return 0;
+      print('Error loading optimized leaderboards: $e');
+      leaderboardData['All'] = [];
+      leaderboardData['Quizzes'] = [];
+      leaderboardData['Activities'] = [];
     }
   }
 

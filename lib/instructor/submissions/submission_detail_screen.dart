@@ -165,6 +165,9 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
   }
 
   void _showSnackBar(String message, Color color) {
+    // Check if widget is still mounted before accessing context
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -262,8 +265,6 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     }
 
     try {
-      _showSnackBar('Opening file preview...', const Color(0xFF34A853));
-
       // Handle web and mobile platforms differently
       if (kIsWeb) {
         // For web: Open in new tab without pausing the app
@@ -271,11 +272,6 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
         try {
           // Open file in new tab - this won't pause the Flutter app
           html.window.open(url, '_blank');
-
-          // Successfully attempted to open
-          // Note: We can't reliably detect if popup was blocked, but this is the
-          // best approach that doesn't pause the app
-          _showSnackBar('File opened in new tab', const Color(0xFF34A853));
         } catch (e) {
           // If window.open fails completely, show dialog with link
           print('window.open failed: $e');
@@ -293,7 +289,6 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
         if (await canLaunchUrl(uri)) {
           // Launch the URL in the default browser for preview
           await launchUrl(uri, mode: LaunchMode.externalApplication);
-          _showSnackBar('File opened in browser', const Color(0xFF34A853));
         } else {
           // Fallback: Show dialog with URL
           _showPreviewDialog(url);
@@ -308,6 +303,9 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
   }
 
   void _showPreviewDialog(String url) {
+    // Check if widget is still mounted before showing dialog
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder:
@@ -387,6 +385,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       _showSnackBar('Downloading $fileName...', const Color(0xFF34A853));
 
       // Show progress dialog
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -413,7 +412,9 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       );
 
       // Close progress dialog
-      Navigator.of(context).pop();
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
 
       if (filePath != null) {
         _showSnackBar(
@@ -425,7 +426,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       }
     } catch (e) {
       // Close progress dialog if it's open
-      if (Navigator.of(context).canPop()) {
+      if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
 
@@ -436,6 +437,9 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
   }
 
   void _showDownloadDialog(String url, String fileName) {
+    // Check if widget is still mounted before showing dialog
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder:

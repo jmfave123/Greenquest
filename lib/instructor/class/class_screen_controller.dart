@@ -499,6 +499,7 @@ class ClassController extends GetxController {
             'enrollmentStatus': enrollmentStatus,
             'isOnline': data['isOnline'] ?? false,
             'lastSeen': data['lastSeen'],
+            'corUrl': data['corUrl'] ?? '',
             'source': 'users', // For audit tracking
           });
         }
@@ -534,6 +535,7 @@ class ClassController extends GetxController {
             'enrollmentStatus': 'approved',
             'isOnline': data['isOnline'] ?? false,
             'lastSeen': data['lastSeen'],
+            'corUrl': data['corUrl'] ?? '',
             'source': 'instructor_students', // For audit tracking
           });
         }
@@ -648,6 +650,7 @@ class ClassController extends GetxController {
               'studentName': studentName,
               'email': studentData['email'] ?? '',
               'selectedSectionCode': studentData['selectedSectionCode'] ?? '',
+              'corUrl': studentData['corUrl'] ?? '',
               'enrollmentStatus': 'approved',
               'enrolledAt': FieldValue.serverTimestamp(),
               'approvedAt': FieldValue.serverTimestamp(),

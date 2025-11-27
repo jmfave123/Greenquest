@@ -64,6 +64,8 @@ class CreateController extends GetxController {
     String? period,
     List<String>? attachments,
     String? category,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -95,6 +97,11 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'Assignment',
+        if (topicId != null && topicId.isNotEmpty) 'topicId': topicId,
+        if (topicName != null &&
+            topicName.isNotEmpty &&
+            topicName != 'No Topic')
+          'topicName': topicName,
         // Add assigned semester data
         if (semester != null) 'assignedSemester': semester,
       };
@@ -167,6 +174,8 @@ class CreateController extends GetxController {
     String? period,
     List<String>? attachments,
     String? category,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -198,6 +207,9 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'Activity',
+        // Add topic data
+        if (topicId != null) 'topicId': topicId,
+        if (topicName != null) 'topicName': topicName,
         // Add assigned semester data
         if (semester != null) 'assignedSemester': semester,
       };
@@ -373,6 +385,8 @@ class CreateController extends GetxController {
     String? period,
     List<String>? attachments,
     String? category,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -404,6 +418,11 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'PIT',
+        if (topicId != null && topicId.isNotEmpty) 'topicId': topicId,
+        if (topicName != null &&
+            topicName.isNotEmpty &&
+            topicName != 'No Topic')
+          'topicName': topicName,
         // Add assigned semester data
         if (semester != null) 'assignedSemester': semester,
       };
@@ -698,6 +717,8 @@ class CreateController extends GetxController {
             'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
+            'topicId': data['topicId'], // Include topic ID
+            'topicName': data['topicName'], // Include topic name
           });
         }
       } catch (e) {
@@ -740,6 +761,8 @@ class CreateController extends GetxController {
             'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
+            'topicId': data['topicId'], // Include topic ID
+            'topicName': data['topicName'], // Include topic name
           });
         }
       } catch (e) {
@@ -782,6 +805,8 @@ class CreateController extends GetxController {
             'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
+            'topicId': data['topicId'], // Include topic ID
+            'topicName': data['topicName'], // Include topic name
           });
         }
       } catch (e) {
@@ -824,6 +849,8 @@ class CreateController extends GetxController {
             'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
             'category': data['category'], // Include category for editing
+            'topicId': data['topicId'], // Include topic ID
+            'topicName': data['topicName'], // Include topic name
           });
         }
       } catch (e) {
@@ -857,6 +884,8 @@ class CreateController extends GetxController {
             'createdAt': _formatDate(data['createdAt']) ?? 'Unknown',
             'createdAtRaw': createdAtRaw,
             'status': data['status'] ?? 'active',
+            'topicId': data['topicId'], // Include topic ID
+            'topicName': data['topicName'], // Include topic name
           });
         }
       } catch (e) {
@@ -1029,6 +1058,8 @@ class CreateController extends GetxController {
     String? period,
     String? category,
     List<String>? attachments,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -1044,6 +1075,11 @@ class CreateController extends GetxController {
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
         if (category != null) 'category': category,
+        if (topicId != null && topicId.isNotEmpty) 'topicId': topicId,
+        if (topicName != null &&
+            topicName.isNotEmpty &&
+            topicName != 'No Topic')
+          'topicName': topicName,
       };
 
       final user = _auth.currentUser;
@@ -1098,6 +1134,8 @@ class CreateController extends GetxController {
     String? period,
     String? category,
     List<String>? attachments,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -1113,6 +1151,8 @@ class CreateController extends GetxController {
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
         if (category != null) 'category': category,
+        if (topicId != null) 'topicId': topicId,
+        if (topicName != null) 'topicName': topicName,
       };
 
       final user = _auth.currentUser;
@@ -1236,6 +1276,8 @@ class CreateController extends GetxController {
     String? period,
     String? category,
     List<String>? attachments,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -1251,6 +1293,11 @@ class CreateController extends GetxController {
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
         if (category != null) 'category': category,
+        if (topicId != null && topicId.isNotEmpty) 'topicId': topicId,
+        if (topicName != null &&
+            topicName.isNotEmpty &&
+            topicName != 'No Topic')
+          'topicName': topicName,
       };
 
       final user = _auth.currentUser;

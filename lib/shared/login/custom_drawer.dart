@@ -8,6 +8,7 @@ import '../../../user/home_screen.dart';
 import '../../../user/message/message_list_screen.dart';
 import '../../../user/leaderboard/leaderboard_screen.dart';
 import '../../../user/notification/announcement_screen_wrapper.dart';
+import '../../../user/plant_trees/plant_trees_screen.dart';
 
 class CustomDrawer extends StatefulWidget {
   final int selectedIndex;
@@ -36,6 +37,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
       'icon': 'assets/icons/material-symbols-light_leaderboard-rounded.png',
     },
     {'label': 'Materials', 'icon': 'assets/icons/mage_book-fill.png'},
+    {'label': 'Plant Trees', 'icon': 'plant_trees'},
     {'label': 'Profile', 'icon': 'assets/icons/mingcute_user-3-fill.png'},
   ];
 
@@ -87,6 +89,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         Get.to(() => const MaterialsListScreen());
                       }
                       if (i == 5) {
+                        Get.to(() => const PlantTreesScreen());
+                      }
+                      if (i == 6) {
                         Get.to(() => const ProfileScreen());
                       }
                     },
@@ -102,6 +107,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                                 drawerItems[i]['icon'] == 'announcement'
                                     ? Icon(
                                       Icons.campaign_outlined,
+                                      size: 24,
+                                      color:
+                                          widget.selectedIndex == i
+                                              ? Colors.white
+                                              : Colors.grey[400],
+                                    )
+                                    : drawerItems[i]['icon'] == 'plant_trees'
+                                    ? Icon(
+                                      Icons.eco,
                                       size: 24,
                                       color:
                                           widget.selectedIndex == i

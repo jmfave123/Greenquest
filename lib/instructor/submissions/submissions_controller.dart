@@ -1484,6 +1484,115 @@ class SubmissionsController extends GetxController {
     }
   }
 
+  /// Load tree planting submissions
+  Future<void> loadTreePlantingSubmissions({String? sectionId}) async {
+    try {
+      isLoading.value = true;
+      _currentActivityId = 'tree_planting';
+      _currentActivityType = 'tree_planting';
+      _currentSectionId = sectionId;
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        submissions.value = [];
+        isLoading.value = false;
+        return;
+      }
+
+      print('🌳 Loading tree planting submissions for instructor: ${user.uid}');
+
+      // Build query - get all tree planting submissions for this instructor
+      Query query = _firestore
+          .collection('submissions')
+          .where('activityType', isEqualTo: 'tree_planting')
+          .where('instructorId', isEqualTo: user.uid);
+
+      // Filter by section if provided
+      if (sectionId != null && sectionId.isNotEmpty) {
+        print('🌳 Filtering by section: $sectionId');
+        query = query.where('sectionName', isEqualTo: sectionId);
+      }
+
+      QuerySnapshot querySnapshot;
+      try {
+        querySnapshot =
+            await query.orderBy('submittedAt', descending: true).get();
+      } catch (e) {
+        print('🌳 OrderBy failed, trying without it: $e');
+        querySnapshot = await query.get();
+      }
+
+      print('🌳 Found ${querySnapshot.docs.length} tree planting submissions');
+
+      List<Map<String, dynamic>> loadedSubmissions = [];
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        loadedSubmissions.add({'id': doc.id, 'type': 'tree_planting', ...data});
+      }
+
+      // If no specific section was provided, filter by instructor sections
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isNotEmpty) {
+          loadedSubmissions = _filterSubmissionsBySection(
+            loadedSubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
+
+      submissions.assignAll(loadedSubmissions);
+      updateStats();
+      isLoading.value = false;
+
+      print('🌳 Loaded ${loadedSubmissions.length} tree planting submissions');
+    } catch (e) {
+      print('❌ Error loading tree planting submissions: $e');
+      submissions.value = [];
+      isLoading.value = false;
+    }
+  }
+
+  /// Update submission status (for tree planting approvals/rejections)
+  Future<void> updateSubmissionStatus(
+    String submissionId,
+    String status, {
+    String? feedback,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update the document in submissions collection
+      await _firestore.collection('submissions').doc(submissionId).update({
+        'status': status,
+        'feedback': feedback,
+        'gradedAt': FieldValue.serverTimestamp(),
+        'gradedBy': user.uid,
+      });
+
+      // Update local submission
+      final index = submissions.indexWhere((s) => s['id'] == submissionId);
+      if (index != -1) {
+        submissions[index]['status'] = status;
+        submissions[index]['feedback'] = feedback;
+        submissions[index]['gradedAt'] = Timestamp.now();
+        submissions[index]['gradedBy'] = user.uid;
+        submissions.refresh();
+        updateStats();
+      }
+
+      print('✅ Submission $submissionId status updated to: $status');
+    } catch (e) {
+      print('❌ Error updating submission status: $e');
+      throw e;
+    }
+  }
+
   // Set up real-time listener for submissions
   StreamSubscription<QuerySnapshot>? _realtimeSubscription;
   StreamSubscription<QuerySnapshot>? _allSubmissionsSubscription;

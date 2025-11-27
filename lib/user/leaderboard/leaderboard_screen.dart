@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import '../../shared/login/custom_drawer.dart';
 import 'leaderboard_controller.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
-import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -54,64 +53,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       backgroundColor: Colors.white,
       body:
           leaderboardController == null
-              ? Column(
-                children: [
-                  const SizedBox(height: 20),
-                  const SkeletonLeaderboardPodium(),
-                  const SizedBox(height: 24),
-                  Expanded(
-                    child: Container(
-                      width: double.infinity,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(32),
-                          topRight: Radius.circular(32),
-                        ),
-                        border: Border.fromBorderSide(
-                          BorderSide(color: Colors.black12),
-                        ),
-                      ),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        itemCount: 5,
-                        itemBuilder:
-                            (context, i) => const SkeletonLeaderboardItem(),
-                      ),
-                    ),
-                  ),
-                ],
-              )
+              ? _buildSkeletonLoading()
               : Obx(() {
                 if (leaderboardController!.isLoadingLeaderboard.value) {
-                  return Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      const SkeletonLeaderboardPodium(),
-                      const SizedBox(height: 24),
-                      Expanded(
-                        child: Container(
-                          width: double.infinity,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(32),
-                              topRight: Radius.circular(32),
-                            ),
-                            border: Border.fromBorderSide(
-                              BorderSide(color: Colors.black12),
-                            ),
-                          ),
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            itemCount: 5,
-                            itemBuilder:
-                                (context, i) => const SkeletonLeaderboardItem(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
+                  return _buildSkeletonLoading();
                 }
 
                 final topThree = leaderboardController!.getTopThree(
@@ -120,18 +65,25 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 final remainingStudents = leaderboardController!
                     .getRemainingStudents(selectedTab);
 
-                return PullToRefreshWrapper(
+                return RefreshIndicator(
                   onRefresh: () async {
                     await leaderboardController!.refreshLeaderboard();
                   },
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      // Top 3 Podium
-                      _buildPodium(topThree),
-                      const SizedBox(height: 24),
-                      // Remaining students list
-                      Expanded(
+                  color: const Color(0xFF34A853),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 20),
+                            _buildPodium(topThree),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                      SliverFillRemaining(
+                        hasScrollBody: true,
                         child: Container(
                           width: double.infinity,
                           decoration: const BoxDecoration(
@@ -397,5 +349,33 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       default:
         return 'assets/images/Group 1171274949.png';
     }
+  }
+
+  Widget _buildSkeletonLoading() {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        const SkeletonLeaderboardPodium(),
+        const SizedBox(height: 24),
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(32),
+                topRight: Radius.circular(32),
+              ),
+              border: Border.fromBorderSide(BorderSide(color: Colors.black12)),
+            ),
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              itemCount: 5,
+              itemBuilder: (context, i) => const SkeletonLeaderboardItem(),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

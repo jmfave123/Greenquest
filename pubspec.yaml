@@ -56,6 +56,7 @@ dependencies:
   onesignal_flutter: ^5.3.3 
   flutter_dotenv: ^6.0.0 
   flutter_charts: ^0.5.2
+  fl_chart: ^0.69.0
   
 dev_dependencies:
   flutter_test:

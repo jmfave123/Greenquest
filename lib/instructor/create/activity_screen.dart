@@ -6,6 +6,7 @@ import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/controllers/file_submission_controller.dart';
 import '../../shared/services/instructor_class_service.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../topics/topic_controller.dart';
 import 'create_controller.dart';
 
 class ActivityScreen extends StatefulWidget {
@@ -31,6 +32,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   final FileSubmissionController _fileController = Get.put(
     FileSubmissionController(),
   );
+  final TopicController _topicController = Get.put(TopicController());
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.create;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _instructionController = TextEditingController();
@@ -42,6 +44,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
   bool _showForDropdown = false;
   bool _showCategoryDropdown = false;
   bool _showTitleError = false;
+
+  // Topic selection
+  String? _selectedTopicId;
+  String? _selectedTopicName;
 
   List<String> _classes = [];
   Map<String, bool> _selectedClasses = {};
@@ -59,6 +65,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Load topics from Firestore
+    _topicController.loadTopics();
 
     // Clear files when creating a new item (not editing)
     if (!widget.isEdit) {
@@ -121,6 +130,23 @@ class _ActivityScreenState extends State<ActivityScreen> {
       _titleController.text = data['title'] ?? '';
       _instructionController.text = data['instruction'] ?? '';
       _pointsController.text = data['points'] ?? '100';
+
+      // Load topic data - handle null, empty, and "null" string
+      final topicId = data['topicId'];
+      final topicName = data['topicName'];
+
+      // Only set topic if it has a valid value (not null, not empty, not string "null")
+      if (topicId != null && topicId != '' && topicId != 'null') {
+        _selectedTopicId = topicId;
+      } else {
+        _selectedTopicId = null;
+      }
+
+      if (topicName != null && topicName != '' && topicName != 'null') {
+        _selectedTopicName = topicName;
+      } else {
+        _selectedTopicName = null;
+      }
 
       // Set selected classes
       if (data['selectedClasses'] != null) {
@@ -232,6 +258,114 @@ class _ActivityScreenState extends State<ActivityScreen> {
     setState(() {
       _showCategoryDropdown = !_showCategoryDropdown;
     });
+  }
+
+  Future<void> _showCreateTopicDialog() async {
+    final TextEditingController topicController = TextEditingController();
+
+    await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              width: 400,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  const Text(
+                    'Create topic',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  // Topic Name Field
+                  TextField(
+                    controller: topicController,
+                    decoration: InputDecoration(
+                      labelText: 'Topic name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF34A853)),
+                      ),
+                    ),
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 24),
+                  // Action Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final topicName = topicController.text.trim();
+                          if (topicName.isEmpty) {
+                            Get.snackbar(
+                              'Error',
+                              'Please enter a topic name',
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
+                            );
+                            return;
+                          }
+
+                          // Check for duplicates
+                          if (_topicController.topicExists(topicName)) {
+                            Get.snackbar(
+                              'Error',
+                              'A topic with this name already exists',
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
+                            );
+                            return;
+                          }
+
+                          // Create topic
+                          final newTopic = await _topicController.createTopic(
+                            topicName: topicName,
+                          );
+
+                          if (newTopic != null) {
+                            Navigator.of(context).pop(true);
+                            Get.snackbar(
+                              'Success',
+                              'Topic created',
+                              backgroundColor: const Color(0xFF34A853),
+                              colorText: Colors.white,
+                            );
+
+                            // Auto-select the newly created topic
+                            setState(() {
+                              _selectedTopicId = newTopic.id;
+                              _selectedTopicName = newTopic.topic;
+                            });
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF34A853),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Create'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
   }
 
   Future<void> _selectDueDate() async {
@@ -409,6 +543,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
         period: widget.period,
         category: categoryToSave,
         attachments: attachmentUrls,
+        topicId: _selectedTopicId,
+        topicName: _selectedTopicName,
       );
 
       if (success) {
@@ -427,6 +563,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
         period: widget.period,
         category: categoryToSave,
         attachments: attachmentUrls,
+        topicId: _selectedTopicId,
+        topicName: _selectedTopicName,
       );
 
       if (success) {
@@ -598,6 +736,101 @@ class _ActivityScreenState extends State<ActivityScreen> {
                               'Title is required',
                               style: TextStyle(fontSize: 12, color: Colors.red),
                             ),
+                          const SizedBox(height: 24),
+                          // Topic Selector
+                          const Text(
+                            'Topic',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Obx(() {
+                            final topics = _topicController.topics;
+                            return DropdownButtonFormField<String>(
+                              value: _selectedTopicName,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF9E9E9E),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF9E9E9E),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF34A853),
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              hint: const Text('No topic'),
+                              items: [
+                                const DropdownMenuItem<String>(
+                                  value: null,
+                                  child: Text('No topic'),
+                                ),
+                                ...topics.map((topic) {
+                                  return DropdownMenuItem<String>(
+                                    value: topic.topic,
+                                    child: Text(
+                                      topic.topic,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  );
+                                }).toList(),
+                                const DropdownMenuItem<String>(
+                                  value: '__create_new__',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.add,
+                                        size: 18,
+                                        color: Color(0xFF34A853),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Create topic',
+                                        style: TextStyle(
+                                          color: Color(0xFF34A853),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) async {
+                                if (value == '__create_new__') {
+                                  await _showCreateTopicDialog();
+                                } else {
+                                  setState(() {
+                                    _selectedTopicName = value;
+                                    if (value == null) {
+                                      _selectedTopicId = null;
+                                    } else {
+                                      final topic = topics.firstWhere(
+                                        (t) => t.topic == value,
+                                      );
+                                      _selectedTopicId = topic.id;
+                                    }
+                                  });
+                                }
+                              },
+                            );
+                          }),
                           const SizedBox(height: 24),
                           // Instruction Field
                           const Text(
@@ -841,6 +1074,101 @@ class _ActivityScreenState extends State<ActivityScreen> {
                                                   .toList(),
                                         ),
                               ),
+                            const SizedBox(height: 15),
+                            // Topic Dropdown
+                            const Text(
+                              'Topic',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Obx(() {
+                              final topics = _topicController.topics;
+                              return DropdownButtonFormField<String>(
+                                value: _selectedTopicName,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF9E9E9E),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF9E9E9E),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF34A853),
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                                hint: const Text('No topic'),
+                                items: [
+                                  const DropdownMenuItem<String>(
+                                    value: null,
+                                    child: Text('No topic'),
+                                  ),
+                                  ...topics.map((topic) {
+                                    return DropdownMenuItem<String>(
+                                      value: topic.topic,
+                                      child: Text(
+                                        topic.topic,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    );
+                                  }).toList(),
+                                  const DropdownMenuItem<String>(
+                                    value: '__create_new__',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.add,
+                                          size: 18,
+                                          color: Color(0xFF34A853),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Create topic',
+                                          style: TextStyle(
+                                            color: Color(0xFF34A853),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (value) async {
+                                  if (value == '__create_new__') {
+                                    await _showCreateTopicDialog();
+                                  } else {
+                                    setState(() {
+                                      _selectedTopicName = value;
+                                      if (value == null) {
+                                        _selectedTopicId = null;
+                                      } else {
+                                        final topic = topics.firstWhere(
+                                          (t) => t.topic == value,
+                                        );
+                                        _selectedTopicId = topic.id;
+                                      }
+                                    });
+                                  }
+                                },
+                              );
+                            }),
                             const SizedBox(height: 15),
                             // Points Input
                             const Text(

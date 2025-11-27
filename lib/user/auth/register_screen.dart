@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
 import '../../shared/widgets/safe_asset_image.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../shared/services/file_upload_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -17,11 +19,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool isLoading = false;
   bool _isPasswordVisible = false;
   final AuthController authController = Get.put(AuthController());
+  final FileUploadService _fileUploadService = FileUploadService();
+  PlatformFile? _selectedCorFile;
+  String? _uploadedCorUrl;
   final TextEditingController fullNameController = TextEditingController();
   final TextEditingController phoneNumberController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController idNumberController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fileUploadService.initialize();
+  }
+
   void _showTermsModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -274,6 +286,121 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20),
+                    // COR Upload Section
+                    const Text(
+                      'Certificate of Registration (COR)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () => _pickCorFile(),
+                      child: Container(
+                        padding: EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF2F2F2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color:
+                                _selectedCorFile != null
+                                    ? Color(0xFF43A047)
+                                    : Colors.grey.shade300,
+                            width: 2,
+                          ),
+                        ),
+                        child:
+                            _selectedCorFile != null
+                                ? Row(
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Color(
+                                          0xFF43A047,
+                                        ).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.picture_as_pdf,
+                                        color: Color(0xFF43A047),
+                                        size: 32,
+                                      ),
+                                    ),
+                                    SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _selectedCorFile!.name,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.black87,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            FileUploadService.formatFileSize(
+                                              _selectedCorFile!.size,
+                                            ),
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _selectedCorFile = null;
+                                        });
+                                      },
+                                      icon: Icon(
+                                        Icons.close,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                                : Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.upload_file,
+                                      size: 48,
+                                      color: Color(0xFF43A047),
+                                    ),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'Upload COR (PDF)',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Tap to select PDF file',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.black38,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -349,6 +476,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return;
                           }
 
+                          // Validate COR upload
+                          if (_selectedCorFile == null) {
+                            showInfoSnackBar(
+                              context,
+                              message:
+                                  'Please upload your Certificate of Registration (COR)',
+                            );
+                            return;
+                          }
+
                           // Validate phone number format (must start with 09 and be 11 digits)
                           if (!phoneNumberController.text.startsWith('09')) {
                             showErrorSnackBar(
@@ -413,12 +550,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
+      // Upload COR file first
+      if (_selectedCorFile == null) {
+        throw Exception('No COR file selected');
+      }
+
+      final uploadResult = await _fileUploadService.uploadFile(
+        file: _selectedCorFile!,
+        folder: 'user_cors',
+        tags: {'type': 'cor', 'status': 'pending'},
+      );
+
+      if (uploadResult == null || uploadResult.secureUrl.isEmpty) {
+        setState(() {
+          isLoading = false;
+        });
+        showErrorSnackBar(
+          context,
+          message: 'Failed to upload COR. Please try again.',
+        );
+        return;
+      }
+
+      _uploadedCorUrl = uploadResult.secureUrl;
+
       final result = await authController.registerUser(
         fullNameController.text,
         phoneNumberController.text,
         emailController.text,
         idNumberController.text,
         passwordController.text,
+        _uploadedCorUrl!, // Pass COR URL
       );
 
       setState(() {
@@ -426,6 +588,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       });
 
       if (result['success']) {
+        // Clear the selected file
+        setState(() {
+          _selectedCorFile = null;
+          _uploadedCorUrl = null;
+        });
         showInfoSnackBar(context, message: result['message']);
         // Navigate to login screen after successful registration
         Get.offAllNamed('/login_app');
@@ -440,6 +607,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
         context,
         message: 'An unexpected error occurred. Please try again.',
       );
+    }
+  }
+
+  Future<void> _pickCorFile() async {
+    try {
+      final result = await _fileUploadService.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        allowMultiple: false,
+      );
+
+      if (result != null && result.isNotEmpty) {
+        setState(() {
+          _selectedCorFile = result.first;
+        });
+      }
+    } catch (e) {
+      showErrorSnackBar(context, message: 'Failed to pick file: $e');
     }
   }
 }

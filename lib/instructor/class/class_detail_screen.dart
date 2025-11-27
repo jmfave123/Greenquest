@@ -3,16 +3,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../../shared/widgets/custom_dialogs.dart';
 import '../create/create_controller.dart';
 import '../submissions/student_submissions_screen.dart';
 import '../submissions/submission_detail_screen.dart';
 import '../submissions/submissions_controller.dart';
+import '../topics/topic_controller.dart';
 import 'class_screen_controller.dart';
 import '../instructor_dashboard_controller.dart';
 import '../../user/materials/materials_detail_screen.dart';
@@ -38,6 +42,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   final InstructorController _instructorController = Get.put(
     InstructorController(),
   );
+  final TopicController _topicController = Get.put(TopicController());
 
   // Sorting states
   List<Map<String, dynamic>> _sortedGrades = [];
@@ -50,6 +55,23 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     'Approved',
     'Rejected',
   ];
+
+  // Tree submissions counter
+  final RxInt _pendingTreeSubmissions = 0.obs;
+
+  // Filter for Posted Items (Class Tab)
+  String _selectedPostedItemTypeFilter = 'All Types';
+  final List<String> _postedItemTypeFilterOptions = [
+    'All Types',
+    'Assignment',
+    'Activity',
+    'Quiz',
+    'PIT',
+    'Material',
+  ];
+
+  String _selectedPostedItemTopicFilter = 'All Topics';
+  List<String> _postedItemTopicFilterOptions = ['All Topics', 'No Topic'];
 
   // Search and filter states for Student Submissions
   final TextEditingController _submissionSearchController =
@@ -136,7 +158,24 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       _setupStudentStatusMonitoring();
       // Set up real-time submission monitoring
       _setupSubmissionMonitoring();
+      // Load topics and update filter options
+      _loadTopicsAndUpdateFilter();
+      // Set up tree submissions monitoring
+      _setupTreeSubmissionMonitoring();
     });
+  }
+
+  Future<void> _loadTopicsAndUpdateFilter() async {
+    await _topicController.loadTopics();
+    if (mounted) {
+      setState(() {
+        _postedItemTopicFilterOptions = [
+          'All Topics',
+          'No Topic',
+          ..._topicController.topics.map((topic) => topic.topic),
+        ];
+      });
+    }
   }
 
   Future<void> _loadStudentsForThisClass() async {
@@ -209,6 +248,25 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     // Users can manually refresh using the refresh button
   }
 
+  void _setupTreeSubmissionMonitoring() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final sectionName = widget.classData['section'] ?? '';
+
+    // Listen to tree planting submissions for pending count
+    FirebaseFirestore.instance
+        .collection('submissions')
+        .where('activityType', isEqualTo: 'tree_planting')
+        .where('instructorId', isEqualTo: user.uid)
+        .where('sectionName', isEqualTo: sectionName)
+        .where('status', isEqualTo: 'submitted')
+        .snapshots()
+        .listen((snapshot) {
+          _pendingTreeSubmissions.value = snapshot.docs.length;
+        });
+  }
+
   // void _showNewSubmissionNotification(int submissionCount) {
   //   if (submissionCount > 0) {
   //     Get.snackbar(
@@ -254,6 +312,31 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     } else {
       return 'Active a long time ago';
     }
+  }
+
+  /// Get initials from full name (e.g., "JM Ruiz" -> "JR", "JV P. Tenefrancia" -> "JT")
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return '?';
+
+    // Get first character of first part
+    String initials = parts[0][0].toUpperCase();
+
+    // Get first character of last part (skip middle initials with periods)
+    if (parts.length > 1) {
+      // Find the last part that's not just an initial (has more than 2 chars or no period)
+      for (int i = parts.length - 1; i > 0; i--) {
+        final part = parts[i];
+        if (part.length > 2 || !part.contains('.')) {
+          initials += part[0].toUpperCase();
+          break;
+        }
+      }
+    }
+
+    return initials;
   }
 
   /// Build online status widget with real-time updates (matching message screen logic)
@@ -680,7 +763,13 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 32),
-                                  _buildTab('Trees', 3),
+                                  Obx(
+                                    () => _buildTab(
+                                      'Trees',
+                                      3,
+                                      badgeCount: _pendingTreeSubmissions.value,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 20),
@@ -971,7 +1060,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Section Header
+                // Section Header with Filter
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -983,12 +1072,131 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         color: Colors.black,
                       ),
                     ),
-                    IconButton(
-                      onPressed: () async {
-                        await _createController.loadCreatedItems();
-                      },
-                      icon: const Icon(Icons.refresh),
-                      tooltip: 'Refresh',
+                    Row(
+                      children: [
+                        // Type Filter Dropdown
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFF34A853).withOpacity(0.3),
+                            ),
+                          ),
+                          child: DropdownButton<String>(
+                            value: _selectedPostedItemTypeFilter,
+                            underline: const SizedBox(),
+                            icon: const Icon(
+                              Icons.arrow_drop_down,
+                              color: Color(0xFF34A853),
+                            ),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                            items:
+                                _postedItemTypeFilterOptions.map((String type) {
+                                  return DropdownMenuItem<String>(
+                                    value: type,
+                                    child: Text(type),
+                                  );
+                                }).toList(),
+                            onChanged: (String? newValue) {
+                              if (newValue != null) {
+                                setState(() {
+                                  _selectedPostedItemTypeFilter = newValue;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Topic Filter Dropdown
+                        Obx(() {
+                          final topicOptions = [
+                            'All Topics',
+                            'No Topic',
+                            ..._topicController.topics.map(
+                              (topic) => topic.topic,
+                            ),
+                          ];
+
+                          // Reset filter if selected topic no longer exists
+                          if (!topicOptions.contains(
+                            _selectedPostedItemTopicFilter,
+                          )) {
+                            _selectedPostedItemTopicFilter = 'All Topics';
+                          }
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF34A853).withOpacity(0.3),
+                              ),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _selectedPostedItemTopicFilter,
+                              underline: const SizedBox(),
+                              icon: const Icon(
+                                Icons.arrow_drop_down,
+                                color: Color(0xFF34A853),
+                              ),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                              items:
+                                  topicOptions.map((String topic) {
+                                    return DropdownMenuItem<String>(
+                                      value: topic,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            topic == 'All Topics'
+                                                ? Icons.topic
+                                                : topic == 'No Topic'
+                                                ? Icons.not_interested
+                                                : Icons.bookmark,
+                                            size: 16,
+                                            color: const Color(0xFF34A853),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(topic),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                              onChanged: (String? newValue) {
+                                if (newValue != null) {
+                                  setState(() {
+                                    _selectedPostedItemTopicFilter = newValue;
+                                  });
+                                }
+                              },
+                            ),
+                          );
+                        }),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () async {
+                            await _topicController.loadTopics();
+                            await _createController.loadCreatedItems();
+                          },
+                          icon: const Icon(Icons.refresh),
+                          tooltip: 'Refresh',
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1017,13 +1225,6 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         widget.classData['course'] ?? '';
                     String currentClassFullName =
                         '$currentClassCourse $currentClassSection';
-
-                    print(
-                      '🔍 Filtering items for class: $currentClassFullName',
-                    );
-                    print(
-                      '📋 Total items available: ${_createController.createdItems.length}',
-                    );
 
                     for (var item in _createController.createdItems) {
                       // Check if this item is assigned to the current class
@@ -1069,23 +1270,52 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
                       // Only add items that are assigned to the current class
                       if (isAssignedToCurrentClass) {
-                        print(
-                          '✅ Item "${item['title']}" assigned to current class',
-                        );
                         postedItems.add({
                           ...item,
                           'itemType': 'posted',
                           'timestamp': item['createdAt'],
                         });
-                      } else {
-                        print(
-                          '❌ Item "${item['title']}" NOT assigned to current class',
-                        );
-                        print('   Selected classes: $selectedClasses');
                       }
                     }
 
-                    print('📊 Filtered items count: ${postedItems.length}');
+                    // Apply type filter
+                    if (_selectedPostedItemTypeFilter != 'All Types') {
+                      postedItems =
+                          postedItems.where((item) {
+                            final itemType =
+                                (item['type'] as String?)?.toLowerCase() ?? '';
+                            final filterType =
+                                _selectedPostedItemTypeFilter.toLowerCase();
+                            return itemType == filterType;
+                          }).toList();
+                    }
+
+                    // Apply topic filter
+                    if (_selectedPostedItemTopicFilter != 'All Topics') {
+                      postedItems =
+                          postedItems.where((item) {
+                            final itemTopicName = item['topicName'];
+                            final itemTopicId = item['topicId'];
+
+                            if (_selectedPostedItemTopicFilter == 'No Topic') {
+                              // Show items with no topic assigned (null, empty, or string "null")
+                              final hasNoTopic =
+                                  itemTopicName == null ||
+                                  itemTopicName == '' ||
+                                  itemTopicName == 'null' ||
+                                  itemTopicId == null ||
+                                  itemTopicId == '' ||
+                                  itemTopicId == 'null';
+                              return hasNoTopic;
+                            } else {
+                              // Show items with matching topic name
+                              final matches =
+                                  itemTopicName ==
+                                  _selectedPostedItemTopicFilter;
+                              return matches;
+                            }
+                          }).toList();
+                    }
 
                     // Sort by timestamp (most recent first)
                     postedItems.sort((a, b) {
@@ -1662,11 +1892,55 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                               ],
                             ),
                             const SizedBox(height: 4),
-                            // Second row: Action buttons for pending enrollments
-                            if (enrollmentStatus == 'pending') ...[
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
+                            // Second row: Action buttons for pending enrollments and View COR button
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // View COR button (always visible for all students)
+                                IconButton(
+                                  onPressed: () => _viewStudentCOR(student),
+                                  icon: Icon(
+                                    Icons.description,
+                                    color:
+                                        (student['corUrl'] != null &&
+                                                student['corUrl']
+                                                    .toString()
+                                                    .isNotEmpty)
+                                            ? const Color(0xFF34A853)
+                                            : Colors.grey,
+                                    size: 18,
+                                  ),
+                                  tooltip:
+                                      (student['corUrl'] != null &&
+                                              student['corUrl']
+                                                  .toString()
+                                                  .isNotEmpty)
+                                          ? 'View COR'
+                                          : 'COR not uploaded',
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor:
+                                        (student['corUrl'] != null &&
+                                                student['corUrl']
+                                                    .toString()
+                                                    .isNotEmpty)
+                                            ? const Color(
+                                              0xFF34A853,
+                                            ).withOpacity(0.1)
+                                            : Colors.grey.withOpacity(0.1),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                ),
+                                if (enrollmentStatus == 'pending')
+                                  const SizedBox(width: 4),
+                                // Approval buttons for pending students
+                                if (enrollmentStatus == 'pending') ...[
                                   IconButton(
                                     onPressed: () => _approveStudent(student),
                                     icon: const Icon(
@@ -1713,8 +1987,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                     ),
                                   ),
                                 ],
-                              ),
-                            ],
+                              ],
+                            ),
                           ],
                         ),
                       ],
@@ -1993,6 +2267,160 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 ),
               ),
             ],
+          ),
+    );
+  }
+
+  void _viewStudentCOR(Map<String, dynamic> student) {
+    final corUrl = student['corUrl']?.toString() ?? '';
+
+    if (corUrl.isEmpty) {
+      Get.snackbar(
+        'COR Not Available',
+        'This student has not uploaded their Certificate of Registration.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.6,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Certificate of Registration',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF34A853),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            student['studentName'] ?? 'Unknown Student',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF34A853).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.picture_as_pdf,
+                            size: 40,
+                            color: Color(0xFF34A853),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'COR Document',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'PDF Document',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final uri = Uri.parse(corUrl);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } else {
+                              Get.snackbar(
+                                'Error',
+                                'Could not open the COR document',
+                                snackPosition: SnackPosition.TOP,
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF34A853),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.open_in_new, size: 18),
+                          label: const Text('Open PDF'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'This document was uploaded during registration and is stored securely in the cloud.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
     );
   }
@@ -2426,17 +2854,56 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         ),
                       ),
                       const SizedBox(width: 5),
-                      Text(
-                        item['title'] ?? 'No Title',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          item['title'] ?? 'No Title',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
+                  // Topic badge
+                  if (item['topicName'] != null && item['topicName'] != '') ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34A853).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: const Color(0xFF34A853).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.bookmark,
+                            size: 14,
+                            color: Color(0xFF34A853),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            item['topicName'],
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF34A853),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                   Row(
                     children: [
                       if (item['dueDate'] != null) ...[
@@ -3259,45 +3726,45 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       }
 
       final classData = widget.classData;
-      final classId = classData['id'];
+      final sectionName = classData['section'] ?? '';
 
-      print('🌳 Loading trees for classId: $classId');
+      print('🌳 Loading tree submissions for section: $sectionName');
       print('🌳 User ID: ${user.uid}');
 
+      // Load from submissions collection with tree_planting type
       final snapshot =
           await FirebaseFirestore.instance
-              .collection('instructors')
-              .doc(user.uid)
-              .collection('trees')
-              .where('classId', isEqualTo: classId)
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'tree_planting')
               .where('instructorId', isEqualTo: user.uid)
+              .where('sectionName', isEqualTo: sectionName)
               .get();
 
-      print('🌳 Found ${snapshot.docs.length} trees');
-
-      if (snapshot.docs.isNotEmpty) {
-        for (var doc in snapshot.docs) {
-          print('🌳 Tree data: ${doc.data()}');
-        }
-      }
+      print('🌳 Found ${snapshot.docs.length} tree planting submissions');
 
       final trees =
           snapshot.docs.map((doc) {
             final data = doc.data();
             return {
               'id': doc.id,
-              'plantedBy': data['plantedBy'] ?? '',
+              'studentName': data['studentName'] ?? 'Unknown',
+              'studentIdNumber': data['studentIdNumber'] ?? '',
+              'studentId': data['studentId'] ?? '',
               'plantDate': data['plantDate'] ?? '',
               'quantity': data['quantity'] ?? 1,
-              'className': data['className'] ?? '',
-              'createdAt': data['createdAt'],
+              'location': data['location'] ?? '',
+              'status': data['status'] ?? 'submitted',
+              'feedback': data['feedback'],
+              'files': data['files'] ?? [],
+              'submittedAt': data['submittedAt'],
+              'isStudentSubmission': true, // Mark as student submission
             };
           }).toList();
 
-      // Sort by createdAt descending (most recent first)
+      // Sort by submittedAt descending (most recent first)
       trees.sort((a, b) {
-        final aTime = a['createdAt'] as Timestamp?;
-        final bTime = b['createdAt'] as Timestamp?;
+        final aTime = a['submittedAt'] as Timestamp?;
+        final bTime = b['submittedAt'] as Timestamp?;
         if (aTime == null && bTime == null) return 0;
         if (aTime == null) return 1;
         if (bTime == null) return -1;
@@ -3306,20 +3773,58 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
       return trees;
     } catch (e) {
-      print('Error loading trees for class: $e');
+      print('Error loading tree submissions for class: $e');
       return [];
     }
   }
 
   // Build tree card widget
   Widget _buildTreeCard(Map<String, dynamic> tree) {
+    final isStudentSubmission = tree['isStudentSubmission'] == true;
+    final status = tree['status'] ?? 'submitted';
+    final files = tree['files'] as List<dynamic>? ?? [];
+
+    // Format the plant date
+    String formattedDate = 'Unknown';
+    final plantDate = tree['plantDate'];
+    if (plantDate != null) {
+      if (plantDate is Timestamp) {
+        final dateTime = plantDate.toDate();
+        formattedDate = DateFormat('MMM dd, yyyy - hh:mm a').format(dateTime);
+      } else if (plantDate is String) {
+        // Handle old string format
+        formattedDate = plantDate;
+      }
+    }
+
+    Color statusColor;
+    String statusText;
+    switch (status) {
+      case 'approved':
+        statusColor = const Color(0xFF34A853);
+        statusText = 'APPROVED';
+        break;
+      case 'rejected':
+        statusColor = Colors.red;
+        statusText = 'REJECTED';
+        break;
+      default:
+        statusColor = Colors.orange;
+        statusText = 'PENDING';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF34A853).withOpacity(0.3)),
+        border: Border.all(
+          color:
+              isStudentSubmission
+                  ? statusColor.withOpacity(0.3)
+                  : const Color(0xFF34A853).withOpacity(0.3),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -3328,64 +3833,445 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tree icon
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: const Color(0xFF34A853).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: const Icon(Icons.eco, color: Color(0xFF34A853), size: 24),
-          ),
-          const SizedBox(width: 16),
-          // Tree details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${tree['quantity']} tree${tree['quantity'] > 1 ? 's' : ''} planted',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+          Row(
+            children: [
+              // User avatar or tree icon
+              if (isStudentSubmission)
+                FutureBuilder<DocumentSnapshot>(
+                  future:
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(tree['studentId'])
+                          .get(),
+                  builder: (context, snapshot) {
+                    String? photoUrl;
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      final userData =
+                          snapshot.data!.data() as Map<String, dynamic>?;
+                      photoUrl = userData?['photoUrl'];
+                    }
+
+                    return Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color:
+                            photoUrl == null
+                                ? const Color(0xFF34A853).withOpacity(0.1)
+                                : null,
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child:
+                          photoUrl != null
+                              ? ClipRRect(
+                                borderRadius: BorderRadius.circular(25),
+                                child: Image.network(
+                                  photoUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Center(
+                                      child: Text(
+                                        _getInitials(
+                                          tree['studentName'] ?? 'Unknown',
+                                        ),
+                                        style: const TextStyle(
+                                          color: Color(0xFF34A853),
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
+                              : Center(
+                                child: Text(
+                                  _getInitials(
+                                    tree['studentName'] ?? 'Unknown',
+                                  ),
+                                  style: const TextStyle(
+                                    color: Color(0xFF34A853),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                    );
+                  },
+                )
+              else
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF34A853).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: const Icon(
+                    Icons.eco,
+                    color: Color(0xFF34A853),
+                    size: 24,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Planted by: ${tree['plantedBy']}',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+              const SizedBox(width: 16),
+              // Tree details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          '${tree['quantity']} tree${tree['quantity'] > 1 ? 's' : ''} planted',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (isStudentSubmission) ...[
+                      Text(
+                        'By: ${tree['studentName']} (${tree['studentIdNumber']})',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      if (tree['location']?.isNotEmpty == true) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on,
+                              size: 14,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              tree['location'],
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ] else
+                      Text(
+                        'Planted by: ${tree['plantedBy']}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Date: $formattedDate',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Date: ${tree['plantDate']}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              // Status badge and quantity for student submissions
+              if (isStudentSubmission)
+                Row(
+                  children: [
+                    // Quantity badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34A853).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.eco,
+                            size: 14,
+                            color: Color(0xFF34A853),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${tree['quantity']}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF34A853),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Status badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF34A853).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${tree['quantity']}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF34A853),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // Evidence photos for student submissions
+          if (isStudentSubmission && files.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Evidence:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 80,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: files.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final file = files[index];
+                  final fileUrl = file['url'] ?? '';
+                  return GestureDetector(
+                    onTap: () async {
+                      if (fileUrl.isNotEmpty) {
+                        final uri = Uri.parse(fileUrl);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(
+                            uri,
+                            mode: LaunchMode.externalApplication,
+                          );
+                        }
+                      }
+                    },
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          fileUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Icon(Icons.image, color: Colors.grey),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+
+          // Feedback section
+          if (isStudentSubmission && tree['feedback'] != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.feedback, size: 14, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tree['feedback'],
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Action buttons for pending submissions
+          if (isStudentSubmission && status == 'submitted') ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _rejectTreeSubmission(tree),
+                    icon: const Icon(Icons.cancel, size: 16),
+                    label: const Text('Reject'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _approveTreeSubmission(tree),
+                    icon: const Icon(Icons.check_circle, size: 16),
+                    label: const Text('Approve'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF34A853),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          // Quantity badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF34A853).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${tree['quantity']}',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF34A853),
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
+  }
+
+  // Approve tree submission
+  Future<void> _approveTreeSubmission(Map<String, dynamic> submission) async {
+    final result = await CustomDialogs.showApprovalDialog(
+      context: context,
+      title: 'Approve Tree Planting',
+      message:
+          'Are you sure you want to approve ${submission['quantity']} tree(s) planted by ${submission['studentName']}?',
+      feedbackLabel: 'Feedback (optional)',
+      feedbackHint: 'Add your feedback here...',
+      confirmText: 'Approve',
+      iconColor: const Color(0xFF34A853),
+      confirmButtonColor: const Color(0xFF34A853),
+      icon: Icons.check_circle,
+    );
+
+    if (result['confirmed'] == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('submissions')
+            .doc(submission['id'])
+            .update({
+              'status': 'approved',
+              'feedback':
+                  result['feedback'].isEmpty ? null : result['feedback'],
+              'gradedAt': FieldValue.serverTimestamp(),
+              'gradedBy': FirebaseAuth.instance.currentUser?.uid,
+            });
+
+        Get.snackbar(
+          'Success',
+          'Tree planting approved',
+          backgroundColor: const Color(0xFF34A853),
+          colorText: Colors.white,
+        );
+
+        setState(() {}); // Refresh the list
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          'Failed to approve: $e',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
+  }
+
+  // Reject tree submission
+  Future<void> _rejectTreeSubmission(Map<String, dynamic> submission) async {
+    final result = await CustomDialogs.showRejectionDialog(
+      context: context,
+      title: 'Reject Tree Planting',
+      message:
+          'Are you sure you want to reject the tree planting submission from ${submission['studentName']}?',
+      reasonLabel: 'Reason for rejection (required)',
+      reasonHint: 'Explain why this submission is being rejected...',
+      confirmText: 'Reject',
+      iconColor: Colors.red,
+      confirmButtonColor: Colors.red,
+      icon: Icons.cancel,
+      errorMessage: 'Please provide a reason for rejection',
+    );
+
+    if (result['confirmed'] == true && result['feedback'].isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('submissions')
+            .doc(submission['id'])
+            .update({
+              'status': 'rejected',
+              'feedback': result['feedback'],
+              'gradedAt': FieldValue.serverTimestamp(),
+              'gradedBy': FirebaseAuth.instance.currentUser?.uid,
+            });
+
+        Get.snackbar(
+          'Success',
+          'Tree planting rejected',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+
+        setState(() {}); // Refresh the list
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          'Failed to reject: $e',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    }
   }
 
   /// Build instructor profile avatar with image or initials
