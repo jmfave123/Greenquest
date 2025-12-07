@@ -670,7 +670,7 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
                       maxLines: 1,
                     ),
                   );
-                }).toList(),
+                }),
                 const DropdownMenuItem<String>(
                   value: '__create_new__',
                   child: Row(

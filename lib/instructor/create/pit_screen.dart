@@ -671,7 +671,7 @@ class _PITScreenState extends State<PITScreen> {
                       maxLines: 1,
                     ),
                   );
-                }).toList(),
+                }),
                 const DropdownMenuItem<String>(
                   value: '__create_new__',
                   child: Row(
@@ -940,7 +940,7 @@ class _PITScreenState extends State<PITScreen> {
                           maxLines: 1,
                         ),
                       );
-                    }).toList(),
+                    }),
                     const DropdownMenuItem<String>(
                       value: '__create_new__',
                       child: Row(

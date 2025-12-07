@@ -14,6 +14,7 @@ import 'user/auth/splash_screen.dart';
 import 'user/auth/register_screen.dart';
 import 'user/auth/pending_approval_screen.dart';
 import 'user/select/select_course_screen.dart';
+import 'user/select/upload_cor_screen.dart';
 import 'shared/login/login_screen.dart';
 import 'admin/admin_dashboard.dart';
 import 'admin/manage_instructors_screen.dart';
@@ -90,6 +91,7 @@ class GreenQuestApp extends StatelessWidget {
           page: () => const PendingApprovalScreen(),
         ),
         GetPage(name: '/select-course', page: () => const SelectCourseScreen()),
+        GetPage(name: '/upload-cor', page: () => const UploadCorScreen()),
         GetPage(
           name: '/select-instructor',
           page: () => const SelectInstructorScreen(),

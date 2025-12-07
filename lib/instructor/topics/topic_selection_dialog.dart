@@ -101,7 +101,7 @@ class _TopicSelectionDialogState extends State<TopicSelectionDialog> {
                             topicName: topic.topic,
                             icon: Icons.bookmark,
                           );
-                        }).toList(),
+                        }),
 
                       const Divider(height: 24),
 

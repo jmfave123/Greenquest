@@ -437,41 +437,9 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                                         .selectedSectionCode
                                         .value
                                         .isNotEmpty
-                                ? () async {
-                                  // Show loading indicator
-                                  showDialog(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder:
-                                        (context) => const Center(
-                                          child: CircularProgressIndicator(
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  Color(0xFF34A853),
-                                                ),
-                                          ),
-                                        ),
-                                  );
-
-                                  try {
-                                    await controller.completeSelection();
-                                    // Close loading dialog
-                                    Navigator.of(context).pop();
-                                    // Navigate to home dashboard
-                                    Get.offAllNamed('/home');
-                                  } catch (e) {
-                                    // Close loading dialog
-                                    Navigator.of(context).pop();
-                                    // Show error message
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Error completing selection: $e',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
+                                ? () {
+                                  // Navigate to COR upload screen
+                                  Get.toNamed('/upload-cor');
                                 }
                                 : null,
                         style: ElevatedButton.styleFrom(
@@ -492,7 +460,7 @@ class _SelectCourseScreenState extends State<SelectCourseScreen> {
                             borderRadius: BorderRadius.circular(18),
                           ),
                         ),
-                        child: const Text('Complete Selection'),
+                        child: const Text('Continue to COR Upload'),
                       ),
                     ),
                   ),

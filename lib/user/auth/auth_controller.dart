@@ -18,7 +18,6 @@ class AuthController extends GetxController {
     String email,
     String idNumber,
     String password,
-    String corUrl,
   ) async {
     try {
       final userCredential = await _auth.createUserWithEmailAndPassword(
@@ -31,7 +30,6 @@ class AuthController extends GetxController {
         'phoneNumber': phoneNumber,
         'email': email,
         'idNumber': idNumber,
-        'corUrl': corUrl,
         'createdAt': FieldValue.serverTimestamp(),
         'role': 'user',
         'isVerified': false,

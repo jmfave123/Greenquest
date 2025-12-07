@@ -285,6 +285,65 @@ class SelectController extends GetxController {
     }
   }
 
+  // Method to complete selection with COR upload
+  Future<void> completeSelectionWithCor(String corUrl) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Get user data
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) return;
+
+      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      String studentName =
+          userData['name'] ?? userData['fullName'] ?? 'Unknown Student';
+      String studentEmail = userData['email'] ?? '';
+      String studentPhone = userData['phoneNumber'] ?? '';
+      String idNumber = userData['idNumber'] ?? '';
+
+      // Save selection and COR to user document
+      await _firestore.collection('users').doc(user.uid).update({
+        'selectedInstructorId': selectedInstructorId.value,
+        'selectedInstructorName': selectedInstructorName.value,
+        'selectedSectionCode': selectedSectionCode.value,
+        'instructorAssignments': instructorAssignments.toList(),
+        'selectionComplete': true,
+        'enrollmentStatus': 'pending',
+        'corUrl': corUrl,
+        'completedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Create student entry in instructor's students subcollection for approval
+      await _firestore
+          .collection('instructors')
+          .doc(selectedInstructorId.value)
+          .collection('students')
+          .doc(user.uid)
+          .set({
+            'studentId': user.uid,
+            'studentName': studentName,
+            'email': studentEmail,
+            'phoneNumber': studentPhone,
+            'idNumber': idNumber,
+            'sectionCode': selectedSectionCode.value,
+            'corUrl': corUrl,
+            'enrollmentStatus': 'pending',
+            'enrolledAt': FieldValue.serverTimestamp(),
+            'isActive': false, // Will be set to true upon approval
+          });
+
+      isSelectionComplete.value = true;
+
+      log('Selection with COR completed successfully');
+    } catch (e) {
+      log('Error completing selection with COR: $e');
+      rethrow;
+    }
+  }
+
   // Method to save instructor selection immediately when selected
   Future<void> saveInstructorSelection() async {
     try {

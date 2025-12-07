@@ -1589,7 +1589,7 @@ class SubmissionsController extends GetxController {
       print('✅ Submission $submissionId status updated to: $status');
     } catch (e) {
       print('❌ Error updating submission status: $e');
-      throw e;
+      rethrow;
     }
   }
 
