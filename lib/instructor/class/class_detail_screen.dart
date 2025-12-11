@@ -709,16 +709,11 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         // Calculate available height for tab content
-                        // Account for: tabs, conditional plant tree button, and spacing
+                        // Account for: tabs and spacing
                         const double tabsHeight = 50; // Approximate tabs height
-                        const double plantTreeButtonHeight =
-                            60; // Plant tree button + spacing
                         final double availableHeight =
                             constraints.maxHeight -
                             tabsHeight -
-                            (_selectedTabIndex == 3
-                                ? plantTreeButtonHeight
-                                : 0) -
                             20; // SizedBox height
 
                         return SingleChildScrollView(
@@ -775,42 +770,6 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                 ],
                               ),
                               const SizedBox(height: 20),
-
-                              // Plant Tree Button - Only show on Trees tab
-                              if (_selectedTabIndex == 3) ...[
-                                Row(
-                                  children: [
-                                    ElevatedButton.icon(
-                                      onPressed: _showPlantTreeDialog,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF34A853,
-                                        ),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 12,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                      ),
-                                      icon: const Icon(Icons.eco, size: 20),
-                                      label: const Text(
-                                        'Plant Tree',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
-                              ],
 
                               // Tab Content with fixed height for independent scrolling
                               SizedBox(

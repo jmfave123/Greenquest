@@ -62,7 +62,7 @@ class TreePlantingController extends GetxController {
         'activityTitle': 'Tree Planting',
         'studentId': user.uid,
         'studentName':
-            userData['name'] ?? userData['displayName'] ?? 'Unknown Student',
+            userData['fullName'] ?? user.displayName ?? 'Unknown Student',
         'studentIdNumber': userData['idNumber'] ?? user.uid,
         'instructorId': selectedInstructorId,
         'instructorName': instructorName,
