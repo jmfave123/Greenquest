@@ -15,7 +15,7 @@ export PATH="$PATH:$HOME/flutter/bin"
 echo "Flutter version:"
 flutter --version
 
-# Install dependencies
+# Install dependencies  
 echo "Getting dependencies..."
 flutter pub get
 

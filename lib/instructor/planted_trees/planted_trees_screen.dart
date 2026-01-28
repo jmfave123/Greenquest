@@ -650,11 +650,9 @@ class _RegisterTreeDialogState extends State<_RegisterTreeDialog> {
         );
       },
     );
-    if (picked != null) {
-      widget.dateController.text =
-          '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
-      setState(() {});
-    }
+    widget.dateController.text =
+        '${picked!.day.toString().padLeft(2, '0')}/${picked!.month.toString().padLeft(2, '0')}/${picked.year}';
+    setState(() {});
   }
 
   Future<void> _handleAddTree() async {

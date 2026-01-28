@@ -383,9 +383,9 @@ class AnnouncementScreenController extends GetxController {
         };
 
         // Handle image update
-        if (selectedImageFile.value != null && finalImageUrl != null) {
+        if (selectedImageFile.value != null) {
           // New image was uploaded - update with new URL
-          updateData['imageUrl'] = finalImageUrl;
+          updateData['imageUrl'] = finalImageUrl!;
           imageRemovedByUser.value =
               false; // Reset removal flag since we have new image
         } else if (imageRemovedByUser.value &&
@@ -496,8 +496,7 @@ class AnnouncementScreenController extends GetxController {
           'instructorProfileUrl': finalInstructorProfileUrl,
           'selectedClasses': selectedSections, // Store selected sections
           // Add image URL if available
-          if (finalImageUrl != null && finalImageUrl.isNotEmpty)
-            'imageUrl': finalImageUrl,
+          if (finalImageUrl!.isNotEmpty) 'imageUrl': finalImageUrl,
           // Add assigned semester data
           if (semester != null) 'assignedSemester': semester,
         };
@@ -522,8 +521,7 @@ class AnnouncementScreenController extends GetxController {
             'announcementId': docRef.id,
             'urgent': urgent.value,
             'pinned': pinToTop.value,
-            if (finalImageUrl != null && finalImageUrl.isNotEmpty)
-              'imageUrl': finalImageUrl,
+            if (finalImageUrl.isNotEmpty) 'imageUrl': finalImageUrl,
           },
         );
 

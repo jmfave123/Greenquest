@@ -394,12 +394,10 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           announcementController = Get.put(UserAnnouncementController());
         }
 
-        if (announcementController != null) {
-          // Update the instructor ID in controller if needed
-          announcementController.selectedInstructorId.value = instructorId;
-          // Update views
-          await announcementController.updateViews(announcementId);
-        }
+        // Update the instructor ID in controller if needed
+        announcementController!.selectedInstructorId.value = instructorId;
+        // Update views
+        await announcementController.updateViews(announcementId);
       }
     } catch (e) {
       print('Error updating announcement views: $e');

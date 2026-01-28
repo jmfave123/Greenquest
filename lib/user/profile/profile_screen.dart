@@ -16,7 +16,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  int selectedDrawerIndex = 5;
+  int selectedDrawerIndex = 6;
   final controller = Get.put(ProfileController());
   @override
   Widget build(BuildContext context) {

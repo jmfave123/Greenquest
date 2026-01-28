@@ -55,9 +55,7 @@ void main() async {
       OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
       OneSignal.initialize("679023d3-f6ec-425a-8370-8828fbdac926");
       OneSignal.Notifications.requestPermission(false);
-      print('✅ OneSignal initialized (mobile only)');
     } catch (e) {
-      print('⚠️ OneSignal initialization error (non-critical): $e');
       // Don't throw - allow app to continue even if OneSignal fails
     }
   }
@@ -79,7 +77,14 @@ class GreenQuestApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'GreenQuest',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(scaffoldBackgroundColor: Colors.white),
+      theme: ThemeData(
+        scaffoldBackgroundColor: Colors.white,
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: Color(0xFF43A047),
+          selectionColor: Color(0xFFB9F6CA), // Lighter green for selection
+          selectionHandleColor: Color(0xFF43A047), // The droplet color
+        ),
+      ),
       initialRoute: initialRoute,
       getPages: [
         // Mobile routes
