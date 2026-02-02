@@ -10,6 +10,9 @@ import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../instructor_dashboard_controller.dart';
 import 'submission_detail_screen.dart';
 import 'submissions_controller.dart';
+import 'widgets/submission_stat_card.dart';
+import 'widgets/submission_card.dart';
+import 'widgets/not_submitted_card.dart';
 
 class StudentSubmissionsScreen extends StatefulWidget {
   final Map<String, dynamic> activityData;
@@ -200,62 +203,6 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
     return submissionsController.filteredSubmissions;
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'submitted':
-        return Colors.blue;
-      case 'graded':
-        return Colors.green;
-      case 'late':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'submitted':
-        return Icons.upload_file;
-      case 'graded':
-        return Icons.check_circle;
-      case 'late':
-        return Icons.schedule;
-      default:
-        return Icons.help_outline;
-    }
-  }
-
-  Color _getTypeColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'activity':
-        return Colors.blue;
-      case 'assignment':
-        return Colors.orange;
-      case 'quiz':
-        return Colors.purple;
-      case 'pit':
-        return Colors.teal;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getTypeLabel(String type) {
-    switch (type.toLowerCase()) {
-      case 'activity':
-        return 'ACTIVITY';
-      case 'assignment':
-        return 'ASSIGNMENT';
-      case 'quiz':
-        return 'QUIZ';
-      case 'pit':
-        return 'PIT';
-      default:
-        return 'UNKNOWN';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -365,39 +312,44 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                             ),
                             child: Row(
                               children: [
-                                _buildStatCard(
-                                  'Total Submissions',
-                                  submissionsController.submissionStats['total']
-                                      .toString(),
-                                  Icons.people,
-                                  Colors.blue,
+                                SubmissionStatCard(
+                                  title: 'Total Submissions',
+                                  value:
+                                      submissionsController
+                                          .submissionStats['total']
+                                          .toString(),
+                                  icon: Icons.people,
+                                  color: Colors.blue,
                                 ),
                                 const SizedBox(width: 16),
-                                _buildStatCard(
-                                  'Graded',
-                                  submissionsController
-                                      .submissionStats['graded']
-                                      .toString(),
-                                  Icons.check_circle,
-                                  Colors.green,
+                                SubmissionStatCard(
+                                  title: 'Graded',
+                                  value:
+                                      submissionsController
+                                          .submissionStats['graded']
+                                          .toString(),
+                                  icon: Icons.check_circle,
+                                  color: Colors.green,
                                 ),
                                 const SizedBox(width: 16),
-                                _buildStatCard(
-                                  'Pending',
-                                  submissionsController
-                                      .submissionStats['pending']
-                                      .toString(),
-                                  Icons.pending,
-                                  Colors.orange,
+                                SubmissionStatCard(
+                                  title: 'Pending',
+                                  value:
+                                      submissionsController
+                                          .submissionStats['pending']
+                                          .toString(),
+                                  icon: Icons.pending,
+                                  color: Colors.orange,
                                 ),
                                 const SizedBox(width: 16),
-                                _buildStatCard(
-                                  'Not Yet Submitted',
-                                  submissionsController
-                                      .submissionStats['notSubmitted']
-                                      .toString(),
-                                  Icons.cancel_outlined,
-                                  Colors.red,
+                                SubmissionStatCard(
+                                  title: 'Not Yet Submitted',
+                                  value:
+                                      submissionsController
+                                          .submissionStats['notSubmitted']
+                                          .toString(),
+                                  icon: Icons.cancel_outlined,
+                                  color: Colors.red,
                                 ),
                               ],
                             ),
@@ -522,375 +474,34 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
                               itemBuilder: (context, index) {
                                 final submission =
                                     _getFilteredSubmissions()[index];
-                                return _buildSubmissionCard(submission);
+
+                                // Check if this is a student without submission
+                                final bool isNotSubmitted =
+                                    submission['status'] == null &&
+                                    submission['files'] == null &&
+                                    submission['submittedAt'] == null;
+
+                                if (isNotSubmitted) {
+                                  return NotSubmittedCard(student: submission);
+                                }
+
+                                return SubmissionCard(
+                                  submission: submission,
+                                  activityData: widget.activityData,
+                                  onTap:
+                                      () => _navigateToSubmissionDetail(
+                                        submission,
+                                      ),
+                                  formatDate:
+                                      submissionsController
+                                          .formatSubmissionDate,
+                                );
                               },
                             );
                           }),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE0E0E0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  Text(
-                    title,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSubmissionCard(Map<String, dynamic> submission) {
-    // Check if this is a student without submission
-    final bool isNotSubmitted =
-        submission['status'] == null &&
-        submission['files'] == null &&
-        submission['submittedAt'] == null;
-
-    if (isNotSubmitted) {
-      return _buildNotSubmittedCard(submission);
-    }
-
-    final files = submission['files'] as List<dynamic>? ?? [];
-    final submittedAt = submission['submittedAt'];
-    final studentName = submission['studentName'] ?? 'Unknown Student';
-    final studentId =
-        submission['idNumber'] ??
-        submission['studentIdNumber'] ??
-        submission['studentId'] ??
-        'N/A';
-    final status = submission['status'] ?? 'submitted';
-    final grade = submission['grade'];
-    final maxScore = widget.activityData['points'] ?? 100;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () => _navigateToSubmissionDetail(submission),
-        borderRadius: BorderRadius.circular(12),
-        child: Row(
-          children: [
-            // Student Avatar
-            CircleAvatar(
-              radius: 25,
-              backgroundColor: const Color(0xFF34A853).withOpacity(0.1),
-              child: Text(
-                studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF34A853),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-
-            // Student Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        studentName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '($studentId)',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getTypeColor(
-                            submission['type'] ?? 'activity',
-                          ).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _getTypeLabel(submission['type'] ?? 'activity'),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: _getTypeColor(
-                              submission['type'] ?? 'activity',
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Submitted: ${submissionsController.formatSubmissionDate(submittedAt)}',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.attach_file,
-                        size: 14,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${files.length} file(s)',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Status and Score
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _getStatusIcon(status),
-                        size: 12,
-                        color: _getStatusColor(status),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        status.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: _getStatusColor(status),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (grade != null)
-                  Text(
-                    '$grade/$maxScore',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                  )
-                else
-                  const Text(
-                    'Not graded',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-              ],
-            ),
-
-            const SizedBox(width: 16),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotSubmittedCard(Map<String, dynamic> student) {
-    final studentName = student['studentName'] ?? 'Unknown Student';
-    // Try multiple possible ID field names
-    final studentId =
-        student['idNumber'] ??
-        student['studentIdNumber'] ??
-        student['studentId'] ??
-        'N/A';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Student Avatar - Greyed out
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.grey.shade300,
-            child: Text(
-              studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // Student Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      studentName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '($studentId)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'No submission yet',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.red.shade600,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Not Submitted Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.shade200),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.cancel_outlined,
-                  size: 16,
-                  color: Colors.red.shade700,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Not Submitted',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.red.shade700,
                   ),
                 ),
               ],

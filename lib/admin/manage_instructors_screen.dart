@@ -6,6 +6,7 @@ import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import 'multiple_assignment_dialog.dart';
+import '../shared/widgets/skeleton_loading.dart';
 
 class ManageInstructorsScreen extends StatefulWidget {
   const ManageInstructorsScreen({super.key});
@@ -786,16 +787,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
 
                               if (snapshot.connectionState ==
                                   ConnectionState.waiting) {
-                                return const Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CircularProgressIndicator(),
-                                      SizedBox(height: 16),
-                                      Text('Loading instructors...'),
-                                    ],
-                                  ),
-                                );
+                                return const SkeletonInstructorList();
                               }
 
                               if (snapshot.hasError) {

@@ -1145,3 +1145,571 @@ class SkeletonInstructorProfile extends StatelessWidget {
     );
   }
 }
+
+/// Skeleton for admin dashboard
+class SkeletonAdminDashboard extends StatelessWidget {
+  const SkeletonAdminDashboard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Check screen width for responsive layout
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 768;
+    final isTablet = width >= 768 && width < 1024;
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 16 : 24,
+          vertical: isMobile ? 12 : 18,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Admin Page Hero Skeleton
+            Container(
+              margin: EdgeInsets.fromLTRB(
+                isMobile ? 16 : 24,
+                isMobile ? 12 : 20,
+                isMobile ? 16 : 24,
+                24,
+              ),
+              padding: EdgeInsets.all(isMobile ? 16 : 28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      SkeletonBox(
+                        width: isMobile ? 32 : 40,
+                        height: isMobile ? 32 : 40,
+                        borderRadius: 8,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonText(
+                              width: 180,
+                              height: isMobile ? 20 : 24,
+                            ),
+                            const SizedBox(height: 8),
+                            SkeletonText(width: 250, height: 14),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonText(
+                              width: 150,
+                              height: isMobile ? 24 : 32,
+                            ),
+                            const SizedBox(height: 8),
+                            SkeletonText(width: double.infinity, height: 16),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 4),
+
+            // Summary Cards Skeleton
+            if (isMobile)
+              Column(
+                children: List.generate(
+                  4,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: const _SkeletonSummaryCard(),
+                  ),
+                ),
+              )
+            else if (isTablet)
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: List.generate(
+                  4,
+                  (index) => SizedBox(
+                    width:
+                        (width - 48 - 12) / 2, // Approximate width calculation
+                    child: const _SkeletonSummaryCard(),
+                  ),
+                ),
+              )
+            else
+              Row(
+                children: List.generate(
+                  4,
+                  (index) => Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: index < 3 ? 12 : 0),
+                      child: const _SkeletonSummaryCard(),
+                    ),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 24),
+
+            // Period Management Card Skeleton
+            Container(
+              width: double.infinity,
+              height: 120, // Approximate height
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SkeletonText(width: 200, height: 20),
+                        const SizedBox(height: 12),
+                        SkeletonText(width: 300, height: 14),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  SkeletonBox(width: 40, height: 40, borderRadius: 20),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Search and Filter Skeleton
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 25,
+                vertical: isMobile ? 12 : 15,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                children: [
+                  // Search Bar
+                  SkeletonBox(
+                    width: isMobile ? 150 : width * 0.35,
+                    height: 48,
+                    borderRadius: 7,
+                  ),
+                  const SizedBox(width: 10),
+                  // Chips
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: Row(
+                        children: List.generate(
+                          3,
+                          (index) => Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: SkeletonBox(
+                              width: 100,
+                              height: 40,
+                              borderRadius: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // Instructors Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                SkeletonText(width: 120, height: 24),
+                SkeletonBox(width: 80, height: 24, borderRadius: 20),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Instructor List Skeletons
+            Column(
+              children: List.generate(
+                3,
+                (index) => Container(
+                  margin: const EdgeInsets.only(bottom: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFBDBDBD),
+                        blurRadius: 2,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      SkeletonAvatar(radius: 35),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonText(width: 150, height: 18),
+                          const SizedBox(height: 6),
+                          SkeletonText(width: 180, height: 13),
+                          const SizedBox(height: 4),
+                          SkeletonText(width: 100, height: 13),
+                        ],
+                      ),
+                      const Spacer(),
+                      if (!isMobile) ...[
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonText(width: 100, height: 13),
+                            const SizedBox(height: 4),
+                            SkeletonText(width: 100, height: 13),
+                          ],
+                        ),
+                        const SizedBox(width: 20),
+                      ],
+                      SkeletonBox(width: 24, height: 24, borderRadius: 12),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonSummaryCard extends StatelessWidget {
+  const _SkeletonSummaryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 110, // Approximate height based on content
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              SkeletonText(width: 100, height: 15),
+              SkeletonBox(width: 26, height: 26, borderRadius: 4),
+            ],
+          ),
+          SkeletonText(width: 60, height: 22),
+          SkeletonText(width: 120, height: 13),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton for manage instructors list
+class SkeletonInstructorList extends StatelessWidget {
+  const SkeletonInstructorList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      itemCount: 5,
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            children: [
+              // Avatar
+              SkeletonAvatar(radius: 30),
+              const SizedBox(width: 16),
+              // Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonText(width: 180, height: 20),
+                    const SizedBox(height: 8),
+                    SkeletonText(width: 220, height: 14),
+                    const SizedBox(height: 8),
+                    SkeletonText(width: 150, height: 14),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        SkeletonBox(width: 80, height: 24, borderRadius: 4),
+                        const SizedBox(width: 8),
+                        SkeletonBox(width: 60, height: 24, borderRadius: 4),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Actions
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SkeletonBox(width: 100, height: 36, borderRadius: 8),
+                  const SizedBox(height: 8),
+                  SkeletonBox(width: 100, height: 36, borderRadius: 8),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Skeleton for department management list
+class SkeletonDepartmentList extends StatelessWidget {
+  const SkeletonDepartmentList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 4,
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            children: [
+              // Department Header
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    // Icon placeholder
+                    SkeletonBox(width: 50, height: 50, borderRadius: 12),
+                    const SizedBox(width: 16),
+                    // Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonText(width: 200, height: 20),
+                          const SizedBox(height: 8),
+                          SkeletonText(width: 120, height: 14),
+                          const SizedBox(height: 8),
+                          SkeletonText(width: 250, height: 14),
+                        ],
+                      ),
+                    ),
+                    // Action buttons
+                    Row(
+                      children: [
+                        SkeletonBox(width: 32, height: 32, borderRadius: 4),
+                        const SizedBox(width: 12),
+                        SkeletonBox(width: 32, height: 32, borderRadius: 4),
+                        const SizedBox(width: 12),
+                        SkeletonBox(width: 32, height: 32, borderRadius: 4),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Sections placeholder (optional, just a small box to imply content)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: SkeletonBox(
+                  width: double.infinity,
+                  height: 60,
+                  borderRadius: 8,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Skeleton for class management list
+class SkeletonClassManagementList extends StatelessWidget {
+  const SkeletonClassManagementList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 5,
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            children: [
+              // Avatar
+              SkeletonAvatar(radius: 25),
+              const SizedBox(width: 16),
+              // Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonText(width: 150, height: 18),
+                    const SizedBox(height: 8),
+                    SkeletonText(width: 180, height: 14),
+                    const SizedBox(height: 8),
+                    SkeletonText(width: 120, height: 14),
+                  ],
+                ),
+              ),
+              // Stats
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    children: [
+                      SkeletonBox(width: 60, height: 20, borderRadius: 6),
+                      const SizedBox(width: 8),
+                      SkeletonBox(width: 60, height: 20, borderRadius: 6),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      SkeletonBox(width: 60, height: 20, borderRadius: 6),
+                      const SizedBox(width: 8),
+                      SkeletonBox(width: 60, height: 20, borderRadius: 6),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Skeleton for a chart area
+class SkeletonChartArea extends StatelessWidget {
+  const SkeletonChartArea({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            // Background grid lines
+            Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(
+                5,
+                (index) => Container(
+                  width: double.infinity,
+                  height: 1,
+                  color: Colors.grey[100],
+                ),
+              ),
+            ),
+            // Skeleton bars mimicking a trend
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(12, (index) {
+                // Generate a wave-like pattern for the heights
+                final double heightFactor =
+                    0.3 +
+                    0.4 * (0.5 + 0.5 * (index / 11)); // linear increase trend
+                return SkeletonBox(
+                  width: (constraints.maxWidth / 12) - 8, // Spacing
+                  height: constraints.maxHeight * heightFactor,
+                  borderRadius: 4,
+                );
+              }),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

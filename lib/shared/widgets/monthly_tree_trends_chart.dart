@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'skeleton_loading.dart';
 
 /// Reusable Monthly Tree Planting Trends Chart
 /// Shows tree planting data aggregated by month for a given year
@@ -172,7 +173,7 @@ class _MonthlyTreeTrendsChartState extends State<MonthlyTreeTrendsChart> {
               height: 280,
               child:
                   _isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? const SkeletonChartArea()
                       : _error != null
                       ? Center(
                         child: Column(

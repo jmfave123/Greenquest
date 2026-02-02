@@ -6,6 +6,7 @@ import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import 'widgets/period_management_card.dart';
+import '../shared/widgets/skeleton_loading.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -1061,13 +1062,7 @@ class _AdminDashboardState extends State<AdminDashboard>
           Expanded(
             child:
                 _isLoading
-                    ? const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF34A853),
-                        ),
-                      ),
-                    )
+                    ? const SkeletonAdminDashboard()
                     : SingleChildScrollView(
                       child: Padding(
                         padding: EdgeInsets.symmetric(

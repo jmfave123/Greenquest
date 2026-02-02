@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_datagrid/datagrid.dart';
+import 'helpers/column_name_helpers.dart';
+import 'calculators/grade_calculator.dart';
 
 class ClassRecordTable extends StatefulWidget {
   final List<Map<String, dynamic>> students;
@@ -415,7 +417,7 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
             border: Border.all(color: Colors.grey.shade300),
           ),
           child: const Text(
-            'Mid Lec Grade Poi',
+            'Mid Lec Grade Point',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
             textAlign: TextAlign.center,
           ),
@@ -1241,176 +1243,73 @@ class _ClassRecordTableState extends State<ClassRecordTable> {
   }
 
   List<String> _getClassStandingColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.classStandingItems) {
-      columns.add('cs_${item['id']}');
-    }
-    columns.addAll(['cs_total', 'cs_percentage']);
-    return columns;
+    return ColumnNameHelpers.getClassStandingColumnNames(
+      widget.classStandingItems,
+    );
   }
 
   List<String> _getQuizPrelimColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.quizPrelimItems) {
-      columns.add('qp_${item['id']}');
-    }
-    columns.addAll(['qp_total', 'qp_percentage']);
-    return columns;
+    return ColumnNameHelpers.getQuizPrelimColumnNames(widget.quizPrelimItems);
   }
 
   List<String> _getMidtermExamColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.midtermExamItems) {
-      columns.add('me_${item['id']}');
-    }
-    columns.add('me_percentage');
-    return columns;
+    return ColumnNameHelpers.getMidtermExamColumnNames(widget.midtermExamItems);
   }
 
   List<String> _getPitColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.pitItems) {
-      columns.add('pit_${item['id']}');
-    }
-    columns.addAll(['pit_total', 'pit_percentage']);
-    return columns;
+    return ColumnNameHelpers.getPitColumnNames(widget.pitItems);
   }
 
   List<String> _getLectureColumnNames() {
-    return ['mga', 'mid_lec_grade_point', 'mid_grade_point', 'midterm_grade'];
+    return ColumnNameHelpers.getLectureColumnNames();
   }
 
   List<String> _getStudentInfoColumnNames() {
-    return ['no', 'idNumber', 'name'];
+    return ColumnNameHelpers.getStudentInfoColumnNames();
   }
 
   List<String> _getGradedItemsColumnNames() {
-    List<String> columns = [];
-
-    // Class Standing columns
-    for (var item in widget.classStandingItems) {
-      columns.add('cs_${item['id']}');
-    }
-    columns.addAll(['cs_total', 'cs_percentage']);
-
-    // Quiz/Prelim columns
-    for (var item in widget.quizPrelimItems) {
-      columns.add('qp_${item['id']}');
-    }
-    columns.addAll(['qp_total', 'qp_percentage']);
-
-    // Midterm Exam columns
-    for (var item in widget.midtermExamItems) {
-      columns.add('me_${item['id']}');
-    }
-    columns.add('me_percentage');
-
-    // PIT columns
-    for (var item in widget.pitItems) {
-      columns.add('pit_${item['id']}');
-    }
-    columns.addAll(['pit_total', 'pit_percentage']);
-
-    // Lecture columns
-    columns.addAll([
-      'mga',
-      'mid_lec_grade_point',
-      'mid_grade_point',
-      'midterm_grade',
-    ]);
-
-    return columns;
+    return ColumnNameHelpers.getGradedItemsColumnNames(
+      widget.classStandingItems,
+      widget.quizPrelimItems,
+      widget.midtermExamItems,
+      widget.pitItems,
+    );
   }
 
   List<String> _getFinalGradedItemsColumnNames() {
-    List<String> columns = [];
-
-    // Final Class Standing columns
-    for (var item in widget.finalClassStandingItems) {
-      columns.add('fcs_${item['id']}');
-    }
-    columns.addAll(['fcs_total', 'fcs_percentage']);
-
-    // Final Quiz columns
-    for (var item in widget.finalQuizItems) {
-      columns.add('fq_${item['id']}');
-    }
-    columns.addAll(['fq_total', 'fq_percentage']);
-
-    // Final Exam columns
-    for (var item in widget.finalExamItems) {
-      columns.add('fe_${item['id']}');
-    }
-    columns.add('fe_percentage');
-
-    // Final PIT columns
-    for (var item in widget.finalPitItems) {
-      columns.add('fpit_${item['id']}');
-    }
-    columns.addAll(['fpit_total', 'fpit_percentage']);
-
-    // Final Lecture columns
-    columns.addAll([
-      'fga',
-      'final_lec_grade_point',
-      'final_grade_point',
-      'final_grade',
-    ]);
-
-    return columns;
+    return ColumnNameHelpers.getFinalGradedItemsColumnNames(
+      widget.finalClassStandingItems,
+      widget.finalQuizItems,
+      widget.finalExamItems,
+      widget.finalPitItems,
+    );
   }
 
   List<String> _getFinalClassStandingColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.finalClassStandingItems) {
-      columns.add('fcs_${item['id']}');
-    }
-    columns.addAll(['fcs_total', 'fcs_percentage']);
-    return columns;
+    return ColumnNameHelpers.getFinalClassStandingColumnNames(
+      widget.finalClassStandingItems,
+    );
   }
 
   List<String> _getFinalQuizColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.finalQuizItems) {
-      columns.add('fq_${item['id']}');
-    }
-    columns.addAll(['fq_total', 'fq_percentage']);
-    return columns;
+    return ColumnNameHelpers.getFinalQuizColumnNames(widget.finalQuizItems);
   }
 
   List<String> _getFinalExamColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.finalExamItems) {
-      columns.add('fe_${item['id']}');
-    }
-    columns.add('fe_percentage');
-    return columns;
+    return ColumnNameHelpers.getFinalExamColumnNames(widget.finalExamItems);
   }
 
   List<String> _getFinalPitColumnNames() {
-    List<String> columns = [];
-    for (var item in widget.finalPitItems) {
-      columns.add('fpit_${item['id']}');
-    }
-    columns.addAll(['fpit_total', 'fpit_percentage']);
-    return columns;
+    return ColumnNameHelpers.getFinalPitColumnNames(widget.finalPitItems);
   }
 
   List<String> _getFinalLectureColumnNames() {
-    return ['fga', 'final_lec_grade_point', 'final_grade_point', 'final_grade'];
+    return ColumnNameHelpers.getFinalLectureColumnNames();
   }
 
   List<String> _getComputedFinalGradeColumnNames() {
-    return [
-      'comp_half_mtg_ftg',
-      'comp_12_mtg_ftg_removal',
-      'comp_12_mtg_ftg_after',
-      'comp_12_desc',
-      'comp_13_mtg_ftg',
-      'comp_13_mtg_ftg_removal',
-      'comp_13_mtg_ftg_after',
-      'comp_13_desc',
-    ];
+    return ColumnNameHelpers.getComputedFinalGradeColumnNames();
   }
 
   void _handleCellTap(DataGridCellTapDetails details) {
@@ -1431,6 +1330,8 @@ class ClassRecordDataSource extends DataGridSource {
   List<Map<String, dynamic>> finalPitItems;
   Function(Map<String, dynamic> student, String itemKey, String value)?
   onCellValueChanged;
+
+  late GradeCalculator _calculator;
 
   /// Format name from "First Middle Last" to "Last, First M." format
   /// Handles: "First Last" -> "Last, First"
@@ -1469,7 +1370,18 @@ class ClassRecordDataSource extends DataGridSource {
     required this.finalExamItems,
     required this.finalPitItems,
     this.onCellValueChanged,
-  });
+  }) {
+    _calculator = GradeCalculator(
+      classStandingItems: classStandingItems,
+      quizPrelimItems: quizPrelimItems,
+      midtermExamItems: midtermExamItems,
+      pitItems: pitItems,
+      finalClassStandingItems: finalClassStandingItems,
+      finalQuizItems: finalQuizItems,
+      finalExamItems: finalExamItems,
+      finalPitItems: finalPitItems,
+    );
+  }
 
   void updateData(
     List<Map<String, dynamic>> newStudents,
@@ -1491,6 +1403,19 @@ class ClassRecordDataSource extends DataGridSource {
     finalQuizItems = newFinalQuizItems;
     finalExamItems = newFinalExamItems;
     finalPitItems = newFinalPitItems;
+
+    // Reinitialize calculator with new data
+    _calculator = GradeCalculator(
+      classStandingItems: classStandingItems,
+      quizPrelimItems: quizPrelimItems,
+      midtermExamItems: midtermExamItems,
+      pitItems: pitItems,
+      finalClassStandingItems: finalClassStandingItems,
+      finalQuizItems: finalQuizItems,
+      finalExamItems: finalExamItems,
+      finalPitItems: finalPitItems,
+    );
+
     notifyListeners();
   }
 
@@ -1533,11 +1458,11 @@ class ClassRecordDataSource extends DataGridSource {
             // Class Standing Total and CPA
             DataGridCell<String>(
               columnName: 'cs_total',
-              value: _calculateClassStandingTotal(student),
+              value: _calculator.calculateClassStandingTotal(student),
             ),
             DataGridCell<String>(
               columnName: 'cs_percentage',
-              value: _calculateClassStandingPercentage(student),
+              value: _calculator.calculateClassStandingPercentage(student),
             ),
 
             // Quiz/Prelim cells
@@ -1553,11 +1478,11 @@ class ClassRecordDataSource extends DataGridSource {
             // Quiz/Prelim Total and QA
             DataGridCell<String>(
               columnName: 'qp_total',
-              value: _calculateQuizPrelimTotal(student),
+              value: _calculator.calculateQuizPrelimTotal(student),
             ),
             DataGridCell<String>(
               columnName: 'qp_percentage',
-              value: _calculateQuizPrelimPercentage(student),
+              value: _calculator.calculateQuizPrelimPercentage(student),
             ),
 
             // Midterm Exam cells
@@ -1573,7 +1498,7 @@ class ClassRecordDataSource extends DataGridSource {
             // M (Midterm percentage)
             DataGridCell<String>(
               columnName: 'me_percentage',
-              value: _calculateMidtermExamPercentage(student),
+              value: _calculator.calculateMidtermExamPercentage(student),
             ),
 
             // PIT cells
@@ -1589,29 +1514,29 @@ class ClassRecordDataSource extends DataGridSource {
             // PIT Total and PIT%
             DataGridCell<String>(
               columnName: 'pit_total',
-              value: _calculatePitTotal(student),
+              value: _calculator.calculatePitTotal(student),
             ),
             DataGridCell<String>(
               columnName: 'pit_percentage',
-              value: _calculatePitPercentage(student),
+              value: _calculator.calculatePitPercentage(student),
             ),
 
             // Lecture cells
             DataGridCell<String>(
               columnName: 'mga',
-              value: _calculateMGA(student),
+              value: _calculator.calculateMGA(student),
             ),
             DataGridCell<String>(
               columnName: 'mid_lec_grade_point',
-              value: _calculateMidLecGradePoint(student),
+              value: _calculator.calculateMidLecGradePoint(student),
             ),
             DataGridCell<String>(
               columnName: 'mid_grade_point',
-              value: _calculateMidGradePoint(student),
+              value: _calculator.calculateMidGradePoint(student),
             ),
             DataGridCell<String>(
               columnName: 'midterm_grade',
-              value: _calculateMidtermGrade(student),
+              value: _calculator.calculateMidtermGrade(student),
             ),
 
             // Final Class Standing cells
@@ -1627,11 +1552,11 @@ class ClassRecordDataSource extends DataGridSource {
             // Final Class Standing Total and CPA
             DataGridCell<String>(
               columnName: 'fcs_total',
-              value: _calculateFinalClassStandingTotal(student),
+              value: _calculator.calculateFinalClassStandingTotal(student),
             ),
             DataGridCell<String>(
               columnName: 'fcs_percentage',
-              value: _calculateFinalClassStandingPercentage(student),
+              value: _calculator.calculateFinalClassStandingPercentage(student),
             ),
 
             // Final Quiz cells
@@ -1647,11 +1572,11 @@ class ClassRecordDataSource extends DataGridSource {
             // Final Quiz Total and QA
             DataGridCell<String>(
               columnName: 'fq_total',
-              value: _calculateFinalQuizTotal(student),
+              value: _calculator.calculateFinalQuizTotal(student),
             ),
             DataGridCell<String>(
               columnName: 'fq_percentage',
-              value: _calculateFinalQuizPercentage(student),
+              value: _calculator.calculateFinalQuizPercentage(student),
             ),
 
             // Final Exam cells
@@ -1667,7 +1592,7 @@ class ClassRecordDataSource extends DataGridSource {
             // F (Final percentage)
             DataGridCell<String>(
               columnName: 'fe_percentage',
-              value: _calculateFinalExamPercentage(student),
+              value: _calculator.calculateFinalExamPercentage(student),
             ),
 
             // Final PIT cells
@@ -1683,63 +1608,63 @@ class ClassRecordDataSource extends DataGridSource {
             // Final PIT Total and PIT%
             DataGridCell<String>(
               columnName: 'fpit_total',
-              value: _calculateFinalPitTotal(student),
+              value: _calculator.calculateFinalPitTotal(student),
             ),
             DataGridCell<String>(
               columnName: 'fpit_percentage',
-              value: _calculateFinalPitPercentage(student),
+              value: _calculator.calculateFinalPitPercentage(student),
             ),
 
             // Final Lecture cells
             DataGridCell<String>(
               columnName: 'fga',
-              value: _calculateFinalMGA(student),
+              value: _calculator.calculateFinalMGA(student),
             ),
             DataGridCell<String>(
               columnName: 'final_lec_grade_point',
-              value: _calculateFinalLecGradePoint(student),
+              value: _calculator.calculateFinalLecGradePoint(student),
             ),
             DataGridCell<String>(
               columnName: 'final_grade_point',
-              value: _calculateFinalGradePoint(student),
+              value: _calculator.calculateFinalGradePoint(student),
             ),
             DataGridCell<String>(
               columnName: 'final_grade',
-              value: _calculateFinalGrade(student),
+              value: _calculator.calculateFinalGrade(student),
             ),
 
             // Computed Final Grade cells
             DataGridCell<String>(
               columnName: 'comp_half_mtg_ftg',
-              value: _calculateHalfMtgFtg(student),
+              value: _calculator.calculateHalfMtgFtg(student),
             ),
             DataGridCell<String>(
               columnName: 'comp_12_mtg_ftg_removal',
-              value: _calculateComp12MTGFTGRemoval(student),
+              value: _calculator.calculateComp12MTGFTGRemoval(student),
             ),
             DataGridCell<String>(
               columnName: 'comp_12_mtg_ftg_after',
-              value: _calculateComp12MTGFTGAfter(student),
+              value: _calculator.calculateComp12MTGFTGAfter(student),
             ),
             DataGridCell<String>(
               columnName: 'comp_12_desc',
-              value: _calculateComp12Desc(student),
+              value: _calculator.calculateComp12Desc(student),
             ),
             DataGridCell<String>(
               columnName: 'comp_13_mtg_ftg',
-              value: _calculateComp13MTGFTG(student),
+              value: _calculator.calculateComp13MTGFTG(student),
             ),
             DataGridCell<String>(
               columnName: 'comp_13_mtg_ftg_removal',
-              value: _calculateComp13MTGFTGRemoval(student),
+              value: _calculator.calculateComp13MTGFTGRemoval(student),
             ),
             DataGridCell<String>(
               columnName: 'comp_13_mtg_ftg_after',
-              value: _calculateComp13MTGFTGAfter(student),
+              value: _calculator.calculateComp13MTGFTGAfter(student),
             ),
             DataGridCell<String>(
               columnName: 'comp_13_desc',
-              value: _calculateComp13Desc(student),
+              value: _calculator.calculateComp13Desc(student),
             ),
           ],
         );
@@ -2073,534 +1998,5 @@ class ClassRecordDataSource extends DataGridSource {
             );
           }).toList(),
     );
-  }
-
-  // Calculation methods
-  String _calculateClassStandingTotal(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in classStandingItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    return total.toString();
-  }
-
-  String _calculateClassStandingPercentage(Map<String, dynamic> student) {
-    int total = int.tryParse(_calculateClassStandingTotal(student)) ?? 0;
-    int maxTotal = classStandingItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  String _calculateQuizPrelimTotal(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in quizPrelimItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    return total.toString();
-  }
-
-  String _calculateQuizPrelimPercentage(Map<String, dynamic> student) {
-    int total = int.tryParse(_calculateQuizPrelimTotal(student)) ?? 0;
-    int maxTotal = quizPrelimItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  String _calculatePitTotal(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in pitItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    return total.toString();
-  }
-
-  String _calculatePitPercentage(Map<String, dynamic> student) {
-    int total = int.tryParse(_calculatePitTotal(student)) ?? 0;
-    int maxTotal = pitItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  String _calculateMidtermExamPercentage(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in midtermExamItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    int maxTotal = midtermExamItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  // Helper methods to get category score as fraction (not formatted/rounded)
-  double _classStandingFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in classStandingItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = classStandingItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  double _quizPrelimFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in quizPrelimItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = quizPrelimItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  double _midtermExamFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in midtermExamItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = midtermExamItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  double _pitFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in pitItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = pitItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  // Calculate MGA using raw fractions
-  double _calculateRawMGA(Map<String, dynamic> student) {
-    double cpa = _classStandingFraction(student);
-    double qa = _quizPrelimFraction(student);
-    double m = _midtermExamFraction(student);
-    double pit = _pitFraction(student);
-    return 0.10 * cpa + 0.40 * qa + 0.30 * m + 0.20 * pit;
-  }
-
-  // Display MGA as whole percent (as before)
-  String _calculateMGA(Map<String, dynamic> student) {
-    double mga = _calculateRawMGA(student);
-    return '${(mga * 100).round()}%'; // as whole percent
-  }
-
-  String _calculateMidLecGradePoint(Map<String, dynamic> student) {
-    double mgaValue = _calculateRawMGA(
-      student,
-    ); // true fraction, not percent string
-    double maxMgaValue = 1.0; // Always 1.0 for full scale
-    double ratio = (maxMgaValue == 0) ? 0 : mgaValue / maxMgaValue;
-    double gradePoint;
-    if (ratio >= 0.7) {
-      gradePoint = (23.0 / 3.0) - (20.0 / 3.0) * ratio;
-    } else {
-      gradePoint = 5.0 - (20.0 / 7.0) * ratio;
-    }
-    return gradePoint.toStringAsFixed(3); // Use rounding for Excel match
-  }
-
-  // Mid Grade Point always equals Mid Lec Grade Point
-  String _calculateMidGradePoint(Map<String, dynamic> student) {
-    return _calculateMidLecGradePoint(student);
-  }
-
-  // Each bracket: [lower, upper, grade]
-  static const List<List<double>> _midtermGradeIntervals = [
-    [1.000, 1.125, 1.00],
-    [1.125, 1.375, 1.25],
-    [1.375, 1.625, 1.50],
-    [1.625, 1.875, 1.75],
-    [1.875, 2.125, 2.00],
-    [2.125, 2.375, 2.25],
-    [2.375, 2.625, 2.50],
-    [2.625, 2.875, 2.75],
-    [2.875, 3.125, 3.00],
-    [3.125, 3.375, 3.25],
-    [3.375, 3.625, 3.50],
-    [3.625, 3.875, 3.75],
-    [3.875, 4.125, 4.00],
-    [4.125, 4.375, 4.25],
-    [4.375, 4.625, 4.50],
-    [4.625, 4.875, 4.75],
-    [4.875, 5.125, 5.00],
-  ];
-
-  String _getMidtermGradeEquivalent(double gradePoint) {
-    for (var range in _midtermGradeIntervals) {
-      if (gradePoint >= range[0] && gradePoint < range[1]) {
-        return range[2].toStringAsFixed(2);
-      }
-    }
-    return '5.00';
-  }
-
-  String _calculateMidtermGrade(Map<String, dynamic> student) {
-    double gradePoint =
-        double.tryParse(_calculateMidGradePoint(student)) ?? 0.0;
-    gradePoint = double.parse(gradePoint.toStringAsFixed(3));
-    return _getMidtermGradeEquivalent(gradePoint);
-  }
-
-  // Final Grade Calculations
-  String _calculateFinalClassStandingTotal(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalClassStandingItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    return total.toString();
-  }
-
-  String _calculateFinalClassStandingPercentage(Map<String, dynamic> student) {
-    int total = int.tryParse(_calculateFinalClassStandingTotal(student)) ?? 0;
-    int maxTotal = finalClassStandingItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  String _calculateFinalQuizTotal(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalQuizItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    return total.toString();
-  }
-
-  String _calculateFinalQuizPercentage(Map<String, dynamic> student) {
-    int total = int.tryParse(_calculateFinalQuizTotal(student)) ?? 0;
-    int maxTotal = finalQuizItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  String _calculateFinalExamPercentage(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalExamItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    int maxTotal = finalExamItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  String _calculateFinalPitTotal(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalPitItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) {
-        total += score;
-      }
-    }
-    return total.toString();
-  }
-
-  String _calculateFinalPitPercentage(Map<String, dynamic> student) {
-    int total = int.tryParse(_calculateFinalPitTotal(student)) ?? 0;
-    int maxTotal = finalPitItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return '0%';
-    double percentage = (total / maxTotal) * 100;
-    return '${percentage.round()}%';
-  }
-
-  // Helper methods to get Final Grade category score as fraction
-  double _finalClassStandingFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalClassStandingItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = finalClassStandingItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  double _finalQuizFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalQuizItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = finalQuizItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  double _finalExamFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalExamItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = finalExamItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  double _finalPitFraction(Map<String, dynamic> student) {
-    int total = 0;
-    for (var item in finalPitItems) {
-      String key =
-          '${item['title'].toString().toLowerCase().replaceAll(' ', '')}_${item['id']}';
-      int? score = int.tryParse(student[key]?.toString() ?? '0');
-      if (score != null) total += score;
-    }
-    int maxTotal = finalPitItems.fold(
-      0,
-      (sum, item) => sum + (item['points'] as int? ?? 0),
-    );
-    if (maxTotal == 0) return 0.0;
-    return total / maxTotal;
-  }
-
-  // Calculate Final MGA using raw fractions
-  double _calculateFinalRawMGA(Map<String, dynamic> student) {
-    double cpa = _finalClassStandingFraction(student);
-    double qa = _finalQuizFraction(student);
-    double f = _finalExamFraction(student);
-    double pit = _finalPitFraction(student);
-    return 0.10 * cpa + 0.40 * qa + 0.30 * f + 0.20 * pit;
-  }
-
-  // Display Final MGA as whole percent
-  String _calculateFinalMGA(Map<String, dynamic> student) {
-    double mga = _calculateFinalRawMGA(student);
-    return '${(mga * 100).round()}%';
-  }
-
-  String _calculateFinalLecGradePoint(Map<String, dynamic> student) {
-    double mgaValue = _calculateFinalRawMGA(student);
-    double maxMgaValue = 1.0;
-    double ratio = (maxMgaValue == 0) ? 0 : mgaValue / maxMgaValue;
-    double gradePoint;
-    if (ratio >= 0.7) {
-      gradePoint = (23.0 / 3.0) - (20.0 / 3.0) * ratio;
-    } else {
-      gradePoint = 5.0 - (20.0 / 7.0) * ratio;
-    }
-    return gradePoint.toStringAsFixed(3);
-  }
-
-  // Final Grade Point always equals Final Lec Grade Point
-  String _calculateFinalGradePoint(Map<String, dynamic> student) {
-    return _calculateFinalLecGradePoint(student);
-  }
-
-  // Computed Final Grade Calculations
-  String _calculateComp12MTGFTG(Map<String, dynamic> student) {
-    double mtg = double.tryParse(_calculateMidtermGrade(student)) ?? 5.00;
-    double ftg = double.tryParse(_calculateFinalGrade(student)) ?? 5.00;
-    double result = (0.5 * mtg) + (0.5 * ftg);
-    return result.toStringAsFixed(2);
-  }
-
-  String _calculateComp12MTGFTGRemoval(Map<String, dynamic> student) {
-    double result = double.tryParse(_calculateComp12MTGFTG(student)) ?? 5.00;
-    // If result is 4.50 or below, show 5.00, otherwise show result
-    if (result <= 4.50) {
-      return '5.00';
-    }
-    return result.toStringAsFixed(2);
-  }
-
-  String _calculateComp12MTGFTGAfter(Map<String, dynamic> student) {
-    // For removal grades, always 5.00 in the image
-    return _calculateComp12MTGFTGRemoval(student);
-  }
-
-  String _calculateComp12Desc(Map<String, dynamic> student) {
-    double result = double.tryParse(_calculateComp12MTGFTG(student)) ?? 5.00;
-    if (result <= 1.00) return 'Excellent';
-    if (result <= 2.99) return 'Passed';
-    return 'Failed';
-  }
-
-  String _calculateComp13MTGFTG(Map<String, dynamic> student) {
-    double mtg = double.tryParse(_calculateMidtermGrade(student)) ?? 5.00;
-    double ftg = double.tryParse(_calculateFinalGrade(student)) ?? 5.00;
-    double result = (1.0 / 3.0 * mtg) + (2.0 / 3.0 * ftg);
-    return result.toStringAsFixed(2);
-  }
-
-  String _calculateComp13MTGFTGRemoval(Map<String, dynamic> student) {
-    double result = double.tryParse(_calculateComp13MTGFTG(student)) ?? 5.00;
-    // If result is 4.50 or below, show 5.00, otherwise show result
-    if (result <= 4.50) {
-      return '5.00';
-    }
-    return result.toStringAsFixed(2);
-  }
-
-  String _calculateComp13MTGFTGAfter(Map<String, dynamic> student) {
-    // For removal grades, always 5.00 in the image
-    return _calculateComp13MTGFTGRemoval(student);
-  }
-
-  String _calculateComp13Desc(Map<String, dynamic> student) {
-    double result = double.tryParse(_calculateComp13MTGFTG(student)) ?? 5.00;
-    if (result <= 1.00) return 'Excellent';
-    if (result <= 2.99) return 'Passed';
-    return 'Failed';
-  }
-
-  String _calculateFinalGrade(Map<String, dynamic> student) {
-    double gradePoint =
-        double.tryParse(_calculateFinalGradePoint(student)) ?? 0.0;
-    gradePoint = double.parse(gradePoint.toStringAsFixed(3));
-    return _getMidtermGradeEquivalent(gradePoint);
-  }
-
-  // Computed Final Grade: 1/2 MTG + 1/2 FTG (used by computed section)
-  String _calculateHalfMtgFtg(Map<String, dynamic> student) {
-    double mtg = double.tryParse(_calculateMidtermGrade(student)) ?? 0.0;
-    double ftg = double.tryParse(_calculateFinalGrade(student)) ?? 0.0;
-    double combined = 0.5 * mtg + 0.5 * ftg;
-    return combined.toStringAsFixed(2);
-  }
-
-  // 1/2 MTG + 1/2 FTG (For Removal):
-  // IF(VLOOKUP(avg, table, 2, TRUE) > 3.5, 5, VLOOKUP(avg, table, 2, TRUE))
-  String _calculateComp12MTGFTGForRemoval(Map<String, dynamic> student) {
-    double avg = double.tryParse(_calculateComp12MTGFTG(student)) ?? 5.00;
-    // Map through the same intervals used for midterm to normalize to grade ladder
-    String mapped = _getMidtermGradeEquivalent(
-      double.parse(avg.toStringAsFixed(3)),
-    );
-    double mappedNum = double.tryParse(mapped) ?? 5.00;
-    if (mappedNum > 3.50) {
-      return '5.00';
-    }
-    return mapped;
-  }
-
-  // 1/2 MTG + 1/2 FTG (After Removal): just copy the For Removal value
-  String _calculateComp12MTGFTGAfterRemoval(Map<String, dynamic> student) {
-    return _calculateComp12MTGFTGForRemoval(student);
-  }
-
-  // 1/3 MTG + 2/3 FTG (For Removal): cap to 5.00 if mapped > 3.50
-  String _calculateComp13MTGFTGForRemoval(Map<String, dynamic> student) {
-    double avg = double.tryParse(_calculateComp13MTGFTG(student)) ?? 5.00;
-    String mapped = _getMidtermGradeEquivalent(
-      double.parse(avg.toStringAsFixed(3)),
-    );
-    double mappedNum = double.tryParse(mapped) ?? 5.00;
-    if (mappedNum > 3.50) {
-      return '5.00';
-    }
-    return mapped;
-  }
-
-  // 1/3 MTG + 2/3 FTG (After Removal): copy For Removal
-  String _calculateComp13MTGFTGAfterRemoval(Map<String, dynamic> student) {
-    return _calculateComp13MTGFTGForRemoval(student);
   }
 }

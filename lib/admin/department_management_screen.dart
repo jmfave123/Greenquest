@@ -6,6 +6,13 @@ import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import '../shared/widgets/confirmation_dialog.dart';
+import '../shared/widgets/skeleton_loading.dart';
+import 'services/department_service.dart';
+import 'services/section_service.dart';
+import 'services/semester_service.dart';
+import 'widgets/dialogs/create_department_dialog.dart';
+import 'widgets/dialogs/edit_department_dialog.dart';
+import 'widgets/dialogs/add_section_dialog.dart';
 
 class DepartmentManagementScreen extends StatefulWidget {
   const DepartmentManagementScreen({super.key});
@@ -21,6 +28,11 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
   AdminNavigationItem _selectedItem = AdminNavigationItem.manageDepartments;
   List<Map<String, dynamic>> _semesters = [];
 
+  // Service instances
+  late final DepartmentService _departmentService;
+  late final SectionService _sectionService;
+  late final SemesterService _semesterService;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -34,981 +46,60 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     Get.toNamed(route);
   }
 
-  Future<void> _createDepartment() async {
-    final TextEditingController nameController = TextEditingController();
-    final TextEditingController codeController = TextEditingController();
-    final TextEditingController descriptionController = TextEditingController();
-
+  void _createDepartment() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+      builder:
+          (context) => CreateDepartmentDialog(
+            onSave: (name, code, description) {
+              _departmentService.createDepartment(name, code, description);
+            },
           ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF34A853).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.school_rounded,
-                        color: Color(0xFF34A853),
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Create Department',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20,
-                              color: Colors.black,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Add a new department to the system',
-                            style: TextStyle(
-                              color: Colors.black54,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Department Name
-                const Text(
-                  'Department Name',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameController,
-                  cursorColor: const Color(0xFF34A853),
-                  decoration: const InputDecoration(
-                    hintText: 'e.g., Education, Computer Science',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                      borderSide: BorderSide(color: Color(0xFF34A853)),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Department Code
-                const Text(
-                  'Department Code',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: codeController,
-                  cursorColor: const Color(0xFF34A853),
-                  decoration: const InputDecoration(
-                    hintText: 'e.g., EDUC, CS, IT',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                      borderSide: BorderSide(color: Color(0xFF34A853)),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Description
-                const Text(
-                  'Description (Optional)',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: descriptionController,
-                  cursorColor: const Color(0xFF34A853),
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    hintText: 'Brief description of the department',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8)),
-                      borderSide: BorderSide(color: Color(0xFF34A853)),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Action Buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black54,
-                        side: const BorderSide(color: Color(0xFFE5E7EB)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        if (nameController.text.trim().isNotEmpty &&
-                            codeController.text.trim().isNotEmpty) {
-                          Navigator.of(context).pop();
-                          _saveDepartment(
-                            nameController.text.trim(),
-                            codeController.text.trim().toUpperCase(),
-                            descriptionController.text.trim(),
-                          );
-                        } else {
-                          Get.snackbar(
-                            'Validation Error',
-                            'Please fill in both department name and code',
-                            backgroundColor: Colors.orange,
-                            colorText: Colors.white,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF34A853),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: const Text('Create'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
-  // Helper method to check for duplicate department names
-  Future<bool> _isDuplicateName(String name) async {
-    final allDepartmentsQuery =
-        await _firestore.collection('departments').get();
-    final normalizedName = name.trim().toLowerCase();
-
-    for (var doc in allDepartmentsQuery.docs) {
-      final data = doc.data();
-      final existingName = data['name']?.toString().toLowerCase() ?? '';
-      final existingDisplayName =
-          data['displayName']?.toString().toLowerCase() ?? '';
-
-      if (existingName == normalizedName ||
-          existingDisplayName == normalizedName) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Helper method to check for duplicate department codes
-  Future<bool> _isDuplicateCode(String code) async {
-    final allDepartmentsQuery =
-        await _firestore.collection('departments').get();
-    final normalizedCode = code.trim().toUpperCase();
-
-    for (var doc in allDepartmentsQuery.docs) {
-      final data = doc.data();
-      final existingCode = data['code']?.toString().toUpperCase() ?? '';
-
-      if (existingCode == normalizedCode) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Helper method to check for duplicate section codes
-  Future<bool> _isDuplicateSectionCode(String sectionCode) async {
-    final allSectionsQuery = await _firestore.collection('sections').get();
-    final normalizedSectionCode = sectionCode.trim().toUpperCase();
-
-    for (var doc in allSectionsQuery.docs) {
-      final data = doc.data();
-      final existingSectionCode =
-          data['sectionCode']?.toString().toUpperCase() ?? '';
-
-      if (existingSectionCode == normalizedSectionCode) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Helper method to check for duplicate section codes within a specific department
-  Future<bool> _isDuplicateSectionCodeInDepartment(
-    String sectionCode,
-    String departmentId,
-  ) async {
-    final sectionsQuery =
-        await _firestore
-            .collection('sections')
-            .where('departmentId', isEqualTo: departmentId)
-            .get();
-    final normalizedSectionCode = sectionCode.trim().toUpperCase();
-
-    for (var doc in sectionsQuery.docs) {
-      final data = doc.data();
-      final existingSectionCode =
-          data['sectionCode']?.toString().toUpperCase() ?? '';
-
-      if (existingSectionCode == normalizedSectionCode) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // Helper method to check for duplicate section codes when updating (excludes current section)
-  Future<bool> _isDuplicateSectionCodeForUpdate(
-    String sectionCode,
-    String currentSectionId,
-  ) async {
-    final allSectionsQuery = await _firestore.collection('sections').get();
-    final normalizedSectionCode = sectionCode.trim().toUpperCase();
-
-    for (var doc in allSectionsQuery.docs) {
-      // Skip the current section being updated
-      if (doc.id == currentSectionId) {
-        continue;
-      }
-
-      final data = doc.data();
-      final existingSectionCode =
-          data['sectionCode']?.toString().toUpperCase() ?? '';
-
-      if (existingSectionCode == normalizedSectionCode) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Future<void> _saveDepartment(
-    String name,
-    String code,
-    String description,
-  ) async {
-    try {
-      // Validate input
-      if (name.trim().isEmpty) {
-        Get.snackbar(
-          'Validation Error',
-          'Department name cannot be empty!',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      if (code.trim().isEmpty) {
-        Get.snackbar(
-          'Validation Error',
-          'Department code cannot be empty!',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      // Check for duplicate department name (case-insensitive)
-      if (await _isDuplicateName(name)) {
-        Get.snackbar(
-          'Duplicate Error',
-          'A department with the name "$name" already exists! Please choose a different name.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      // Check for duplicate department code (case-insensitive)
-      if (await _isDuplicateCode(code)) {
-        Get.snackbar(
-          'Duplicate Error',
-          'A department with the code "$code" already exists! Please choose a different code.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      // Create the department if no duplicates found
-      await _firestore.collection('departments').add({
-        'name':
-            name
-                .trim()
-                .toLowerCase(), // Store in lowercase for consistent comparison
-        'displayName': name.trim(), // Store original case for display
-        'code': code.trim().toUpperCase(),
-        'description': description.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      Get.snackbar(
-        'Success',
-        'Department "$name" created successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to create department: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> _editDepartment(
+  void _editDepartment(
     String departmentId,
     Map<String, dynamic> departmentData,
-  ) async {
-    final TextEditingController nameController = TextEditingController(
-      text: departmentData['displayName'] ?? departmentData['name'] ?? '',
-    );
-    final TextEditingController codeController = TextEditingController(
-      text: departmentData['code'] ?? '',
-    );
-    final TextEditingController descriptionController = TextEditingController(
-      text: departmentData['description'] ?? '',
-    );
-
+  ) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+      builder:
+          (context) => EditDepartmentDialog(
+            departmentData: departmentData,
+            onUpdate: (name, code, description) {
+              _departmentService.updateDepartment(
+                departmentId,
+                name,
+                code,
+                description,
+              );
+            },
           ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF34A853).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.edit_rounded,
-                        color: Color(0xFF34A853),
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Edit Department',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 20,
-                              color: Colors.black,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Update department information',
-                            style: TextStyle(
-                              color: Colors.black54,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Department Name
-                const Text(
-                  'Department Name',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter department name',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: const Icon(Icons.school_rounded),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Department Code
-                const Text(
-                  'Department Code',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: codeController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter department code (e.g., BSIT)',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: const Icon(Icons.tag_rounded),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                  textCapitalization: TextCapitalization.characters,
-                ),
-                const SizedBox(height: 16),
-
-                // Description
-                const Text(
-                  'Description (Optional)',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: 'Enter department description',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: const Icon(Icons.description_rounded),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.black54,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text('Cancel'),
-            ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameController.text.trim().isNotEmpty &&
-                    codeController.text.trim().isNotEmpty) {
-                  Navigator.of(context).pop();
-                  await _updateDepartment(
-                    departmentId,
-                    nameController.text.trim(),
-                    codeController.text.trim().toUpperCase(),
-                    descriptionController.text.trim(),
-                  );
-                } else {
-                  Get.snackbar(
-                    'Validation Error',
-                    'Please fill in both department name and code',
-                    backgroundColor: Colors.orange,
-                    colorText: Colors.white,
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF34A853),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-              ),
-              child: const Text('Update'),
-            ),
-          ],
-        );
-      },
     );
   }
 
-  Future<void> _updateDepartment(
-    String departmentId,
-    String name,
-    String code,
-    String description,
-  ) async {
-    try {
-      // Validate input
-      if (name.trim().isEmpty) {
-        Get.snackbar(
-          'Validation Error',
-          'Department name cannot be empty!',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      if (code.trim().isEmpty) {
-        Get.snackbar(
-          'Validation Error',
-          'Department code cannot be empty!',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      // Get existing department data to compare
-      final existingDoc =
-          await _firestore.collection('departments').doc(departmentId).get();
-      final existingData = existingDoc.data();
-
-      // Check for duplicate department name (case-insensitive) if name changed
-      if (existingData?['displayName']?.toString().toLowerCase() !=
-          name.trim().toLowerCase()) {
-        if (await _isDuplicateName(name)) {
-          Get.snackbar(
-            'Duplicate Error',
-            'A department with the name "$name" already exists! Please choose a different name.',
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-          return;
-        }
-      }
-
-      // Check for duplicate department code (case-insensitive) if code changed
-      if (existingData?['code']?.toString().toUpperCase() !=
-          code.trim().toUpperCase()) {
-        if (await _isDuplicateCode(code)) {
-          Get.snackbar(
-            'Duplicate Error',
-            'A department with the code "$code" already exists! Please choose a different code.',
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-          return;
-        }
-      }
-
-      // Update the department
-      await _firestore.collection('departments').doc(departmentId).update({
-        'name': name.trim().toLowerCase(),
-        'displayName': name.trim(),
-        'code': code.trim().toUpperCase(),
-        'description': description.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      Get.snackbar(
-        'Success',
-        'Department "$name" updated successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update department: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> _addSection(
+  void _addSection(
     String departmentId,
     String departmentName,
     String departmentCode,
-  ) async {
-    String selectedYear = '1st';
-    String selectedSectionLetter = 'A';
-    String? selectedSubCode; // Make it optional with null
-
+  ) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-              contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF34A853).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.group_work_rounded,
-                            color: Color(0xFF34A853),
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Add Section',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Add section to $departmentName',
-                                style: const TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Year Selection
-                    const Text(
-                      'Year Level',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButton<String>(
-                        value: selectedYear,
-                        onChanged:
-                            (value) => setState(() => selectedYear = value!),
-                        items:
-                            ['1st', '2nd', '3rd', '4th'].map((year) {
-                              return DropdownMenuItem<String>(
-                                value: year,
-                                child: Text(year),
-                              );
-                            }).toList(),
-                        underline: const SizedBox(),
-                        isExpanded: true,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Section Letter Selection
-                    const Text(
-                      'Section Letter',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButton<String>(
-                        value: selectedSectionLetter,
-                        onChanged:
-                            (value) =>
-                                setState(() => selectedSectionLetter = value!),
-                        items:
-                            ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((
-                              letter,
-                            ) {
-                              return DropdownMenuItem<String>(
-                                value: letter,
-                                child: Text(letter),
-                              );
-                            }).toList(),
-                        underline: const SizedBox(),
-                        isExpanded: true,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Sub-Code Selection (Only for BTLED)
-                    if (departmentCode == 'BTLED') ...[
-                      const Text(
-                        'Sub-Code (Required for BTLED)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: DropdownButton<String>(
-                          value: selectedSubCode,
-                          hint: const Text('Select subcode'),
-                          onChanged:
-                              (value) =>
-                                  setState(() => selectedSubCode = value),
-                          items:
-                              ['ICT', 'HE', 'IA'].map((subCode) {
-                                return DropdownMenuItem<String>(
-                                  value: subCode,
-                                  child: Text(subCode),
-                                );
-                              }).toList(),
-                          underline: const SizedBox(),
-                          isExpanded: true,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Preview Section Code
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF34A853).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: const Color(0xFF34A853).withOpacity(0.3),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Section Code Preview:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: Colors.black,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            selectedSubCode != null &&
-                                    selectedSubCode!.isNotEmpty
-                                ? '$departmentCode-$selectedSubCode-${selectedYear.replaceAll('st', '').replaceAll('nd', '').replaceAll('rd', '').replaceAll('th', '')}$selectedSectionLetter'
-                                : '$departmentCode-${selectedYear.replaceAll('st', '').replaceAll('nd', '').replaceAll('rd', '').replaceAll('th', '')}$selectedSectionLetter',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF34A853),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Action Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.black54,
-                            side: const BorderSide(color: Color(0xFFE5E7EB)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                          ),
-                          child: const Text('Cancel'),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: () {
-                            // Validate BTLED requires subcode
-                            if (departmentCode == 'BTLED' &&
-                                (selectedSubCode == null ||
-                                    selectedSubCode!.isEmpty)) {
-                              Get.snackbar(
-                                'Validation Error',
-                                'Sub-code is required for BTLED sections',
-                                backgroundColor: Colors.orange,
-                                colorText: Colors.white,
-                              );
-                              return;
-                            }
-                            Navigator.of(context).pop();
-                            _saveSection(
-                              departmentId,
-                              selectedYear,
-                              selectedSectionLetter,
-                              departmentCode,
-                              selectedSubCode,
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF34A853),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                          ),
-                          child: const Text('Add Section'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder:
+          (context) => AddSectionDialog(
+            departmentName: departmentName,
+            departmentCode: departmentCode,
+            onSave: (year, letter, subCode) {
+              _sectionService.createSection(
+                departmentId,
+                year,
+                letter,
+                departmentCode,
+                subCode,
+              );
+            },
+          ),
     );
   }
 
@@ -1019,64 +110,13 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     String departmentCode,
     String? subCode,
   ) async {
-    try {
-      // Generate section code with or without subCode
-      final sectionCode =
-          subCode != null && subCode.isNotEmpty
-              ? '$departmentCode-$subCode-${year.replaceAll('st', '').replaceAll('nd', '').replaceAll('rd', '').replaceAll('th', '')}$sectionLetter'
-              : '$departmentCode-${year.replaceAll('st', '').replaceAll('nd', '').replaceAll('rd', '').replaceAll('th', '')}$sectionLetter';
-
-      // Check for duplicate section code across all departments
-      if (await _isDuplicateSectionCode(sectionCode)) {
-        Get.snackbar(
-          'Duplicate Section Error',
-          'Section "$sectionCode" already exists in the system! Please choose a different year, section letter, or sub-code.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 4),
-        );
-        return;
-      }
-
-      // Check for duplicate section code within the same department
-      if (await _isDuplicateSectionCodeInDepartment(
-        sectionCode,
-        departmentId,
-      )) {
-        Get.snackbar(
-          'Duplicate Section Error',
-          'Section "$sectionCode" already exists in this department! Please choose a different year, section letter, or sub-code.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 4),
-        );
-        return;
-      }
-
-      await _firestore.collection('sections').add({
-        'departmentId': departmentId,
-        'year': year,
-        'sectionLetter': sectionLetter,
-        'subCode': subCode,
-        'sectionCode': sectionCode,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      Get.snackbar(
-        'Success',
-        'Section $sectionCode added successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to add section: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+    await _sectionService.createSection(
+      departmentId,
+      year,
+      sectionLetter,
+      departmentCode,
+      subCode,
+    );
   }
 
   Future<void> _editSection(
@@ -1351,140 +391,36 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     String? subCode,
     String departmentCode,
   ) async {
-    try {
-      // Get the section's department to regenerate section code
-      final sectionDoc =
-          await _firestore.collection('sections').doc(sectionId).get();
-      final sectionData = sectionDoc.data();
-
-      if (sectionData == null) {
-        Get.snackbar(
-          'Error',
-          'Section not found',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      // Generate new section code with or without subCode
-      final sectionCode =
-          subCode != null && subCode.isNotEmpty
-              ? '$departmentCode-$subCode-${year.replaceAll('st', '').replaceAll('nd', '').replaceAll('rd', '').replaceAll('th', '')}$sectionLetter'
-              : '$departmentCode-${year.replaceAll('st', '').replaceAll('nd', '').replaceAll('rd', '').replaceAll('th', '')}$sectionLetter';
-
-      // Check for duplicate section code (excluding current section)
-      if (await _isDuplicateSectionCodeForUpdate(sectionCode, sectionId)) {
-        Get.snackbar(
-          'Duplicate Section Error',
-          'Section "$sectionCode" already exists in the system! Please choose a different year, section letter, or sub-code.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 4),
-        );
-        return;
-      }
-
-      // Update the section
-      await _firestore.collection('sections').doc(sectionId).update({
-        'year': year,
-        'sectionLetter': sectionLetter,
-        'subCode': subCode,
-        'sectionCode': sectionCode,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      Get.snackbar(
-        'Success',
-        'Section $sectionCode updated successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update section: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+    await _sectionService.updateSection(
+      sectionId,
+      year,
+      sectionLetter,
+      subCode,
+      departmentCode,
+    );
   }
 
   Future<void> _deleteDepartment(
     String departmentId,
     String departmentName,
   ) async {
-    // Show confirmation dialog
     await ConfirmationDialog.showDeleteDepartmentDialog(
       context,
       departmentName: departmentName,
       onConfirm: () async {
-        await _performDeleteDepartment(departmentId);
+        await _departmentService.deleteDepartment(departmentId);
       },
     );
   }
 
-  Future<void> _performDeleteDepartment(String departmentId) async {
-    try {
-      // First delete all sections under this department
-      final sectionsQuery =
-          await _firestore
-              .collection('sections')
-              .where('departmentId', isEqualTo: departmentId)
-              .get();
-
-      for (var doc in sectionsQuery.docs) {
-        await doc.reference.delete();
-      }
-
-      // Then delete the department
-      await _firestore.collection('departments').doc(departmentId).delete();
-
-      Get.snackbar(
-        'Success',
-        'Department and all its sections deleted successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete department: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
   Future<void> _deleteSection(String sectionId, String sectionCode) async {
-    // Show confirmation dialog
     await ConfirmationDialog.showDeleteSectionDialog(
       context,
       sectionCode: sectionCode,
       onConfirm: () async {
-        await _performDeleteSection(sectionId);
+        await _sectionService.deleteSection(sectionId);
       },
     );
-  }
-
-  Future<void> _performDeleteSection(String sectionId) async {
-    try {
-      await _firestore.collection('sections').doc(sectionId).delete();
-
-      Get.snackbar(
-        'Success',
-        'Section deleted successfully!',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete section: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
   }
 
   // Semester Management Methods
@@ -1624,90 +560,12 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
   }
 
   Future<void> _saveSemester(String year, String semester) async {
-    if (year.isEmpty) {
-      Get.snackbar(
-        'Error',
-        'Please enter academic year',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    try {
-      // Check for duplicate semester
-      final existingSemester =
-          await _firestore
-              .collection('semesters')
-              .where('year', isEqualTo: year)
-              .where('semester', isEqualTo: semester)
-              .get();
-
-      if (existingSemester.docs.isNotEmpty) {
-        Get.snackbar(
-          'Error',
-          'This semester already exists',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      await _firestore.collection('semesters').add({
-        'year': year,
-        'semester': semester,
-        'displayName': '$semester $year',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true,
-      });
-
-      Navigator.of(context).pop();
-      Get.snackbar(
-        'Success',
-        'Semester created successfully',
-        backgroundColor: const Color(0xFF34A853),
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to create semester: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+    await _semesterService.createSemester(year, semester);
   }
 
   Future<void> _loadSemesters() async {
-    try {
-      print('Loading semesters...');
-      final snapshot =
-          await _firestore
-              .collection('semesters')
-              .orderBy('createdAt', descending: true)
-              .get();
-
-      print('Found ${snapshot.docs.length} semesters');
-
-      _semesters =
-          snapshot.docs.map((doc) {
-            final data = doc.data();
-            print('Semester data: $data');
-            return {
-              'id': doc.id,
-              'year': data['year'] ?? '',
-              'semester': data['semester'] ?? '',
-              'displayName': data['displayName'] ?? '',
-              'isActive': data['isActive'] ?? true,
-              'createdAt': data['createdAt'],
-            };
-          }).toList();
-
-      print('Loaded semesters: $_semesters');
-      setState(() {});
-    } catch (e) {
-      print('Error loading semesters: $e');
-    }
+    _semesters = await _semesterService.loadSemesters();
+    setState(() {});
   }
 
   void _showSemesterDetails(Map<String, dynamic> semester) {
@@ -1874,66 +732,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     String year,
     String semester,
   ) async {
-    if (year.isEmpty) {
-      Get.snackbar(
-        'Error',
-        'Please enter academic year',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    try {
-      // Check for duplicate semester (excluding current semester)
-      final existingSemester =
-          await _firestore
-              .collection('semesters')
-              .where('year', isEqualTo: year)
-              .where('semester', isEqualTo: semester)
-              .get();
-
-      // Check if duplicate exists and it's not the current semester
-      final duplicateExists = existingSemester.docs.any(
-        (doc) => doc.id != semesterId,
-      );
-
-      if (duplicateExists) {
-        Get.snackbar(
-          'Error',
-          'This semester already exists',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      await _firestore.collection('semesters').doc(semesterId).update({
-        'year': year,
-        'semester': semester,
-        'displayName': '$semester $year',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      Navigator.of(context).pop();
-
-      // Reload semesters to update the UI
-      _loadSemesters();
-
-      Get.snackbar(
-        'Success',
-        'Semester updated successfully',
-        backgroundColor: const Color(0xFF34A853),
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update semester: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+    await _semesterService.updateSemester(semesterId, year, semester);
   }
 
   // Responsive helpers
@@ -1959,6 +758,10 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
   @override
   void initState() {
     super.initState();
+    // Initialize services
+    _departmentService = DepartmentService(_firestore);
+    _sectionService = SectionService(_firestore);
+    _semesterService = SemesterService(_firestore);
     _loadSemesters();
   }
 
@@ -1994,9 +797,8 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                   ),
                   title: 'Department Management',
                   subtitle: 'Manage departments and sections',
-                  heroTitle: 'Department & Section Management',
-                  heroDescription:
-                      'Create departments and sections, assign instructors to specific areas',
+                  heroTitle: 'Department, Section and Semester Management',
+                  heroDescription: 'Manage departments, section and semesters.',
                   headerPadding: EdgeInsets.all(getResponsivePadding()),
                   heroPadding: EdgeInsets.all(isMobile ? 16 : 24),
                   heroMargin: EdgeInsets.fromLTRB(
@@ -2013,68 +815,6 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header Section
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.all(isMobile ? 16 : 24),
-                          margin: const EdgeInsets.only(bottom: 24),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF34A853), Color(0xFF2E7D32)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF34A853).withOpacity(0.3),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.school_rounded,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Department & Section Management',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      'Create departments and sections, assign instructors to specific areas',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Action Buttons
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -2086,7 +826,24 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                                 color: Colors.grey[800],
                               ),
                             ),
-                            const SizedBox.shrink(),
+                            ElevatedButton.icon(
+                              onPressed: _createDepartment,
+                              icon: const Icon(Icons.add_rounded, size: 20),
+                              label: const Text('Create Department'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF34A853),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 14,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -2097,13 +854,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==
                                 ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Color(0xFF34A853),
-                                  ),
-                                ),
-                              );
+                              return const SkeletonDepartmentList();
                             }
 
                             if (snapshot.hasError) {

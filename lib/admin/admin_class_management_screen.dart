@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/widgets/safe_asset_image.dart';
+import '../shared/widgets/skeleton_loading.dart';
 
 class AdminClassManagementScreen extends StatefulWidget {
   const AdminClassManagementScreen({super.key});
@@ -753,13 +754,7 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
 
                         // Instructors List
                         if (_isLoading)
-                          const Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFF34A853),
-                              ),
-                            ),
-                          )
+                          const SkeletonClassManagementList()
                         else if (_filteredInstructors.isEmpty)
                           Center(
                             child: Column(
