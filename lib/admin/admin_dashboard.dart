@@ -106,7 +106,14 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   Future<void> _loadTreeStats() async {
     try {
-      final treesSnapshot = await _firestore.collectionGroup('trees').get();
+      // Query approved tree planting submissions (same as Manage Trees screen)
+      final treesSnapshot =
+          await _firestore
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'tree_planting')
+              .where('status', isEqualTo: 'approved')
+              .get();
+
       int totalQuantity = 0;
       for (final doc in treesSnapshot.docs) {
         final data = doc.data();

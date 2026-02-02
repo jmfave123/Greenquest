@@ -90,7 +90,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   ];
   final List<String> _submissionStatusFilterOptions = [
     'All Status',
-    'Submitted',
+    'Submitted (Not Yet Graded)',
     'Graded',
     'Late',
   ];
@@ -1987,6 +1987,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   ) {
     List<Map<String, dynamic>> filtered = submissions;
 
+    // EXCLUDE tree planting submissions - they should only appear in Trees tab
+    filtered =
+        filtered.where((submission) {
+          final activityType =
+              submission['activityType']?.toString().toLowerCase() ?? '';
+          return activityType != 'tree_planting';
+        }).toList();
+
     // Apply search filter
     if (_submissionSearchQuery.isNotEmpty) {
       filtered =
@@ -2031,7 +2039,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           filtered.where((submission) {
             final status = submission['status']?.toString().toLowerCase() ?? '';
             switch (_selectedSubmissionStatusFilter) {
-              case 'Submitted':
+              case 'Submitted (Not Yet Graded)':
                 return status == 'submitted';
               case 'Graded':
                 return status == 'graded';

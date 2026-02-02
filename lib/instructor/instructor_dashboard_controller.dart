@@ -143,28 +143,35 @@ class InstructorController extends GetxController {
     }
   }
 
-  /// Load count of planted trees (from trees collection with instructorId filter)
+  /// Load count of planted trees from approved tree planting submissions
+  /// Only counts trees from this instructor's students
   Future<void> _loadPlantedTreesCount(String instructorId) async {
     try {
+      // Query approved tree planting submissions for this instructor
       final treesQuery =
           await FirebaseFirestore.instance
-              .collection('instructors')
-              .doc(instructorId)
-              .collection('trees')
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'tree_planting')
               .where('instructorId', isEqualTo: instructorId)
+              .where('status', isEqualTo: 'approved')
               .get();
 
-      // Sum up the quantity of all trees
+      // Sum up the quantity of all approved tree planting submissions
       int totalTrees = 0;
       for (var doc in treesQuery.docs) {
         final data = doc.data();
-        final quantity = data['quantity'] ?? 1;
-        totalTrees += quantity is int ? quantity : 1;
+        final quantity = data['quantity'];
+        if (quantity is num) {
+          totalTrees += quantity.toInt();
+        } else {
+          totalTrees += 1; // Default to 1 if quantity is not specified
+        }
       }
 
       plantedTreesCount.value = totalTrees;
+      print('✅ Loaded $totalTrees planted trees from approved submissions');
     } catch (e) {
-      print('Error loading planted trees count: $e');
+      print('❌ Error loading planted trees count: $e');
       plantedTreesCount.value = 0;
     }
   }

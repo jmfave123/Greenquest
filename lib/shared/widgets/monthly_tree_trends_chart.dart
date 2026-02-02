@@ -49,10 +49,6 @@ class _MonthlyTreeTrendsChartState extends State<MonthlyTreeTrendsChart> {
     });
 
     try {
-      final year = widget.year ?? DateTime.now().year;
-      final startOfYear = DateTime(year, 1, 1);
-      final endOfYear = DateTime(year, 12, 31, 23, 59, 59);
-
       // Build query
       Query query = FirebaseFirestore.instance
           .collection('submissions')
@@ -73,6 +69,10 @@ class _MonthlyTreeTrendsChartState extends State<MonthlyTreeTrendsChart> {
       final monthlyTotals = List.filled(12, 0);
       int total = 0;
 
+      // Determine if we're filtering by year
+      final filterByYear = widget.year != null;
+      final targetYear = widget.year;
+
       // Process each submission
       for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -90,10 +90,13 @@ class _MonthlyTreeTrendsChartState extends State<MonthlyTreeTrendsChart> {
           }
         }
 
-        // Only count if in the target year
-        if (date != null &&
-            date.isAfter(startOfYear.subtract(const Duration(days: 1))) &&
-            date.isBefore(endOfYear.add(const Duration(days: 1)))) {
+        if (date != null) {
+          // If filtering by year, only count submissions from that year
+          if (filterByYear && date.year != targetYear) {
+            continue;
+          }
+
+          // Count for monthly aggregation
           final monthIndex = date.month - 1; // 0-indexed
           monthlyTotals[monthIndex] += quantity;
           total += quantity;
@@ -154,7 +157,9 @@ class _MonthlyTreeTrendsChartState extends State<MonthlyTreeTrendsChart> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Monthly trend for ${widget.year ?? DateTime.now().year} ($_totalTrees total)',
+                      widget.year != null
+                          ? 'Monthly trend for ${widget.year} ($_totalTrees total)'
+                          : 'All Years ($_totalTrees total)',
                       style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                   ],
@@ -204,7 +209,9 @@ class _MonthlyTreeTrendsChartState extends State<MonthlyTreeTrendsChart> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'No tree planting data for ${widget.year ?? DateTime.now().year}',
+                              widget.year != null
+                                  ? 'No tree planting data for ${widget.year}'
+                                  : 'No tree planting data available',
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
