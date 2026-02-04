@@ -25,23 +25,27 @@ class _ReapplicationDialogState extends State<ReapplicationDialog> {
     final statement = _statementController.text.trim();
 
     if (statement.isEmpty) {
-      Get.snackbar(
-        'Required Field',
-        'Please provide a reason for reapplication.',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please provide a reason for reapplication.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
 
     if (statement.length < 20) {
-      Get.snackbar(
-        'Too Short',
-        'Please provide at least 20 characters explaining your reason.',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please provide at least 20 characters explaining your reason.',
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
