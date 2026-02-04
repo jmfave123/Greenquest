@@ -136,6 +136,7 @@ class InstructorPendingApprovalScreen extends StatelessWidget {
                                 ReapplicationDialog(
                                   onSubmit: controller.submitReapplication,
                                 ),
+                                barrierDismissible: true,
                               );
                             },
                             icon: const Icon(Icons.replay),

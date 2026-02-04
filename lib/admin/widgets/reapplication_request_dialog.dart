@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:greenquest/admin/services/approve_reapplication_service.dart';
 import 'package:intl/intl.dart';
 
 /// Dialog to display reapplication requests for a rejected instructor
 class ReapplicationRequestDialog extends StatelessWidget {
   final String instructorId;
   final String instructorName;
+  final ApproveReapplicationService approveReapplicationService =
+      ApproveReapplicationService();
 
-  const ReapplicationRequestDialog({
+  ReapplicationRequestDialog({
     super.key,
     required this.instructorId,
     required this.instructorName,
@@ -352,63 +355,69 @@ class ReapplicationRequestDialog extends StatelessWidget {
       },
     ).then((shouldApprove) {
       if (shouldApprove == true) {
-        _approveReapplication(context, instructorId, instructorName, requestId);
+        // _approveReapplication(context, instructorId, instructorName, requestId);
+        approveReapplicationService.approveReapplication(
+          context,
+          instructorId,
+          instructorName,
+          requestId,
+        );
       }
     });
   }
 
   /// Approve the instructor's reapplication
-  Future<void> _approveReapplication(
-    BuildContext context,
-    String instructorId,
-    String instructorName,
-    String requestId,
-  ) async {
-    try {
-      // Update instructor status to Approved
-      await FirebaseFirestore.instance
-          .collection('instructors')
-          .doc(instructorId)
-          .update({
-            'isVerified': true,
-            'isActive': true,
-            'status': 'Approved',
-            'verifiedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+  // Future<void> _approveReapplication(
+  //   BuildContext context,
+  //   String instructorId,
+  //   String instructorName,
+  //   String requestId,
+  // ) async {
+  //   try {
+  //     // Update instructor status to Approved
+  //     await FirebaseFirestore.instance
+  //         .collection('instructors')
+  //         .doc(instructorId)
+  //         .update({
+  //           'isVerified': true,
+  //           'isActive': true,
+  //           'status': 'Approved',
+  //           'verifiedAt': FieldValue.serverTimestamp(),
+  //           'updatedAt': FieldValue.serverTimestamp(),
+  //         });
 
-      // Update request status to Approved
-      await FirebaseFirestore.instance
-          .collection('reapplication_requests')
-          .doc(requestId)
-          .update({
-            'status': 'Approved',
-            'approvedAt': FieldValue.serverTimestamp(),
-          });
+  //     // Update request status to Approved
+  //     await FirebaseFirestore.instance
+  //         .collection('reapplication_requests')
+  //         .doc(requestId)
+  //         .update({
+  //           'status': 'Approved',
+  //           'approvedAt': FieldValue.serverTimestamp(),
+  //         });
 
-      // Show success message
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$instructorName has been approved successfully!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      // Show error message
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to approve reapplication: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
+  //     // Show success message
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('$instructorName has been approved successfully!'),
+  //           backgroundColor: Colors.green,
+  //           behavior: SnackBarBehavior.floating,
+  //         ),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     // Show error message
+  //     if (context.mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text('Failed to approve reapplication: $e'),
+  //           backgroundColor: Colors.red,
+  //           behavior: SnackBarBehavior.floating,
+  //         ),
+  //       );
+  //     }
+  //   }
+  // }
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
