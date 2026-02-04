@@ -231,9 +231,8 @@ class LoginScreenController extends GetxController {
           // Check if account is not approved
           if (status != 'Approved') {
             debugPrint('Instructor not approved. Status: $status');
-            errorMessage.value =
-                'Your instructor account is pending admin approval. Please wait for approval before logging in.';
-            await _auth.signOut();
+            // Navigate to pending approval page instead of showing error
+            Get.offAllNamed('/instructor-pending-approval');
             return;
           }
 

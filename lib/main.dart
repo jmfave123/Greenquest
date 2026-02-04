@@ -25,6 +25,7 @@ import 'instructor/instructor_register_screen.dart';
 import 'instructor/instructor_forgot_password_screen.dart';
 import 'instructor/email_verification_screen.dart';
 import 'instructor/phone_otp_verification_screen.dart';
+import 'instructor/auth/instructor_pending_approval_screen.dart';
 import 'instructor/instructor_dashboard.dart';
 import 'instructor/announcement/announcement_screen.dart';
 import 'instructor/planted_trees/planted_trees_screen.dart';
@@ -141,6 +142,10 @@ class GreenQuestApp extends StatelessWidget {
         GetPage(
           name: '/instructor-phone-otp-verification',
           page: () => const PhoneOtpVerificationScreen(),
+        ),
+        GetPage(
+          name: '/instructor-pending-approval',
+          page: () => const InstructorPendingApprovalScreen(),
         ),
         GetPage(
           name: '/instructor-forgot-password',

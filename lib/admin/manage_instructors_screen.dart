@@ -7,6 +7,7 @@ import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import 'multiple_assignment_dialog.dart';
 import '../shared/widgets/skeleton_loading.dart';
+import 'widgets/reapplication_request_dialog.dart';
 
 class ManageInstructorsScreen extends StatefulWidget {
   const ManageInstructorsScreen({super.key});
@@ -1517,66 +1518,118 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                               const SizedBox(height: 12),
                                             ],
                                             // Secondary Actions
-                                            SizedBox(
-                                              width: 140,
-                                              child: OutlinedButton.icon(
-                                                onPressed: () {
-                                                  final instructorData = {
-                                                    'id': doc.id,
-                                                    'name':
-                                                        data['name'] ??
-                                                        'Unknown',
-                                                    'email':
-                                                        data['email'] ??
-                                                        'No email',
-                                                    'phone':
-                                                        data['phone'] ?? '',
-                                                    'department':
-                                                        data['department'] ??
-                                                        '',
-                                                    'profileUrl':
-                                                        data['profileUrl'] ??
-                                                        data['profileImageUrl'] ??
-                                                        '',
-                                                    'about':
-                                                        data['about'] ?? '',
-                                                  };
-                                                  _showInstructorProfile(
-                                                    instructorData,
-                                                  );
-                                                },
-                                                icon: const Icon(
-                                                  Icons.person_outline,
-                                                  size: 18,
-                                                ),
-                                                label: const Text(
-                                                  'View Profile',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
+                                            // View Profile button (not for rejected instructors)
+                                            if (status != 'Rejected')
+                                              SizedBox(
+                                                width: 140,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () {
+                                                    final instructorData = {
+                                                      'id': doc.id,
+                                                      'name':
+                                                          data['name'] ??
+                                                          'Unknown',
+                                                      'email':
+                                                          data['email'] ??
+                                                          'No email',
+                                                      'phone':
+                                                          data['phone'] ?? '',
+                                                      'department':
+                                                          data['department'] ??
+                                                          '',
+                                                      'profileUrl':
+                                                          data['profileUrl'] ??
+                                                          data['profileImageUrl'] ??
+                                                          '',
+                                                      'about':
+                                                          data['about'] ?? '',
+                                                    };
+                                                    _showInstructorProfile(
+                                                      instructorData,
+                                                    );
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.person_outline,
+                                                    size: 18,
                                                   ),
-                                                ),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: const Color(
-                                                    0xFF34A853,
+                                                  label: const Text(
+                                                    'View Profile',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                    ),
                                                   ),
-                                                  side: const BorderSide(
-                                                    color: Color(0xFF34A853),
-                                                    width: 1.5,
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                        vertical: 12,
-                                                      ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor:
+                                                        const Color(0xFF34A853),
+                                                    side: const BorderSide(
+                                                      color: Color(0xFF34A853),
+                                                      width: 1.5,
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
                                                         ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                            ),
+                                            // Show Reapplication Request button (only for rejected instructors)
+                                            if (status == 'Rejected')
+                                              SizedBox(
+                                                width: 140,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () {
+                                                    showDialog(
+                                                      context: context,
+                                                      builder:
+                                                          (
+                                                            context,
+                                                          ) => ReapplicationRequestDialog(
+                                                            instructorId:
+                                                                doc.id,
+                                                            instructorName:
+                                                                data['name'] ??
+                                                                'Unknown',
+                                                          ),
+                                                    );
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.message_outlined,
+                                                    size: 18,
+                                                  ),
+                                                  label: const Text(
+                                                    'View Requests',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor:
+                                                        Colors.blue,
+                                                    side: const BorderSide(
+                                                      color: Colors.blue,
+                                                      width: 1.5,
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 16,
+                                                          vertical: 12,
+                                                        ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
                                             const SizedBox(height: 8),
                                             // Assign button (only for Approved instructors)
                                             if (status == 'Approved') ...[
