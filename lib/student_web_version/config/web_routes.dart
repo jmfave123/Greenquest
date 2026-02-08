@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import '../screens/home/student_home_screen.dart';
+import 'web_bindings.dart';
 
 /// Web routes configuration for student portal
 /// Defines all navigation routes and their corresponding screens
@@ -22,6 +23,7 @@ class WebRoutes {
       GetPage(
         name: home,
         page: () => WebStudentHomeScreen(),
+        binding: WebHomeBinding(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),

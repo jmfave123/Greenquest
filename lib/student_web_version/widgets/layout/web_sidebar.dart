@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_breakpoints.dart';
 import '../../config/web_routes.dart';
+import '../../controllers/web_home_controller.dart';
 
 /// Web sidebar navigation for desktop layout
 /// Displays navigation menu items with icons and labels
@@ -174,6 +175,8 @@ class _WebSidebarState extends State<WebSidebar> {
   }
 
   Widget _buildProfileSection() {
+    final WebHomeController controller = Get.find<WebHomeController>();
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
@@ -188,27 +191,47 @@ class _WebSidebarState extends State<WebSidebar> {
           padding: const EdgeInsets.all(6),
           child: Row(
             children: [
-              const CircleAvatar(
-                radius: 16,
-                backgroundColor: WebTheme.primaryGreen,
-                child: Icon(Icons.person, color: Colors.white, size: 18),
+              Obx(
+                () => CircleAvatar(
+                  radius: 16,
+                  backgroundColor: WebTheme.primaryGreen,
+                  backgroundImage:
+                      controller.profileImage.value.isNotEmpty
+                          ? NetworkImage(controller.profileImage.value)
+                          : null,
+                  child:
+                      controller.profileImage.value.isEmpty
+                          ? Text(
+                            controller.getInitials(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                          : null,
+                ),
               ),
               if (!isCollapsed) ...[
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Student',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: WebTheme.textPrimary,
+                      Obx(
+                        () => Text(
+                          controller.fullName.value.split(' ').first,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: WebTheme.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Text(
+                      const Text(
                         'View Profile',
                         style: TextStyle(
                           fontSize: 11,

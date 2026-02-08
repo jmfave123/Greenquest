@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import '../../config/web_theme.dart';
+import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
+import '../../controllers/web_home_controller.dart';
 
 /// Web-optimized app bar for student portal
 /// Displays logo, navigation items, and user profile
@@ -28,8 +30,14 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     return AppBar(
-      backgroundColor: WebTheme.backgroundWhite,
-      elevation: 1,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1.0),
+        child: Container(color: WebTheme.borderLight, height: 1.0),
+      ),
       leading: _buildLeading(context, isDesktop),
       title: _buildTitle(isDesktop),
       actions: _buildActions(context, user, isDesktop),
@@ -109,35 +117,41 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
             offset: const Offset(0, 50),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: WebTheme.primaryGreen,
-                  backgroundImage:
-                      user.photoURL != null
-                          ? NetworkImage(user.photoURL!)
-                          : null,
-                  child:
-                      user.photoURL == null
-                          ? Text(
-                            user.displayName?.substring(0, 1).toUpperCase() ??
-                                'S',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                          )
-                          : null,
-                ),
+                Obx(() {
+                  final controller = Get.find<WebHomeController>();
+                  return CircleAvatar(
+                    radius: 18,
+                    backgroundColor: WebTheme.primaryGreen,
+                    backgroundImage:
+                        controller.profileImage.value.isNotEmpty
+                            ? NetworkImage(controller.profileImage.value)
+                            : null,
+                    child:
+                        controller.profileImage.value.isEmpty
+                            ? Text(
+                              controller.getInitials(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                            : null,
+                  );
+                }),
                 if (isDesktop) ...[
                   const SizedBox(width: 8),
-                  Text(
-                    user.displayName ?? 'Student',
-                    style: const TextStyle(
-                      color: WebTheme.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Obx(() {
+                    final controller = Get.find<WebHomeController>();
+                    return Text(
+                      controller.fullName.value.split(' ').first,
+                      style: const TextStyle(
+                        color: WebTheme.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  }),
                   const SizedBox(width: 4),
                   const Icon(
                     Icons.arrow_drop_down,
@@ -186,7 +200,7 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
             onSelected: (value) async {
               switch (value) {
                 case 'profile':
-                  // TODO: Navigate to profile
+                  Get.toNamed(WebRoutes.profile);
                   break;
                 case 'settings':
                   // TODO: Navigate to settings
