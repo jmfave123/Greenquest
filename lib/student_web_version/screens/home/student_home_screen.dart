@@ -9,20 +9,23 @@ import '../../widgets/layout/web_sidebar.dart';
 /// Displays dashboard with progress, tasks, and quick actions
 
 class WebStudentHomeScreen extends StatelessWidget {
-  const WebStudentHomeScreen({super.key});
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  WebStudentHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final isDesktop = WebResponsiveUtils.isDesktop(context);
 
     return Scaffold(
+      key: _scaffoldKey,
       appBar: WebAppBar(
         title: 'GreenQuest Student Portal',
         onMenuPressed:
             isDesktop
                 ? null
                 : () {
-                  Scaffold.of(context).openDrawer();
+                  _scaffoldKey.currentState?.openDrawer();
                 },
       ),
       drawer:

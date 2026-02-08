@@ -21,7 +21,7 @@ class WebRoutes {
     return [
       GetPage(
         name: home,
-        page: () => const WebStudentHomeScreen(),
+        page: () => WebStudentHomeScreen(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),
