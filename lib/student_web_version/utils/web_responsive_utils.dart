@@ -96,6 +96,11 @@ class WebResponsiveUtils {
     );
   }
 
+  /// Alias for getGridColumns to match SliverGridDelegate nomenclature
+  static int getGridCrossAxisCount(BuildContext context) {
+    return getGridColumns(context);
+  }
+
   /// Check if sidebar should be shown
   static bool shouldShowSidebar(BuildContext context) {
     return isDesktop(context);

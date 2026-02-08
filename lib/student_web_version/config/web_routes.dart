@@ -1,5 +1,11 @@
 import 'package:get/get.dart';
 import '../screens/home/student_home_screen.dart';
+import '../screens/activities/web_activity_list_screen.dart';
+import '../screens/assignments/web_assignment_list_screen.dart';
+import '../screens/quizzes/web_quiz_list_screen.dart';
+import '../screens/leaderboard/web_leaderboard_screen.dart';
+import '../screens/materials/web_materials_list_screen.dart';
+import '../screens/messages/web_message_list_screen.dart';
 import 'web_bindings.dart';
 
 /// Web routes configuration for student portal
@@ -11,8 +17,8 @@ class WebRoutes {
   static const String activities = '/student-web-activities';
   static const String assignments = '/student-web-assignments';
   static const String quizzes = '/student-web-quizzes';
-  static const String leaderboard = '/student-web-leaderboard';
-  static const String materials = '/student-web-materials';
+  static const String leaderboard = '/leaderboard';
+  static const String materials = '/materials';
   static const String messages = '/student-web-messages';
   static const String profile = '/student-web-profile';
   static const String login = '/student-web-login';
@@ -27,13 +33,43 @@ class WebRoutes {
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),
+      GetPage(
+        name: activities,
+        page: () => const WebActivityListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: assignments,
+        page: () => const WebAssignmentListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: quizzes,
+        page: () => const WebQuizListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
       // TODO: Add more routes as screens are implemented
-      // GetPage(name: activities, page: () => const WebActivityListScreen()),
-      // GetPage(name: assignments, page: () => const WebAssignmentListScreen()),
-      // GetPage(name: quizzes, page: () => const WebQuizListScreen()),
-      // GetPage(name: leaderboard, page: () => const WebLeaderboardScreen()),
-      // GetPage(name: materials, page: () => const WebMaterialsListScreen()),
-      // GetPage(name: messages, page: () => const WebMessageListScreen()),
+      GetPage(
+        name: leaderboard,
+        page: () => const WebLeaderboardScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: materials,
+        page: () => const WebMaterialsListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: messages,
+        page: () => const WebMessageListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
       // GetPage(name: profile, page: () => const WebProfileScreen()),
       // GetPage(name: login, page: () => const WebStudentLoginScreen()),
     ];

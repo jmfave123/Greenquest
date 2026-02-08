@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/online_status_service.dart';
+import '../../student_web_version/config/web_routes.dart';
 
 class LoginScreenController extends GetxController {
   // Firebase instances
@@ -326,7 +327,7 @@ class LoginScreenController extends GetxController {
         } else if (userType == 'student') {
           // Navigate students based on platform
           if (kIsWeb) {
-            Get.offAllNamed('/student-web-home'); // Web portal
+            Get.offAllNamed(WebRoutes.home); // Web portal
           } else {
             Get.offAllNamed('/home'); // Mobile app
           }
