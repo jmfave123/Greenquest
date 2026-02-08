@@ -61,6 +61,7 @@ class ClassController extends GetxController {
     required List<ClassSchedule>
     schedules, // Changed to support multiple schedules
     String? sectionId,
+    String? classImageUrl, // Optional custom banner image URL
   }) async {
     try {
       final User? user = _auth.currentUser;
@@ -89,18 +90,25 @@ class ClassController extends GetxController {
       final schedulesData =
           schedules.map((schedule) => schedule.toMap()).toList();
 
+      final classData = {
+        'section': section,
+        'course': course,
+        'room': room,
+        'schedules': schedulesData, // Store as array
+        'sectionId': sectionId,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      // Add custom image URL if provided
+      if (classImageUrl != null && classImageUrl.isNotEmpty) {
+        classData['classImageUrl'] = classImageUrl;
+      }
+
       await _firestore
           .collection('instructors')
           .doc(user.uid) // <-- use Firebase user ID
           .collection('classes')
-          .add({
-            'section': section,
-            'course': course,
-            'room': room,
-            'schedules': schedulesData, // Store as array
-            'sectionId': sectionId,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
+          .add(classData);
 
       Get.snackbar("Success", "Class created successfully!");
       // Reload classes after creating a new one
@@ -119,6 +127,7 @@ class ClassController extends GetxController {
     required String room,
     required List<ClassSchedule> schedules,
     String? sectionId,
+    String? classImageUrl, // Optional custom banner image URL
   }) async {
     try {
       final User? user = _auth.currentUser;
@@ -160,25 +169,76 @@ class ClassController extends GetxController {
       final schedulesData =
           schedules.map((schedule) => schedule.toMap()).toList();
 
+      final updateData = {
+        'section': section,
+        'course': course,
+        'room': room,
+        'schedules': schedulesData,
+        'sectionId': sectionId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Add or update custom image URL if provided
+      if (classImageUrl != null && classImageUrl.isNotEmpty) {
+        updateData['classImageUrl'] = classImageUrl;
+      }
+
       await _firestore
           .collection('instructors')
           .doc(user.uid)
           .collection('classes')
           .doc(classId)
-          .update({
-            'section': section,
-            'course': course,
-            'room': room,
-            'schedules': schedulesData,
-            'sectionId': sectionId,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          .update(updateData);
 
       Get.snackbar("Success", "Class updated successfully!");
       // Reload classes after updating
       loadClasses();
     } catch (e) {
       Get.snackbar("Error", "Failed to update class: $e");
+    }
+  }
+
+  /// Update class banner image
+  Future<void> updateClassBannerImage({
+    required String classId,
+    String? imageUrl,
+  }) async {
+    try {
+      final User? user = _auth.currentUser;
+      if (user == null) {
+        Get.snackbar("Error", "No instructor is logged in.");
+        return;
+      }
+
+      final updateData = <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        updateData['classImageUrl'] = imageUrl;
+      } else {
+        // Remove custom image (reset to default)
+        updateData['classImageUrl'] = FieldValue.delete();
+      }
+
+      await _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection('classes')
+          .doc(classId)
+          .update(updateData);
+
+      Get.snackbar(
+        "Success",
+        imageUrl != null
+            ? "Banner image updated successfully!"
+            : "Banner reset to default!",
+      );
+
+      // Reload classes to reflect changes
+      loadClasses();
+    } catch (e) {
+      Get.snackbar("Error", "Failed to update banner image: $e");
     }
   }
 
@@ -260,6 +320,7 @@ class ClassController extends GetxController {
           'startTime': schedules.isNotEmpty ? schedules[0]['startTime'] : '',
           'endTime': schedules.isNotEmpty ? schedules[0]['endTime'] : '',
           'sectionId': data['sectionId'] ?? '',
+          'classImageUrl': data['classImageUrl'], // Custom banner image
           'createdAt': data['createdAt'],
           'isArchived': data['isArchived'] ?? false,
           'archivedAt': data['archivedAt'],

@@ -268,7 +268,6 @@ class LoginScreenController extends GetxController {
           debugPrint('Found admin');
         }
         // Check if user is a student (exists in users collection but not instructors/admins)
-        // AND trying to login via web - block them
         else {
           // Check if user exists in users collection (students)
           final userQuery =
@@ -278,25 +277,32 @@ class LoginScreenController extends GetxController {
                   .limit(1)
                   .get();
 
-          // If user is a student AND trying to login via web, block them
-          if (userQuery.docs.isNotEmpty && kIsWeb) {
-            debugPrint(
-              'Student account detected trying to login via web - blocking',
-            );
-            errorMessage.value =
-                'Your account must be logged in through the mobile app.';
-            await _auth.signOut(); // Sign out from Firebase Auth
+          // If user is a student
+          if (userQuery.docs.isNotEmpty) {
+            final studentData = userQuery.docs.first.data();
+            final status = studentData['status']?.toString() ?? 'Pending';
 
-            isLoading.value = false;
+            debugPrint('Student account detected: $email, Status: $status');
+
+            // Check if student is approved
+            if (status != 'Approved') {
+              debugPrint('Student not approved. Status: $status');
+              // Navigate to pending approval page
+              Get.offAllNamed('/pending-approval');
+              return;
+            }
+
+            // Student is approved - allow login
+            userType = 'student';
+            debugPrint('Found approved student - allowing login');
+          } else {
+            // No user found in any collection
+            debugPrint('No user found in Firestore with email: $email');
+            errorMessage.value =
+                'No account found with this email. Please register first.';
+            await _auth.signOut(); // Sign out from Firebase Auth
             return;
           }
-
-          // No user found in any collection
-          debugPrint('No user found in Firestore with email: $email');
-          errorMessage.value =
-              'No account found with this email. Please register first.';
-          await _auth.signOut(); // Sign out from Firebase Auth
-          return;
         }
 
         // Set user as online after successful login
@@ -315,8 +321,15 @@ class LoginScreenController extends GetxController {
         // Navigate based on user type
         if (userType == 'admin') {
           Get.offAllNamed('/admin-dashboard');
-        } else {
+        } else if (userType == 'instructor') {
           Get.offAllNamed('/instructor-dashboard');
+        } else if (userType == 'student') {
+          // Navigate students based on platform
+          if (kIsWeb) {
+            Get.offAllNamed('/student-web-home'); // Web portal
+          } else {
+            Get.offAllNamed('/home'); // Mobile app
+          }
         }
       }
     } on FirebaseAuthException catch (e) {

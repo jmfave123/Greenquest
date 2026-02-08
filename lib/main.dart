@@ -41,6 +41,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'shared/screens/image_upload_example_screen.dart';
 import 'shared/services/online_status_service.dart';
+import 'student_web_version/config/web_routes.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -191,6 +192,9 @@ class GreenQuestApp extends StatelessWidget {
           name: '/file-picker',
           page: () => const FilePickerScreen(type: 'assignment', itemData: {}),
         ),
+
+        // Student Web Portal routes
+        ...WebRoutes.getPages(),
       ],
     );
   }

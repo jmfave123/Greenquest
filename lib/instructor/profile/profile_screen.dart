@@ -4,6 +4,7 @@ import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../../shared/widgets/edit_profile_dialog.dart';
 import 'profile_screen_controller.dart';
 
 class InstructorProfileScreen extends StatefulWidget {
@@ -29,106 +30,7 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return Obx(
-          () => AlertDialog(
-            title: const Text('Edit Profile'),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _controller!.nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _controller!.emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email),
-                      suffixIcon: Icon(Icons.lock, color: Colors.grey),
-                    ),
-                    readOnly: true,
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _controller!.phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone),
-                      hintText: '09XXXXXXXXX',
-                      helperText: 'Enter 11-digit Philippine mobile number',
-                    ),
-                    keyboardType: TextInputType.number,
-                    maxLength: 11,
-                    onChanged: (value) {
-                      // Only allow numbers
-                      if (value.isNotEmpty &&
-                          !RegExp(r'^[0-9]+$').hasMatch(value)) {
-                        _controller!.phoneController.value = TextEditingValue(
-                          text: value.replaceAll(RegExp(r'[^0-9]'), ''),
-                          selection: TextSelection.collapsed(
-                            offset:
-                                value.replaceAll(RegExp(r'[^0-9]'), '').length,
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _controller!.aboutController,
-                    decoration: const InputDecoration(
-                      labelText: 'About',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.info_outline),
-                      hintText: 'Tell us about yourself...',
-                    ),
-                    maxLines: 4,
-                    textAlignVertical: TextAlignVertical.top,
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  _controller!.cancelEditing();
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed:
-                    _controller!.isLoading.value
-                        ? null
-                        : () async {
-                          await _controller!.saveEditedData();
-                          // Only close dialog if editing was successful (isEditing becomes false)
-                          if (!_controller!.isEditing.value) {
-                            Navigator.of(context).pop();
-                          }
-                        },
-                child:
-                    _controller!.isLoading.value
-                        ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : const Text('Save'),
-              ),
-            ],
-          ),
-        );
+        return EditProfileDialog(controller: _controller!);
       },
     );
   }

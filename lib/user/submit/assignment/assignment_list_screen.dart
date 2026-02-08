@@ -33,10 +33,31 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
     }
   }
 
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String status, {dynamic dueDate}) {
     Color badgeColor;
     String badgeText;
     IconData badgeIcon;
+
+    // Check if past due date for not submitted items
+    bool isPastDue = false;
+    if (status.toLowerCase() == 'not_submitted' && dueDate != null) {
+      try {
+        DateTime? dueDatetime;
+        if (dueDate is DateTime) {
+          dueDatetime = dueDate;
+        } else if (dueDate is String) {
+          dueDatetime = DateTime.parse(dueDate);
+        } else if (dueDate is Timestamp) {
+          dueDatetime = dueDate.toDate();
+        }
+
+        if (dueDatetime != null) {
+          isPastDue = DateTime.now().isAfter(dueDatetime);
+        }
+      } catch (e) {
+        isPastDue = false;
+      }
+    }
 
     switch (status.toLowerCase()) {
       case 'submitted':
@@ -60,9 +81,15 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
         badgeIcon = Icons.refresh;
         break;
       default: // 'not_submitted'
-        badgeColor = const Color(0xFF9E9E9E); // Gray
-        badgeText = 'Not Yet Submitted';
-        badgeIcon = Icons.radio_button_unchecked;
+        if (isPastDue) {
+          badgeColor = const Color(0xFFF44336); // Red
+          badgeText = 'Late';
+          badgeIcon = Icons.warning_amber_rounded;
+        } else {
+          badgeColor = const Color(0xFF9E9E9E); // Gray
+          badgeText = 'Not Yet Submitted';
+          badgeIcon = Icons.radio_button_unchecked;
+        }
         break;
     }
 
@@ -567,7 +594,10 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
                                         controller
                                             ?.submissionStatus[assignmentId] ??
                                         'not_submitted';
-                                    return _buildStatusBadge(status);
+                                    return _buildStatusBadge(
+                                      status,
+                                      dueDate: assignment['dueDate'],
+                                    );
                                   }),
                                 ],
                               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../../shared/services/tree_progress_service.dart';
 import 'package:greenquest/shared/login/custom_drawer.dart';
@@ -64,6 +65,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Redirect web users to web student portal
+    if (kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Get.offAllNamed('/student-web-home');
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Obx(() {
       // Hide drawer if user is not approved
       final showDrawer = controller.isApproved.value;

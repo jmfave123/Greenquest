@@ -22,6 +22,7 @@ import '../instructor_dashboard_controller.dart';
 import '../../user/materials/materials_detail_screen.dart';
 import '../../shared/services/notify_service.dart';
 import '../../shared/services/in_app_notification_service.dart';
+import '../../shared/widgets/class_banner_image_picker.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   final Map<String, dynamic> classData;
@@ -871,145 +872,306 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     }
   }
 
+  /// Show dialog to change class banner image
+  void _showBannerImageDialog(String? classId) {
+    if (classId == null) {
+      Get.snackbar(
+        'Error',
+        'Class ID not found',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    final controller = Get.find<ClassController>();
+    final currentImageUrl = widget.classData['classImageUrl'] as String?;
+
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: 600,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Change Class Banner',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    onPressed: () => Get.back(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ClassBannerImagePicker(
+                currentImageUrl: currentImageUrl,
+                onImageUploaded: (imageUrl) {
+                  // Update the class banner image in Firestore
+                  controller.updateClassBannerImage(
+                    classId: classId,
+                    imageUrl: imageUrl,
+                  );
+
+                  // Update local state immediately for instant UI update
+                  setState(() {
+                    widget.classData['classImageUrl'] = imageUrl;
+                  });
+
+                  Get.back(); // Close dialog
+                },
+                onImageRemoved: () {
+                  // Reset to default image in Firestore
+                  controller.updateClassBannerImage(
+                    classId: classId,
+                    imageUrl: null,
+                  );
+
+                  // Update local state immediately for instant UI update
+                  setState(() {
+                    widget.classData.remove('classImageUrl');
+                  });
+
+                  Get.back(); // Close dialog
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStreamTab() {
+    final customImageUrl = widget.classData['classImageUrl'] as String?;
+    final classId = widget.classData['id'] as String?;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 50),
       child: Column(
         children: [
-          Container(
-            width: double.infinity,
-            height: 200,
-            decoration: BoxDecoration(
-              color: const Color(0xFF34A853),
-              borderRadius: BorderRadius.circular(12),
-            ),
+          // Class Banner with Edit Button
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
             child: Stack(
               children: [
-                // Background Image
-                Positioned.fill(
-                  child: ClipRRect(
+                Container(
+                  width: double.infinity,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF34A853),
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      'assets/instructor/images/Group 1171274927.png',
-                      fit: BoxFit.cover,
-                    ),
                   ),
-                ),
-                // Text Overlay
-                Positioned(
-                  left: 80,
-                  bottom: 24,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Stack(
                     children: [
-                      Text(
-                        '${widget.classData['course']} ${widget.classData['section']}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      // Display schedules - handle both single and multiple
-                      Builder(
-                        builder: (context) {
-                          if (widget.classData.containsKey('schedules') &&
-                              widget.classData['schedules'] is List) {
-                            final schedules = List<Map<String, dynamic>>.from(
-                              widget.classData['schedules'],
-                            );
-                            if (schedules.isEmpty) {
-                              return const Text(
-                                'No schedule',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                ),
-                              );
-                            }
-
-                            // Check if all schedules have same time
-                            final allSameTime = schedules.every(
-                              (s) =>
-                                  s['startTime'] == schedules[0]['startTime'] &&
-                                  s['endTime'] == schedules[0]['endTime'],
-                            );
-
-                            if (allSameTime && schedules.length > 1) {
-                              // Show as "Mon/Wed 9:00 AM - 10:30 AM" with rooms
-                              final days = schedules
-                                  .map((s) => _getDayAbbreviation(s['day']))
-                                  .join('/');
-
-                              // Check if all rooms are the same
-                              final allSameRoom = schedules.every(
-                                (s) => s['room'] == schedules[0]['room'],
-                              );
-                              final roomText =
-                                  allSameRoom
-                                      ? ' • ${schedules[0]['room'] ?? 'No room'}'
-                                      : ' • Multiple rooms';
-
-                              return Text(
-                                '$days ${schedules[0]['startTime']} - ${schedules[0]['endTime']}$roomText',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                ),
-                              );
-                            } else {
-                              // Show all schedules separately with rooms
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children:
-                                    schedules.map((schedule) {
-                                      final dayAbbr = _getDayAbbreviation(
-                                        schedule['day'],
+                      // Background Image (Custom or Default)
+                      Positioned.fill(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child:
+                              customImageUrl != null &&
+                                      customImageUrl.isNotEmpty
+                                  ? Image.network(
+                                    customImageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      // Fallback to default image on error
+                                      return Image.asset(
+                                        'assets/instructor/images/Group 1171274927.png',
+                                        fit: BoxFit.cover,
                                       );
-                                      final room =
-                                          schedule['room'] ?? 'No room';
-                                      return Text(
-                                        '$dayAbbr ${schedule['startTime']} - ${schedule['endTime']} • $room',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
+                                    },
+                                    loadingBuilder: (
+                                      context,
+                                      child,
+                                      loadingProgress,
+                                    ) {
+                                      if (loadingProgress == null) return child;
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
                                         ),
                                       );
-                                    }).toList(),
-                              );
-                            }
-                          } else {
-                            // Fallback to old format
-                            return Text(
-                              '${_getDayAbbreviation(widget.classData['day'])} ${widget.classData['startTime']} - ${widget.classData['endTime']}',
+                                    },
+                                  )
+                                  : Image.asset(
+                                    'assets/instructor/images/Group 1171274927.png',
+                                    fit: BoxFit.cover,
+                                  ),
+                        ),
+                      ),
+                      // Text Overlay
+                      Positioned(
+                        left: 80,
+                        bottom: 24,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${widget.classData['course']} ${widget.classData['section']}',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 16,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
                               ),
-                            );
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.meeting_room_outlined,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            widget.classData['room'] ?? 'N/A',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
                             ),
-                          ),
-                        ],
+                            // Display schedules - handle both single and multiple
+                            Builder(
+                              builder: (context) {
+                                if (widget.classData.containsKey('schedules') &&
+                                    widget.classData['schedules'] is List) {
+                                  final schedules =
+                                      List<Map<String, dynamic>>.from(
+                                        widget.classData['schedules'],
+                                      );
+                                  if (schedules.isEmpty) {
+                                    return const Text(
+                                      'No schedule',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                    );
+                                  }
+
+                                  // Check if all schedules have same time
+                                  final allSameTime = schedules.every(
+                                    (s) =>
+                                        s['startTime'] ==
+                                            schedules[0]['startTime'] &&
+                                        s['endTime'] == schedules[0]['endTime'],
+                                  );
+
+                                  if (allSameTime && schedules.length > 1) {
+                                    // Show as "Mon/Wed 9:00 AM - 10:30 AM" with rooms
+                                    final days = schedules
+                                        .map(
+                                          (s) => _getDayAbbreviation(s['day']),
+                                        )
+                                        .join('/');
+
+                                    // Check if all rooms are the same
+                                    final allSameRoom = schedules.every(
+                                      (s) => s['room'] == schedules[0]['room'],
+                                    );
+                                    final roomText =
+                                        allSameRoom
+                                            ? ' • ${schedules[0]['room'] ?? 'No room'}'
+                                            : ' • Multiple rooms';
+
+                                    return Text(
+                                      '$days ${schedules[0]['startTime']} - ${schedules[0]['endTime']}$roomText',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                    );
+                                  } else {
+                                    // Show all schedules separately with rooms
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children:
+                                          schedules.map((schedule) {
+                                            final dayAbbr = _getDayAbbreviation(
+                                              schedule['day'],
+                                            );
+                                            final room =
+                                                schedule['room'] ?? 'No room';
+                                            return Text(
+                                              '$dayAbbr ${schedule['startTime']} - ${schedule['endTime']} • $room',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                              ),
+                                            );
+                                          }).toList(),
+                                    );
+                                  }
+                                } else {
+                                  // Fallback to old format
+                                  return Text(
+                                    '${_getDayAbbreviation(widget.classData['day'])} ${widget.classData['startTime']} - ${widget.classData['endTime']}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.meeting_room_outlined,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  widget.classData['room'] ?? 'N/A',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
+                  ),
+                ),
+                // Edit Button Overlay
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showBannerImageDialog(classId),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Change Banner',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],

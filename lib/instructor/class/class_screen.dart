@@ -12,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'models/class_schedule.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../../shared/widgets/class_banner_image_picker.dart';
 
 class ClassScreen extends StatefulWidget {
   const ClassScreen({super.key});
@@ -50,6 +51,9 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
   List<Map<String, dynamic>> _availableSections = [];
   bool _isLoadingSections = false;
 
+  // Custom banner image URL
+  String? _customBannerImageUrl;
+
   final List<String> _daysOfWeek = [
     'Monday',
     'Tuesday',
@@ -86,6 +90,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
       _tempStartTimeController.clear();
       _tempEndTimeController.clear();
       _tempRoomController.clear();
+      _customBannerImageUrl = null; // Reset custom banner image
     });
   }
 
@@ -227,6 +232,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
               : '', // Use first schedule's room for backward compatibility
       schedules: classSchedules,
       sectionId: _selectedSectionId,
+      classImageUrl: _customBannerImageUrl, // Pass custom image URL
     );
 
     _hideCreateClassDialog();
@@ -988,6 +994,33 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
                                     });
                                   },
                                 ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Custom Banner Image Section
+                              const Text(
+                                'Class Banner (Optional)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ClassBannerImagePicker(
+                                currentImageUrl: _customBannerImageUrl,
+                                showPreview: true,
+                                previewHeight: 150,
+                                onImageUploaded: (imageUrl) {
+                                  setState(() {
+                                    _customBannerImageUrl = imageUrl;
+                                  });
+                                },
+                                onImageRemoved: () {
+                                  setState(() {
+                                    _customBannerImageUrl = null;
+                                  });
+                                },
                               ),
                               const SizedBox(height: 16),
 
@@ -2093,10 +2126,61 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
               ),
               child: Stack(
                 children: [
-                  Image.asset(
-                    'assets/instructor/images/Group 1171274926.png',
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                  // Display custom image if available, otherwise default
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 120, // Fixed height to prevent overlap
+                      child:
+                          classData['classImageUrl'] != null &&
+                                  (classData['classImageUrl'] as String)
+                                      .isNotEmpty
+                              ? Image.network(
+                                classData['classImageUrl'],
+                                width: double.infinity,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  // Fallback to default on error
+                                  return Image.asset(
+                                    'assets/instructor/images/Group 1171274926.png',
+                                    width: double.infinity,
+                                    height: 120,
+                                    fit: BoxFit.cover,
+                                  );
+                                },
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    width: double.infinity,
+                                    height: 120,
+                                    color: const Color(0xFF34A853),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                              : Image.asset(
+                                'assets/instructor/images/Group 1171274926.png',
+                                width: double.infinity,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              ),
+                    ),
                   ),
                   Positioned(
                     left: screenWidth < 768 ? 20 : 40,

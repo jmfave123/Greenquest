@@ -117,6 +117,31 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
     }
   }
 
+  /// Check if the due date has passed
+  bool _isDueDatePassed() {
+    try {
+      final dueDate = widget.itemData['dueDate'];
+      if (dueDate == null) return false;
+
+      DateTime dueDatetime;
+      if (dueDate is DateTime) {
+        dueDatetime = dueDate;
+      } else if (dueDate is String) {
+        dueDatetime = DateTime.parse(dueDate);
+      } else if (dueDate is Timestamp) {
+        dueDatetime = dueDate.toDate();
+      } else {
+        return false;
+      }
+
+      // Check if current time is after due date
+      return DateTime.now().isAfter(dueDatetime);
+    } catch (e) {
+      print('Error checking due date: $e');
+      return false; // If error, allow submission
+    }
+  }
+
   Future<void> _handleSubmission() async {
     if (controller.selectedFiles.isEmpty) {
       Get.snackbar(
@@ -620,6 +645,42 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
 
               const SizedBox(height: 16),
 
+              // Due Date Warning (if past due)
+              if (_isDueDatePassed()) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFFE57373),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFD32F2F),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'The due date for this ${widget.type} has passed. Submissions are no longer accepted.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.red[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Submit Button
               SizedBox(
                 width: double.infinity,
@@ -627,12 +688,15 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
                   onPressed:
                       controller.selectedFiles.isEmpty ||
                               controller.isUploading.value ||
-                              controller.isSubmitting.value
+                              controller.isSubmitting.value ||
+                              _isDueDatePassed()
                           ? null
                           : _handleSubmission,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey[300],
+                    disabledForegroundColor: Colors.grey[600],
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -664,9 +728,11 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
                               ),
                             ],
                           )
-                          : const Text(
-                            'Submit Files',
-                            style: TextStyle(
+                          : Text(
+                            _isDueDatePassed()
+                                ? 'Submission Closed'
+                                : 'Submit Files',
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
