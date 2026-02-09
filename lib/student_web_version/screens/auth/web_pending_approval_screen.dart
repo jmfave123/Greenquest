@@ -126,6 +126,62 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
     Get.offAllNamed('/login');
   }
 
+  Future<void> _cancelRequest() async {
+    try {
+      setState(() => isLoading = true);
+
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Reset user selection in Firestore
+      await _firestore.collection('users').doc(user.uid).update({
+        'selectedInstructorId': '',
+        'selectedInstructorName': '',
+        'selectedSectionCode': '',
+        'selectionComplete': false,
+        'enrollmentStatus': 'none',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      Get.snackbar(
+        'Request Cancelled',
+        'You can now select a different instructor.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+
+      Get.offAllNamed('/select-instructor');
+    } catch (e) {
+      debugPrint('Error cancelling request: $e');
+      Get.snackbar('Error', 'Failed to cancel request. Please try again.');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _showCancelDialog() {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Cancel Enrollment?'),
+        content: const Text(
+          'Are you sure you want to cancel your enrollment request? You will be able to select a different instructor.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Keep')),
+          ElevatedButton(
+            onPressed: () {
+              Get.back();
+              _cancelRequest();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Cancel Request'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = WebResponsiveUtils.isMobile(context);
@@ -136,6 +192,8 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
       appBar: WebAppBar(
         title: 'GreenQuest Enrollment Status',
         onMenuPressed: null,
+        showNotifications: false,
+        showProfileDropdown: false,
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -317,7 +375,20 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
                 ),
               ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
+
+              // Change Instructor Option
+              if (enrollmentStatus != 'approved')
+                TextButton.icon(
+                  onPressed: isLoading ? null : _showCancelDialog,
+                  icon: const Icon(Icons.edit_note_rounded, size: 20),
+                  label: const Text('Select a different instructor'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: WebTheme.textSecondary,
+                  ),
+                ),
+
+              const SizedBox(height: 24),
 
               // Footer info
               const Text(

@@ -279,9 +279,22 @@ class LoginScreenController extends GetxController {
             final studentData = userDoc.data() as Map<String, dynamic>;
 
             final status =
-                studentData['enrollmentStatus']?.toString() ?? 'pending';
+                studentData['enrollmentStatus']?.toString() ?? 'none';
+            final selectionComplete = studentData['selectionComplete'] ?? false;
 
-            debugPrint('Student account detected: $email, Status: $status');
+            debugPrint(
+              'Student account detected: $email, Status: $status, SelectionComplete: $selectionComplete',
+            );
+
+            // Handle enrollment flow
+            if (status == 'none' || !selectionComplete) {
+              if (kIsWeb) {
+                Get.offAllNamed(WebRoutes.selectInstructor);
+              } else {
+                Get.offAllNamed('/select-instructor');
+              }
+              return;
+            }
 
             // Check if student is approved
             if (status != 'approved') {

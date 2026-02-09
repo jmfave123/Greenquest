@@ -10,6 +10,9 @@ import '../screens/profile/web_profile_screen.dart';
 import '../screens/notifications/web_announcement_list_screen.dart';
 import '../screens/pit/web_pit_list_screen.dart';
 import '../screens/auth/web_pending_approval_screen.dart';
+import '../screens/auth/web_select_instructor_screen.dart';
+import '../screens/auth/web_select_course_screen.dart';
+import '../screens/auth/web_upload_cor_screen.dart';
 import 'web_bindings.dart';
 
 /// Web routes configuration for student portal
@@ -29,6 +32,9 @@ class WebRoutes {
   static const String pits = '/student-web-pits';
   static const String login = '/student-web-login';
   static const String pendingApproval = '/student-web-pending-approval';
+  static const String selectInstructor = '/student-web-select-instructor';
+  static const String selectCourse = '/student-web-select-course';
+  static const String uploadCor = '/student-web-upload-cor';
 
   /// Get all routes for the student web portal
   static List<GetPage> getPages() {
@@ -98,6 +104,24 @@ class WebRoutes {
       GetPage(
         name: pendingApproval,
         page: () => const WebPendingApprovalScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: selectInstructor,
+        page: () => const WebSelectInstructorScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: selectCourse,
+        page: () => const WebSelectCourseScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: uploadCor,
+        page: () => const WebUploadCorScreen(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),

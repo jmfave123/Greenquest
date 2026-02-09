@@ -14,8 +14,16 @@ import '../web_notification_dropdown.dart';
 class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onMenuPressed;
+  final bool showNotifications;
+  final bool showProfileDropdown;
 
-  const WebAppBar({super.key, this.title = 'GreenQuest', this.onMenuPressed});
+  const WebAppBar({
+    super.key,
+    this.title = 'GreenQuest',
+    this.onMenuPressed,
+    this.showNotifications = true,
+    this.showProfileDropdown = true,
+  });
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
@@ -86,176 +94,184 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
   List<Widget> _buildActions(BuildContext context, User? user, bool isDesktop) {
     return [
       // Notifications icon
-      Obx(() {
-        final notificationController = Get.find<NotificationController>();
-        final count = notificationController.unreadCount.value;
+      if (showNotifications)
+        Obx(() {
+          final notificationController = Get.find<NotificationController>();
+          final count = notificationController.unreadCount.value;
 
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            IconButton(
-              icon: Icon(
-                count > 0 ? Icons.notifications : Icons.notifications_outlined,
-                color:
-                    count > 0 ? WebTheme.primaryGreen : WebTheme.textSecondary,
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: Icon(
+                  count > 0
+                      ? Icons.notifications
+                      : Icons.notifications_outlined,
+                  color:
+                      count > 0
+                          ? WebTheme.primaryGreen
+                          : WebTheme.textSecondary,
+                ),
+                onPressed: () {
+                  _showNotificationDropdown(context);
+                },
+                tooltip: 'Notifications',
               ),
-              onPressed: () {
-                _showNotificationDropdown(context);
-              },
-              tooltip: 'Notifications',
-            ),
-            if (count > 0)
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: WebTheme.errorRed,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  child: Text(
-                    count > 99 ? '99+' : '$count',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
+              if (count > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: WebTheme.errorRed,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
-                    textAlign: TextAlign.center,
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
-              ),
-          ],
-        );
-      }),
+            ],
+          );
+        }),
 
-      if (isDesktop) const SizedBox(width: 8),
+      if (isDesktop && showNotifications) const SizedBox(width: 8),
 
       // User profile
       if (user != null)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: PopupMenuButton<String>(
-            offset: const Offset(0, 50),
-            child: Row(
-              children: [
-                Obx(() {
-                  final controller = Get.find<WebHomeController>();
-                  return CircleAvatar(
-                    radius: 18,
-                    backgroundColor: WebTheme.primaryGreen,
-                    backgroundImage:
-                        controller.profileImage.value.isNotEmpty
-                            ? NetworkImage(controller.profileImage.value)
-                            : null,
-                    child:
-                        controller.profileImage.value.isEmpty
-                            ? Text(
-                              controller.getInitials(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                            : null,
-                  );
-                }),
-                if (isDesktop) ...[
-                  const SizedBox(width: 8),
-                  Obx(() {
-                    final controller = Get.find<WebHomeController>();
-                    return Text(
-                      controller.fullName.value.split(' ').first,
-                      style: const TextStyle(
-                        color: WebTheme.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    );
-                  }),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.arrow_drop_down,
-                    color: WebTheme.textSecondary,
-                  ),
-                ],
-              ],
-            ),
-            itemBuilder:
-                (context) => [
-                  const PopupMenuItem(
-                    value: 'profile',
-                    child: Row(
-                      children: [
-                        Icon(Icons.person_outline, size: 20),
-                        SizedBox(width: 12),
-                        Text('Profile'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'settings',
-                    child: Row(
-                      children: [
-                        Icon(Icons.settings_outlined, size: 20),
-                        SizedBox(width: 12),
-                        Text('Settings'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: 'logout',
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout, size: 20, color: WebTheme.errorRed),
-                        SizedBox(width: 12),
-                        Text(
-                          'Logout',
-                          style: TextStyle(color: WebTheme.errorRed),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-            onSelected: (value) async {
-              switch (value) {
-                case 'profile':
-                  Get.toNamed(WebRoutes.profile);
-                  break;
-                case 'settings':
-                  // TODO: Navigate to settings
-                  break;
-                case 'logout':
-                  // Sign out from Firebase
-                  await FirebaseAuth.instance.signOut();
-
-                  // Redirect to login screen
-                  Get.offAllNamed('/login');
-
-                  // Show success message
-                  Get.snackbar(
-                    'Logged Out',
-                    'You have been successfully logged out.',
-                    snackPosition: SnackPosition.TOP,
-                    backgroundColor: Colors.orange,
-                    colorText: Colors.white,
-                    duration: const Duration(seconds: 2),
-                  );
-                  break;
-              }
-            },
-          ),
+          child:
+              showProfileDropdown
+                  ? PopupMenuButton<String>(
+                    offset: const Offset(0, 50),
+                    child: _buildProfileInfo(isDesktop),
+                    itemBuilder: (context) => _buildDropdownItems(),
+                    onSelected: (value) => _handleDropdownAction(value),
+                  )
+                  : _buildProfileInfo(isDesktop),
         ),
 
       const SizedBox(width: 8),
     ];
+  }
+
+  Widget _buildProfileInfo(bool isDesktop) {
+    return Row(
+      children: [
+        Obx(() {
+          final controller = Get.find<WebHomeController>();
+          return CircleAvatar(
+            radius: 18,
+            backgroundColor: WebTheme.primaryGreen,
+            backgroundImage:
+                controller.profileImage.value.isNotEmpty
+                    ? NetworkImage(controller.profileImage.value)
+                    : null,
+            child:
+                controller.profileImage.value.isEmpty
+                    ? Text(
+                      controller.getInitials(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                    : null,
+          );
+        }),
+        if (isDesktop) ...[
+          const SizedBox(width: 8),
+          Obx(() {
+            final controller = Get.find<WebHomeController>();
+            return Text(
+              controller.fullName.value.split(' ').first,
+              style: const TextStyle(
+                color: WebTheme.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }),
+          if (showProfileDropdown) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_drop_down, color: WebTheme.textSecondary),
+          ],
+        ],
+      ],
+    );
+  }
+
+  List<PopupMenuEntry<String>> _buildDropdownItems() {
+    return [
+      const PopupMenuItem(
+        value: 'profile',
+        child: Row(
+          children: [
+            Icon(Icons.person_outline, size: 20),
+            SizedBox(width: 12),
+            Text('Profile'),
+          ],
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'settings',
+        child: Row(
+          children: [
+            Icon(Icons.settings_outlined, size: 20),
+            SizedBox(width: 12),
+            Text('Settings'),
+          ],
+        ),
+      ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(
+        value: 'logout',
+        child: Row(
+          children: [
+            Icon(Icons.logout, size: 20, color: WebTheme.errorRed),
+            SizedBox(width: 12),
+            Text('Logout', style: TextStyle(color: WebTheme.errorRed)),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _handleDropdownAction(String value) async {
+    switch (value) {
+      case 'profile':
+        Get.toNamed(WebRoutes.profile);
+        break;
+      case 'settings':
+        // TODO: Navigate to settings
+        break;
+      case 'logout':
+        await FirebaseAuth.instance.signOut();
+        Get.offAllNamed('/login');
+        Get.snackbar(
+          'Logged Out',
+          'You have been successfully logged out.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+        break;
+    }
   }
 
   void _showNotificationDropdown(BuildContext context) {
