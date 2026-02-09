@@ -270,26 +270,28 @@ class LoginScreenController extends GetxController {
         }
         // Check if user is a student (exists in users collection but not instructors/admins)
         else {
-          // Check if user exists in users collection (students)
-          final userQuery =
-              await _firestore
-                  .collection('users')
-                  .where('email', isEqualTo: email)
-                  .limit(1)
-                  .get();
+          // Query student by UID instead of email to get complete document
+          final userDoc =
+              await _firestore.collection('users').doc(user.uid).get();
 
           // If user is a student
-          if (userQuery.docs.isNotEmpty) {
-            final studentData = userQuery.docs.first.data();
-            final status = studentData['status']?.toString() ?? 'Pending';
+          if (userDoc.exists) {
+            final studentData = userDoc.data() as Map<String, dynamic>;
+
+            final status =
+                studentData['enrollmentStatus']?.toString() ?? 'pending';
 
             debugPrint('Student account detected: $email, Status: $status');
 
             // Check if student is approved
-            if (status != 'Approved') {
+            if (status != 'approved') {
               debugPrint('Student not approved. Status: $status');
-              // Navigate to pending approval page
-              Get.offAllNamed('/pending-approval');
+              // Navigate to pending approval page based on platform
+              if (kIsWeb) {
+                Get.offAllNamed(WebRoutes.pendingApproval);
+              } else {
+                Get.offAllNamed('/pending-approval');
+              }
               return;
             }
 
@@ -298,7 +300,7 @@ class LoginScreenController extends GetxController {
             debugPrint('Found approved student - allowing login');
           } else {
             // No user found in any collection
-            debugPrint('No user found in Firestore with email: $email');
+            debugPrint('No user found in Firestore with UID: ${user.uid}');
             errorMessage.value =
                 'No account found with this email. Please register first.';
             await _auth.signOut(); // Sign out from Firebase Auth

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_controller.dart';
+import '../../student_web_version/config/web_routes.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -71,7 +73,11 @@ class _SplashScreenState extends State<SplashScreen> {
             print(
               '⏳ Splash screen - User pending/rejected, navigating to pending approval',
             );
-            Get.offAllNamed('/pending-approval');
+            if (kIsWeb) {
+              Get.offAllNamed(WebRoutes.pendingApproval);
+            } else {
+              Get.offAllNamed('/pending-approval');
+            }
           } else {
             // User hasn't completed selection, go to instructor selection
             print(

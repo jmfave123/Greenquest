@@ -391,84 +391,285 @@ class WebStudentHomeScreen extends StatelessWidget {
   }
 
   Widget _buildQuickActions(BuildContext context) {
+    final bool isMobile = WebResponsiveUtils.isMobile(context);
+
+    if (isMobile) {
+      return _buildMobileSubmitWork(context);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Quick Actions', style: WebTheme.headingSmall),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionCard(
-                context,
-                title: 'Activities',
-                icon: Icons.assignment,
-                color: WebTheme.successGreen,
-                onTap: () => Get.toNamed(WebRoutes.activities),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildActionCard(
-                context,
-                title: 'Assignments',
-                icon: Icons.task,
-                color: WebTheme.infoBlue,
-                onTap: () => Get.toNamed(WebRoutes.assignments),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildActionCard(
-                context,
-                title: 'Quizzes',
-                icon: Icons.quiz,
-                color: WebTheme.warningOrange,
-                onTap: () => Get.toNamed(WebRoutes.quizzes),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildActionCard(
-                context,
-                title: 'PIT',
-                icon: Icons.engineering,
-                color: WebTheme.primaryGreen,
-                onTap: () => Get.toNamed(WebRoutes.pits),
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // Determine number of columns based on width
+            int crossAxisCount = constraints.maxWidth > 900 ? 4 : 2;
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: constraints.maxWidth > 900 ? 1.1 : 1.4,
+              children: [
+                _buildModernActionCard(
+                  context,
+                  title: 'Activities',
+                  description: 'Daily tasks & classroom exercises',
+                  icon: Icons.assignment_rounded,
+                  gradient: const [Color(0xFF43A047), Color(0xFF2E7D32)],
+                  onTap: () => Get.toNamed(WebRoutes.activities),
+                ),
+                _buildModernActionCard(
+                  context,
+                  title: 'Assignments',
+                  description: 'Major projects & coursework',
+                  icon: Icons.task_rounded,
+                  gradient: const [Color(0xFF1E88E5), Color(0xFF1565C0)],
+                  onTap: () => Get.toNamed(WebRoutes.assignments),
+                ),
+                _buildModernActionCard(
+                  context,
+                  title: 'Quizzes',
+                  description: 'Unit tests & knowledge checks',
+                  icon: Icons.quiz_rounded,
+                  gradient: const [Color(0xFF8E24AA), Color(0xFF6A1B9A)],
+                  onTap: () => Get.toNamed(WebRoutes.quizzes),
+                ),
+                _buildModernActionCard(
+                  context,
+                  title: 'PIT',
+                  description: 'Institutional performance tasks',
+                  icon: Icons.engineering_rounded,
+                  gradient: const [Color(0xFFFB8C00), Color(0xFFEF6C00)],
+                  onTap: () => Get.toNamed(WebRoutes.pits),
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _buildActionCard(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 32),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: WebTheme.bodyMedium.copyWith(
-                  fontWeight: FontWeight.bold,
+  Widget _buildMobileSubmitWork(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF70E774), Color(0xFF28863D)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
               ),
-            ],
+              child: const Icon(
+                Icons.checklist_rtl_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Submit Your Work',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: WebTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  'Complete tasks to grow your tree',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildMobileActionItem(
+          title: 'Submit Activity',
+          subtitle: 'Complete your daily learning task',
+          icon: Icons.description_rounded,
+          bgColor: const Color(0xFFE8F5E9),
+          iconBgColor: const Color(0xFFC6F6D5),
+          accentColor: const Color(0xFF43A047),
+          onTap: () => Get.toNamed(WebRoutes.activities),
+        ),
+        _buildMobileActionItem(
+          title: 'Submit Assignment',
+          subtitle: 'Turn in your major project',
+          icon: Icons.assignment_turned_in_rounded,
+          bgColor: const Color(0xFFE3F0FF),
+          iconBgColor: const Color(0xFFD6E4FF),
+          accentColor: const Color(0xFF2886D7),
+          onTap: () => Get.toNamed(WebRoutes.assignments),
+        ),
+        _buildMobileActionItem(
+          title: 'Submit Quizzes',
+          subtitle: 'Turn in your quizzes',
+          icon: Icons.quiz_rounded,
+          bgColor: const Color(0xFFF6F1FF),
+          iconBgColor: const Color(0xFFE9D8FD),
+          accentColor: const Color(0xFF8B5CF6),
+          onTap: () => Get.toNamed(WebRoutes.quizzes),
+        ),
+        _buildMobileActionItem(
+          title: 'Submit PIT',
+          subtitle: 'Turn in your PIT project',
+          icon: Icons.engineering_rounded,
+          bgColor: const Color(0xFFFFF3E0),
+          iconBgColor: const Color(0xFFFFE0B2),
+          accentColor: const Color(0xFFFF9800),
+          onTap: () => Get.toNamed(WebRoutes.pits),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileActionItem({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color bgColor,
+    required Color iconBgColor,
+    required Color accentColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: iconBgColor),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: accentColor, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: accentColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: accentColor.withOpacity(0.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernActionCard(
+    BuildContext context, {
+    required String title,
+    required String description,
+    required IconData icon,
+    required List<Color> gradient,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: gradient.last.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          hoverColor: gradient.first.withOpacity(0.05),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: gradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gradient.last.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 28),
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: WebTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

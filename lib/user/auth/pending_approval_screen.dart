@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'auth_controller.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/widgets/pull_to_refresh_wrapper.dart';
+import '../../student_web_version/config/web_routes.dart';
 
 class PendingApprovalScreen extends StatefulWidget {
   const PendingApprovalScreen({super.key});
@@ -201,7 +203,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
             Future.delayed(const Duration(milliseconds: 1500), () {
               print('🏠 SYNC: Navigating to home dashboard');
-              Get.offAllNamed('/home');
+              Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
             });
 
             return; // Exit after first successful sync
@@ -273,9 +275,6 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
                   instructorData['profileImageUrl'] ??
                   instructorData['profileImage'] ??
                   '';
-              print(
-                '📸 Instructor profile image URL: $instructorProfileImageData',
-              );
             } else {
               print(
                 '⚠️ Instructor document not found for ID: $instructorIdData',
@@ -312,7 +311,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
           Future.delayed(const Duration(milliseconds: 1500), () {
             print('🏠 Navigating to home dashboard');
-            Get.offAllNamed('/home');
+            Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
           });
           return;
         }
@@ -408,7 +407,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
                     print('🏠 Navigating to home dashboard');
                     print('🏠 Current route: ${Get.currentRoute}');
                     print('🏠 Routing to: /home');
-                    Get.offAllNamed('/home');
+                    Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
                     print('🏠 Navigation called');
                   });
                 } else if (status == 'rejected') {
@@ -688,7 +687,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
           Future.delayed(const Duration(milliseconds: 1500), () {
             print('🏠 Manual refresh - Navigating to home dashboard');
-            Get.offAllNamed('/home');
+            Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
           });
         } else if (status == 'rejected') {
           print('❌ Manual refresh - Student rejected');
