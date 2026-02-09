@@ -42,6 +42,7 @@ import 'firebase_options.dart';
 import 'shared/screens/image_upload_example_screen.dart';
 import 'shared/services/online_status_service.dart';
 import 'student_web_version/config/web_routes.dart';
+import 'student_web_version/config/web_bindings.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +88,7 @@ class GreenQuestApp extends StatelessWidget {
           selectionHandleColor: Color(0xFF43A047), // The droplet color
         ),
       ),
+      initialBinding: kIsWeb ? WebHomeBinding() : null,
       initialRoute: initialRoute,
       getPages: [
         // Mobile routes

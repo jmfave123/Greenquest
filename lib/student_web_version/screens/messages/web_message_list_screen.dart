@@ -9,6 +9,7 @@ import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
 import '../../../shared/models/message_model.dart';
 import '../../../shared/services/file_download_service.dart';
+import '../../../shared/services/file_upload_service.dart';
 
 class WebMessageListScreen extends StatefulWidget {
   const WebMessageListScreen({super.key});
@@ -457,13 +458,7 @@ class _WebMessageListScreenState extends State<WebMessageListScreen> {
         children: [
           IconButton(
             icon: const Icon(Icons.attach_file, color: WebTheme.textSecondary),
-            onPressed: () {
-              Get.snackbar(
-                'Notice',
-                'File upload from web coming soon!',
-                snackPosition: SnackPosition.BOTTOM,
-              );
-            },
+            onPressed: _handleFileUpload,
           ),
           Expanded(
             child: Container(
@@ -618,5 +613,78 @@ class _WebMessageListScreenState extends State<WebMessageListScreen> {
     return date1.year == date2.year &&
         date1.month == date2.month &&
         date1.day == date2.day;
+  }
+
+  Future<void> _handleFileUpload() async {
+    try {
+      // Pick a file
+      final files = await FileUploadService().pickFiles(allowMultiple: false);
+
+      if (files == null || files.isEmpty) {
+        return;
+      }
+
+      final file = files.first;
+
+      // Show uploading indicator
+      Get.dialog(
+        const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: WebTheme.primaryGreen),
+                  SizedBox(height: 16),
+                  Text('Uploading file...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      // Upload the file
+      final response = await FileUploadService().uploadFile(
+        file: file,
+        folder: 'messages',
+      );
+
+      // Close the uploading dialog
+      Get.back();
+
+      if (response != null) {
+        // Send the file message
+        await controller.sendFile(
+          file.name,
+          response.secureUrl,
+          file.extension ?? 'unknown',
+          file.size,
+        );
+
+        Get.snackbar(
+          'Success',
+          'File sent successfully!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: WebTheme.primaryGreen,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      // Close any open dialogs
+      if (Get.isDialogOpen ?? false) {
+        Get.back();
+      }
+
+      Get.snackbar(
+        'Error',
+        'Failed to upload file: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 }

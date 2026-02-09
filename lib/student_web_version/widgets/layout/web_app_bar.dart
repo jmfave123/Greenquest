@@ -5,7 +5,8 @@ import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../controllers/web_home_controller.dart';
-import '../../../user/notification/announcement_controller.dart';
+import '../../../user/notification/notification_controller.dart';
+import '../web_notification_dropdown.dart';
 
 /// Web-optimized app bar for student portal
 /// Displays logo, navigation items, and user profile
@@ -86,7 +87,7 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
     return [
       // Notifications icon
       Obx(() {
-        final notificationController = Get.find<UserAnnouncementController>();
+        final notificationController = Get.find<NotificationController>();
         final count = notificationController.unreadCount.value;
 
         return Stack(
@@ -99,9 +100,9 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
                     count > 0 ? WebTheme.primaryGreen : WebTheme.textSecondary,
               ),
               onPressed: () {
-                Get.toNamed(WebRoutes.announcements);
+                _showNotificationDropdown(context);
               },
-              tooltip: 'Announcements',
+              tooltip: 'Notifications',
             ),
             if (count > 0)
               Positioned(
@@ -255,5 +256,69 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
 
       const SizedBox(width: 8),
     ];
+  }
+
+  void _showNotificationDropdown(BuildContext context) {
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    // Get button position and size
+    final Offset buttonOffset = button.localToGlobal(
+      Offset.zero,
+      ancestor: overlay,
+    );
+    final Size buttonSize = button.size;
+    final Size overlaySize = overlay.size;
+
+    // Responsive width calculation
+    final bool isMobile = overlaySize.width < 600;
+    final double dropdownWidth = isMobile ? overlaySize.width * 0.92 : 400.0;
+
+    double left;
+    double top = buttonOffset.dy + buttonSize.height + 12;
+    double right;
+
+    if (isMobile) {
+      // Center on mobile
+      left = (overlaySize.width - dropdownWidth) / 2;
+      right = left;
+    } else {
+      // Right-aligned with the button on desktop
+      left = buttonOffset.dx + buttonSize.width - dropdownWidth;
+      right = overlaySize.width - (buttonOffset.dx + buttonSize.width);
+
+      // Ensure it doesn't go off the left edge
+      if (left < 10) {
+        left = 10;
+        right = overlaySize.width - (left + dropdownWidth);
+      }
+    }
+
+    final RelativeRect position = RelativeRect.fromLTRB(
+      left,
+      top,
+      right > 0 ? right : 0,
+      0,
+    );
+
+    showMenu(
+      context: context,
+      position: position,
+      elevation: 0,
+      color: Colors.transparent,
+      constraints: BoxConstraints(
+        maxWidth: dropdownWidth,
+        minWidth: dropdownWidth,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: [
+        PopupMenuItem(
+          padding: EdgeInsets.zero,
+          enabled: false,
+          child: const WebNotificationDropdown(),
+        ),
+      ],
+    );
   }
 }
