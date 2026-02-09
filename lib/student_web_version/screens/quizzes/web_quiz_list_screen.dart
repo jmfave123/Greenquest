@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../user/submit/quiz_new/quiz_controller.dart';
-import '../../../user/submit/quiz_new/quiz_detail_screen.dart'; // Fallback to mobile detail for now
+import 'web_quiz_detail_screen.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -151,8 +151,7 @@ class _WebQuizListScreenState extends State<WebQuizListScreen> {
       child: GestureDetector(
         onTap: () {
           controller.setSelectedQuiz(quiz);
-          // For now, reuse mobile detail screen. We can add a web version if needed.
-          Get.to(() => QuizDetailScreen(assignment: quiz));
+          Get.to(() => WebQuizDetailScreen(quiz: quiz));
         },
         child: Container(
           padding: const EdgeInsets.all(20),

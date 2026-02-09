@@ -11,15 +11,9 @@ import '../../controllers/web_home_controller.dart';
 
 class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  final bool showBackButton;
   final VoidCallback? onMenuPressed;
 
-  const WebAppBar({
-    super.key,
-    this.title = 'GreenQuest',
-    this.showBackButton = false,
-    this.onMenuPressed,
-  });
+  const WebAppBar({super.key, this.title = 'GreenQuest', this.onMenuPressed});
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
@@ -34,6 +28,7 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       surfaceTintColor: Colors.transparent,
+      automaticallyImplyLeading: false, // Remove default back button
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1.0),
         child: Container(color: WebTheme.borderLight, height: 1.0),
@@ -45,13 +40,6 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget? _buildLeading(BuildContext context, bool isDesktop) {
-    if (showBackButton) {
-      return IconButton(
-        icon: const Icon(Icons.arrow_back, color: WebTheme.textPrimary),
-        onPressed: () => Navigator.of(context).pop(),
-      );
-    }
-
     if (!isDesktop && onMenuPressed != null) {
       return IconButton(
         icon: const Icon(Icons.menu, color: WebTheme.textPrimary),

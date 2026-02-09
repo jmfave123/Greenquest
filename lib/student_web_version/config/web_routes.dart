@@ -6,6 +6,8 @@ import '../screens/quizzes/web_quiz_list_screen.dart';
 import '../screens/leaderboard/web_leaderboard_screen.dart';
 import '../screens/materials/web_materials_list_screen.dart';
 import '../screens/messages/web_message_list_screen.dart';
+import '../screens/profile/web_profile_screen.dart';
+import '../screens/notifications/web_announcement_list_screen.dart';
 import 'web_bindings.dart';
 
 /// Web routes configuration for student portal
@@ -21,6 +23,7 @@ class WebRoutes {
   static const String materials = '/materials';
   static const String messages = '/student-web-messages';
   static const String profile = '/student-web-profile';
+  static const String announcements = '/student-web-announcements';
   static const String login = '/student-web-login';
 
   /// Get all routes for the student web portal
@@ -70,7 +73,18 @@ class WebRoutes {
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),
-      // GetPage(name: profile, page: () => const WebProfileScreen()),
+      GetPage(
+        name: profile,
+        page: () => const WebProfileScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: announcements,
+        page: () => const WebAnnouncementListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
       // GetPage(name: login, page: () => const WebStudentLoginScreen()),
     ];
   }

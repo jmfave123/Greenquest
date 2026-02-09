@@ -54,7 +54,6 @@ class WebMaterialsDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildBackButton(),
               const SizedBox(height: 24),
               if (isDesktop)
                 Row(
@@ -76,18 +75,6 @@ class WebMaterialsDetailScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return TextButton.icon(
-      onPressed: () => Get.back(),
-      icon: const Icon(Icons.arrow_back, size: 18),
-      label: const Text('Back to Materials'),
-      style: TextButton.styleFrom(
-        foregroundColor: WebTheme.textSecondary,
-        padding: EdgeInsets.zero,
       ),
     );
   }

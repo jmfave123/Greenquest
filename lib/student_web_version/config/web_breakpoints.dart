@@ -1,5 +1,6 @@
 /// Web responsive breakpoints for student portal
 /// Defines screen size thresholds for mobile, tablet, and desktop layouts
+library;
 
 class WebBreakpoints {
   // Breakpoint values

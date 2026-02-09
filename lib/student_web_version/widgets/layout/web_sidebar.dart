@@ -63,6 +63,12 @@ class _WebSidebarState extends State<WebSidebar> {
       label: 'Messages',
       route: WebRoutes.messages,
     ),
+    SidebarItem(
+      icon: Icons.notifications_outlined,
+      activeIcon: Icons.notifications,
+      label: 'Announcements',
+      route: WebRoutes.announcements,
+    ),
   ];
 
   @override

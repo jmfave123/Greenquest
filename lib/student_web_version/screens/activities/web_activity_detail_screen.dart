@@ -84,7 +84,6 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildBackButton(),
               const SizedBox(height: 24),
               if (isDesktop)
                 Row(
@@ -106,18 +105,6 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return TextButton.icon(
-      onPressed: () => Get.back(),
-      icon: const Icon(Icons.arrow_back, size: 18),
-      label: const Text('Back to Activities'),
-      style: TextButton.styleFrom(
-        foregroundColor: WebTheme.textSecondary,
-        padding: EdgeInsets.zero,
       ),
     );
   }

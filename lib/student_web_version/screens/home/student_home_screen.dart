@@ -72,8 +72,9 @@ class WebStudentHomeScreen extends StatelessWidget {
 
                 // Active Period Indicator (Matching Mobile)
                 Obx(() {
-                  if (controller.activePeriodName.value.isEmpty)
+                  if (controller.activePeriodName.value.isEmpty) {
                     return const SizedBox.shrink();
+                  }
 
                   final isMidterm =
                       controller.activePeriodType.value == 'Midterm';
@@ -169,7 +170,7 @@ class WebStudentHomeScreen extends StatelessWidget {
         const SizedBox(height: 8),
         Obx(
           () => Text(
-            '${controller.fullName.value}',
+            controller.fullName.value,
             style: WebTheme.bodyLarge.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
@@ -336,20 +337,18 @@ class WebStudentHomeScreen extends StatelessWidget {
           children: [
             const Text('Tasks Overview', style: WebTheme.headingSmall),
             const SizedBox(height: 16),
-            ...controller.midtermCompletions
-                .map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildCompletionRow(
-                      context,
-                      label: item['displayName'] as String,
-                      completed: item['completed'] as int,
-                      total: item['total'] as int,
-                      percentage: item['percentage'] as double,
-                    ),
-                  ),
-                )
-                .toList(),
+            ...controller.midtermCompletions.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildCompletionRow(
+                  context,
+                  label: item['displayName'] as String,
+                  completed: item['completed'] as int,
+                  total: item['total'] as int,
+                  percentage: item['percentage'] as double,
+                ),
+              ),
+            ),
             if (controller.midtermCompletions.isEmpty)
               const Text('No tasks recorded yet.', style: WebTheme.bodyMedium),
           ],

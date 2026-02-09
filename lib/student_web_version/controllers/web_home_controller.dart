@@ -32,7 +32,11 @@ class WebHomeController extends GetxController {
   String getInitials() {
     if (fullName.value.isEmpty) return 'S';
     List<String> parts =
-        fullName.value.trim().split(' ').where((s) => s.isNotEmpty).toList();
+        fullName.value
+            .trim()
+            .split(' ')
+            .where((String s) => s.isNotEmpty)
+            .toList();
     if (parts.isEmpty) return 'S';
     if (parts.length == 1) return parts[0][0].toUpperCase();
 
