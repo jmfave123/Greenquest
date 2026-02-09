@@ -427,6 +427,16 @@ class WebStudentHomeScreen extends StatelessWidget {
                 onTap: () => Get.toNamed(WebRoutes.quizzes),
               ),
             ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildActionCard(
+                context,
+                title: 'PIT',
+                icon: Icons.engineering,
+                color: WebTheme.primaryGreen,
+                onTap: () => Get.toNamed(WebRoutes.pits),
+              ),
+            ),
           ],
         ),
       ],

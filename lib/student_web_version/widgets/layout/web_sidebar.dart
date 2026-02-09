@@ -46,6 +46,12 @@ class _WebSidebarState extends State<WebSidebar> {
       route: WebRoutes.quizzes,
     ),
     SidebarItem(
+      icon: Icons.engineering_outlined,
+      activeIcon: Icons.engineering,
+      label: 'PIT',
+      route: WebRoutes.pits,
+    ),
+    SidebarItem(
       icon: Icons.leaderboard_outlined,
       activeIcon: Icons.leaderboard,
       label: 'Leaderboard',

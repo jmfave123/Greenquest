@@ -8,6 +8,7 @@ import '../screens/materials/web_materials_list_screen.dart';
 import '../screens/messages/web_message_list_screen.dart';
 import '../screens/profile/web_profile_screen.dart';
 import '../screens/notifications/web_announcement_list_screen.dart';
+import '../screens/pit/web_pit_list_screen.dart';
 import 'web_bindings.dart';
 
 /// Web routes configuration for student portal
@@ -24,6 +25,7 @@ class WebRoutes {
   static const String messages = '/student-web-messages';
   static const String profile = '/student-web-profile';
   static const String announcements = '/student-web-announcements';
+  static const String pits = '/student-web-pits';
   static const String login = '/student-web-login';
 
   /// Get all routes for the student web portal
@@ -82,6 +84,12 @@ class WebRoutes {
       GetPage(
         name: announcements,
         page: () => const WebAnnouncementListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: pits,
+        page: () => const WebPitListScreen(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),

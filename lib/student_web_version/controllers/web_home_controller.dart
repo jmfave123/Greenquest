@@ -14,6 +14,7 @@ class WebHomeController extends GetxController {
   final RxString fullName = ''.obs;
   final RxString profileImage = ''.obs;
   final RxString enrollmentStatus = 'none'.obs;
+  final RxString instructorId = ''.obs;
   final RxString instructorName = ''.obs;
   final RxString sectionCode = ''.obs;
   final RxDouble treeProgress = 0.0.obs;
@@ -74,6 +75,7 @@ class WebHomeController extends GetxController {
             'Student';
         profileImage.value = data['profileImage'] ?? '';
         enrollmentStatus.value = data['enrollmentStatus'] ?? 'none';
+        instructorId.value = data['selectedInstructorId'] ?? '';
         instructorName.value = data['selectedInstructorName'] ?? '';
         sectionCode.value = data['selectedSectionCode'] ?? '';
 

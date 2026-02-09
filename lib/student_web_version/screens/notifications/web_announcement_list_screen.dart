@@ -12,7 +12,7 @@ class WebAnnouncementListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(UserAnnouncementController());
+    final controller = Get.find<UserAnnouncementController>();
     final isDesktop = WebResponsiveUtils.isDesktop(context);
     final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -96,7 +96,7 @@ class WebAnnouncementListScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
+              _buildHeader(controller),
               const SizedBox(height: 24),
               ListView.separated(
                 shrinkWrap: true,
@@ -121,25 +121,37 @@ class WebAnnouncementListScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeader(UserAnnouncementController controller) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        const Text(
-          'Latest Updates',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: WebTheme.textPrimary,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Latest Updates',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: WebTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Stay informed about your classes and school broadcasts.',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: WebTheme.textSecondary.withOpacity(0.8),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Stay informed about your classes and school broadcasts.',
-          style: TextStyle(
-            fontSize: 16,
-            color: WebTheme.textSecondary.withOpacity(0.8),
-          ),
+        IconButton(
+          onPressed: () => controller.forceReload(),
+          icon: const Icon(Icons.refresh, color: WebTheme.primaryGreen),
+          tooltip: 'Refresh Notifications',
         ),
       ],
     );

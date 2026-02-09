@@ -5,6 +5,7 @@ import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../controllers/web_home_controller.dart';
+import '../../../user/notification/announcement_controller.dart';
 
 /// Web-optimized app bar for student portal
 /// Displays logo, navigation items, and user profile
@@ -84,16 +85,53 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
   List<Widget> _buildActions(BuildContext context, User? user, bool isDesktop) {
     return [
       // Notifications icon
-      IconButton(
-        icon: const Icon(
-          Icons.notifications_outlined,
-          color: WebTheme.textSecondary,
-        ),
-        onPressed: () {
-          // TODO: Navigate to notifications
-        },
-        tooltip: 'Notifications',
-      ),
+      Obx(() {
+        final notificationController = Get.find<UserAnnouncementController>();
+        final count = notificationController.unreadCount.value;
+
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            IconButton(
+              icon: Icon(
+                count > 0 ? Icons.notifications : Icons.notifications_outlined,
+                color:
+                    count > 0 ? WebTheme.primaryGreen : WebTheme.textSecondary,
+              ),
+              onPressed: () {
+                Get.toNamed(WebRoutes.announcements);
+              },
+              tooltip: 'Announcements',
+            ),
+            if (count > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: WebTheme.errorRed,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      }),
 
       if (isDesktop) const SizedBox(width: 8),
 
