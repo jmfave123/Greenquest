@@ -20,6 +20,20 @@ class AuthController extends GetxController {
     String password,
   ) async {
     try {
+      // Check if student ID number already exists
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .where('idNumber', isEqualTo: idNumber)
+              .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return {
+          'success': false,
+          'message': 'This student ID Number is already registered.',
+        };
+      }
+
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,

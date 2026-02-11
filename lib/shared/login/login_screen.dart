@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'login_screen_controller.dart';
 import '../widgets/forgot_password_dialog.dart';
+import '../widgets/registration_role_dialog.dart';
 import '../widgets/safe_asset_image.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -192,7 +193,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Padding(
                             padding: EdgeInsets.only(bottom: 20),
                             child: GestureDetector(
-                              onTap: () => Get.toNamed('/instructor-register'),
+                              onTap: () {
+                                Get.dialog(const RegistrationRoleDialog());
+                              },
                               child: RichText(
                                 text: TextSpan(
                                   text: "Don't have an account? ",

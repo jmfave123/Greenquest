@@ -13,6 +13,7 @@ import '../screens/auth/web_pending_approval_screen.dart';
 import '../screens/auth/web_select_instructor_screen.dart';
 import '../screens/auth/web_select_course_screen.dart';
 import '../screens/auth/web_upload_cor_screen.dart';
+import '../screens/auth/web_register_screen.dart';
 
 /// Web routes configuration for student portal
 /// Defines all navigation routes and their corresponding screens
@@ -30,6 +31,7 @@ class WebRoutes {
   static const String announcements = '/student-web-announcements';
   static const String pits = '/student-web-pits';
   static const String login = '/student-web-login';
+  static const String register = '/student-web-register';
   static const String pendingApproval = '/student-web-pending-approval';
   static const String selectInstructor = '/student-web-select-instructor';
   static const String selectCourse = '/student-web-select-course';
@@ -120,6 +122,12 @@ class WebRoutes {
       GetPage(
         name: uploadCor,
         page: () => const WebUploadCorScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: register,
+        page: () => const WebRegisterScreen(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),
