@@ -33,8 +33,9 @@ class _WebUploadCorScreenState extends State<WebUploadCorScreen> {
       allowedExtensions: ['pdf'],
       allowMultiple: false,
     );
-    if (result != null && result.isNotEmpty)
+    if (result != null && result.isNotEmpty) {
       setState(() => _selectedFile = result.first);
+    }
   }
 
   Future<void> _submit() async {

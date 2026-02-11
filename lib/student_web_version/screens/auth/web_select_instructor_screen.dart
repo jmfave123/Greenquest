@@ -70,8 +70,9 @@ class _WebSelectInstructorScreenState extends State<WebSelectInstructorScreen> {
               _buildHeader(isMobile),
               Expanded(
                 child: Obx(() {
-                  if (controller.isLoading.value)
+                  if (controller.isLoading.value) {
                     return const Center(child: CircularProgressIndicator());
+                  }
                   final instructors = controller.filteredInstructors;
                   if (instructors.isEmpty) return _buildEmptyState();
                   return _buildGrid(instructors, isMobile, isDesktop);

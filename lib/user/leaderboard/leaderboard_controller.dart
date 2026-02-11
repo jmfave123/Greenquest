@@ -12,6 +12,8 @@ class LeaderboardController extends GetxController {
         'All': [],
         'Quizzes': [],
         'Activities': [],
+        'PIT': [],
+        'Assignments': [],
       }.obs;
   var isLoadingLeaderboard = true.obs;
   var currentInstructorId = ''.obs;
@@ -89,6 +91,8 @@ class LeaderboardController extends GetxController {
         leaderboardData['All'] = [];
         leaderboardData['Quizzes'] = [];
         leaderboardData['Activities'] = [];
+        leaderboardData['PIT'] = [];
+        leaderboardData['Assignments'] = [];
         return;
       }
 
@@ -114,7 +118,13 @@ class LeaderboardController extends GetxController {
 
         // Initialize student entry if not exists
         if (!studentPoints.containsKey(studentId)) {
-          studentPoints[studentId] = {'total': 0, 'quiz': 0, 'activity': 0};
+          studentPoints[studentId] = {
+            'total': 0,
+            'quiz': 0,
+            'activity': 0,
+            'pit': 0,
+            'assignment': 0,
+          };
         }
 
         // Add points to total
@@ -128,6 +138,12 @@ class LeaderboardController extends GetxController {
         } else if (activityType == 'activity') {
           studentPoints[studentId]!['activity'] =
               (studentPoints[studentId]!['activity'] ?? 0) + points;
+        } else if (activityType == 'pit') {
+          studentPoints[studentId]!['pit'] =
+              (studentPoints[studentId]!['pit'] ?? 0) + points;
+        } else if (activityType == 'assignment') {
+          studentPoints[studentId]!['assignment'] =
+              (studentPoints[studentId]!['assignment'] ?? 0) + points;
         }
       }
 
@@ -135,6 +151,8 @@ class LeaderboardController extends GetxController {
       List<Map<String, dynamic>> allLeaderboard = [];
       List<Map<String, dynamic>> quizLeaderboard = [];
       List<Map<String, dynamic>> activityLeaderboard = [];
+      List<Map<String, dynamic>> pitLeaderboard = [];
+      List<Map<String, dynamic>> assignmentLeaderboard = [];
 
       for (var studentDoc in studentsQuery.docs) {
         final studentData = studentDoc.data();
@@ -160,6 +178,8 @@ class LeaderboardController extends GetxController {
         final totalPoints = studentPoints[studentId]?['total'] ?? 0;
         final quizPoints = studentPoints[studentId]?['quiz'] ?? 0;
         final activityPoints = studentPoints[studentId]?['activity'] ?? 0;
+        final pitPoints = studentPoints[studentId]?['pit'] ?? 0;
+        final assignmentPoints = studentPoints[studentId]?['assignment'] ?? 0;
 
         // Add to all leaderboard
         allLeaderboard.add({
@@ -187,6 +207,24 @@ class LeaderboardController extends GetxController {
           'profileImageUrl': profileImageUrl,
           'initials': initials,
         });
+
+        // Add to pit leaderboard
+        pitLeaderboard.add({
+          'name': studentName,
+          'class': studentClass,
+          'points': pitPoints,
+          'profileImageUrl': profileImageUrl,
+          'initials': initials,
+        });
+
+        // Add to assignment leaderboard
+        assignmentLeaderboard.add({
+          'name': studentName,
+          'class': studentClass,
+          'points': assignmentPoints,
+          'profileImageUrl': profileImageUrl,
+          'initials': initials,
+        });
       }
 
       // Step 5: Sort all leaderboards by points (highest first)
@@ -199,16 +237,26 @@ class LeaderboardController extends GetxController {
       activityLeaderboard.sort(
         (a, b) => (b['points'] as int).compareTo(a['points'] as int),
       );
+      pitLeaderboard.sort(
+        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
+      );
+      assignmentLeaderboard.sort(
+        (a, b) => (b['points'] as int).compareTo(a['points'] as int),
+      );
 
       // Step 6: Update observable data
       leaderboardData['All'] = allLeaderboard;
       leaderboardData['Quizzes'] = quizLeaderboard;
       leaderboardData['Activities'] = activityLeaderboard;
+      leaderboardData['PIT'] = pitLeaderboard;
+      leaderboardData['Assignments'] = assignmentLeaderboard;
     } catch (e) {
       print('Error loading optimized leaderboards: $e');
       leaderboardData['All'] = [];
       leaderboardData['Quizzes'] = [];
       leaderboardData['Activities'] = [];
+      leaderboardData['PIT'] = [];
+      leaderboardData['Assignments'] = [];
     }
   }
 

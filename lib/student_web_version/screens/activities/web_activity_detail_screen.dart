@@ -3,6 +3,9 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../user/submit/activity/activity_controller.dart';
 import '../../../user/submit/student_submission_controller.dart';
+import '../../../shared/controllers/file_submission_controller.dart';
+import '../../widgets/submissions/web_file_upload_widget.dart';
+import '../../widgets/submissions/web_instructor_attachments_widget.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -23,6 +26,7 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late ActivityController activityController;
   late StudentSubmissionController submissionController;
+  late FileSubmissionController fileController;
 
   @override
   void initState() {
@@ -34,6 +38,7 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
     }
 
     submissionController = Get.put(StudentSubmissionController());
+    fileController = Get.put(FileSubmissionController());
     _loadSubmissionData();
   }
 
@@ -110,6 +115,8 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
   }
 
   Widget _buildMainInfo() {
+    final List<dynamic> attachments = widget.activity['attachments'] ?? [];
+
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -135,6 +142,7 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
             widget.activity['instruction'] ?? 'No instructions provided.',
             style: WebTheme.bodyLarge.copyWith(height: 1.6),
           ),
+          WebInstructorAttachmentsWidget(attachments: attachments),
         ],
       ),
     );
@@ -349,39 +357,44 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
         );
       }
 
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () {
-            // Note: In real web implementaion, we'd use a web-compatible file picker
-            // For now, we show a notice that we're reusing the routing service
-            Get.snackbar(
-              'Submission',
-              'Please use the mobile app to upload files for now. Web file upload implementation coming soon!',
-              snackPosition: SnackPosition.BOTTOM,
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: WebTheme.primaryGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Upload Files',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: WebTheme.textSecondary,
             ),
-            elevation: 0,
           ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_circle_outline),
-              SizedBox(width: 12),
-              Text(
-                'Submit Activity',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
+          const SizedBox(height: 12),
+          WebFileUploadWidget(
+            controller: fileController,
+            label: 'Submit Activity',
+            onUploadComplete: () async {
+              // 1. Upload files to Cloudinary
+              final success = await fileController.uploadFiles(
+                folder: 'submissions/activities',
+                tags: {'type': 'activity', 'activityId': widget.activity['id']},
+              );
+
+              if (success) {
+                // 2. Submit activity to Firestore
+                final submitted = await fileController.submitActivity(
+                  activityId: widget.activity['id'],
+                  instructorId: widget.activity['instructorId'] ?? '',
+                  instructorName: widget.activity['instructorName'] ?? '',
+                  sectionId: '',
+                );
+
+                if (submitted) {
+                  _loadSubmissionData();
+                }
+              }
+            },
           ),
-        ),
+        ],
       );
     });
   }
@@ -436,6 +449,15 @@ extension on ActivityController {
       DateTime date;
       if (dueDate is Timestamp) {
         date = dueDate.toDate();
+      } else if (dueDate is String) {
+        // If it's already a formatted string from Firebase, just return it
+        if (dueDate.contains('at') &&
+            (dueDate.contains('AM') || dueDate.contains('PM'))) {
+          // Firebase format: "February 11, 2026 at 11:00:00 AM UTC+8"
+          return dueDate.replaceAll(' UTC+8', '').replaceAll(' UTC', '');
+        }
+        // Try to parse ISO format
+        date = DateTime.parse(dueDate);
       } else if (dueDate is DateTime) {
         date = dueDate;
       } else {
@@ -463,6 +485,7 @@ extension on ActivityController {
 
       return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute $period';
     } catch (e) {
+      if (dueDate is String) return dueDate;
       return 'No due date';
     }
   }

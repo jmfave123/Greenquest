@@ -3,6 +3,9 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../user/submit/pit/pit_controller.dart';
 import '../../../user/submit/student_submission_controller.dart';
+import '../../../shared/controllers/file_submission_controller.dart';
+import '../../widgets/submissions/web_file_upload_widget.dart';
+import '../../widgets/submissions/web_instructor_attachments_widget.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -22,6 +25,7 @@ class _WebPitDetailScreenState extends State<WebPitDetailScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late PitController pitController;
   late StudentSubmissionController submissionController;
+  late FileSubmissionController fileController;
 
   @override
   void initState() {
@@ -33,6 +37,7 @@ class _WebPitDetailScreenState extends State<WebPitDetailScreen> {
     }
 
     submissionController = Get.put(StudentSubmissionController());
+    fileController = Get.put(FileSubmissionController());
     _loadSubmissionData();
   }
 
@@ -109,6 +114,8 @@ class _WebPitDetailScreenState extends State<WebPitDetailScreen> {
   }
 
   Widget _buildMainInfo() {
+    final List<dynamic> attachments = widget.pit['attachments'] ?? [];
+
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -134,6 +141,7 @@ class _WebPitDetailScreenState extends State<WebPitDetailScreen> {
             widget.pit['instruction'] ?? 'No instructions provided.',
             style: WebTheme.bodyLarge.copyWith(height: 1.6),
           ),
+          WebInstructorAttachmentsWidget(attachments: attachments),
         ],
       ),
     );
@@ -348,34 +356,44 @@ class _WebPitDetailScreenState extends State<WebPitDetailScreen> {
         );
       }
 
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () {
-            Get.snackbar(
-              'Submission',
-              'Please use the mobile app to upload files for now. Web file upload implementation coming soon!',
-              snackPosition: SnackPosition.BOTTOM,
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: WebTheme.primaryGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Upload Files',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: WebTheme.textSecondary,
             ),
-            elevation: 0,
           ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_circle_outline),
-              SizedBox(width: 12),
-              Text('Submit PIT', style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
+          const SizedBox(height: 12),
+          WebFileUploadWidget(
+            controller: fileController,
+            label: 'Submit PIT',
+            onUploadComplete: () async {
+              // 1. Upload files to Cloudinary
+              final success = await fileController.uploadFiles(
+                folder: 'submissions/pits',
+                tags: {'type': 'pit', 'activityId': widget.pit['id']},
+              );
+
+              if (success) {
+                // 2. Submit PIT to Firestore
+                final submitted = await fileController.submitPit(
+                  pitId: widget.pit['id'],
+                  instructorId: widget.pit['instructorId'] ?? '',
+                  instructorName: widget.pit['instructorName'] ?? '',
+                  sectionId: '',
+                );
+
+                if (submitted) {
+                  _loadSubmissionData();
+                }
+              }
+            },
           ),
-        ),
+        ],
       );
     });
   }
@@ -428,6 +446,15 @@ class _WebPitDetailScreenState extends State<WebPitDetailScreen> {
       DateTime date;
       if (dateData is Timestamp) {
         date = dateData.toDate();
+      } else if (dateData is String) {
+        // If it's already a formatted string from Firebase, just return it
+        if (dateData.contains('at') &&
+            (dateData.contains('AM') || dateData.contains('PM'))) {
+          // Firebase format: "February 11, 2026 at 11:00:00 AM UTC+8"
+          return dateData.replaceAll(' UTC+8', '').replaceAll(' UTC', '');
+        }
+        // Try to parse ISO format
+        date = DateTime.parse(dateData);
       } else if (dateData is DateTime) {
         date = dateData;
       } else {
@@ -455,6 +482,7 @@ class _WebPitDetailScreenState extends State<WebPitDetailScreen> {
 
       return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute $period';
     } catch (e) {
+      if (dateData is String) return dateData;
       return 'No due date';
     }
   }

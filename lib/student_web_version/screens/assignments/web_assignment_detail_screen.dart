@@ -3,6 +3,9 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../user/submit/assignment/assignment_controller.dart';
 import '../../../user/submit/student_submission_controller.dart';
+import '../../../shared/controllers/file_submission_controller.dart';
+import '../../widgets/submissions/web_file_upload_widget.dart';
+import '../../widgets/submissions/web_instructor_attachments_widget.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -23,6 +26,7 @@ class _WebAssignmentDetailScreenState extends State<WebAssignmentDetailScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late AssignmentController assignmentController;
   late StudentSubmissionController submissionController;
+  late FileSubmissionController fileController;
 
   @override
   void initState() {
@@ -34,6 +38,7 @@ class _WebAssignmentDetailScreenState extends State<WebAssignmentDetailScreen> {
     }
 
     submissionController = Get.put(StudentSubmissionController());
+    fileController = Get.put(FileSubmissionController());
     _loadSubmissionData();
   }
 
@@ -110,6 +115,8 @@ class _WebAssignmentDetailScreenState extends State<WebAssignmentDetailScreen> {
   }
 
   Widget _buildMainInfo() {
+    final List<dynamic> attachments = widget.assignment['attachments'] ?? [];
+
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -135,6 +142,7 @@ class _WebAssignmentDetailScreenState extends State<WebAssignmentDetailScreen> {
             widget.assignment['instruction'] ?? 'No instructions provided.',
             style: WebTheme.bodyLarge.copyWith(height: 1.6),
           ),
+          WebInstructorAttachmentsWidget(attachments: attachments),
         ],
       ),
     );
@@ -349,37 +357,49 @@ class _WebAssignmentDetailScreenState extends State<WebAssignmentDetailScreen> {
         );
       }
 
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () {
-            Get.snackbar(
-              'Submission',
-              'Please use the mobile app to upload files for now. Web file upload implementation coming soon!',
-              snackPosition: SnackPosition.BOTTOM,
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: WebTheme.primaryGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Upload Files',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: WebTheme.textSecondary,
             ),
-            elevation: 0,
           ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_circle_outline),
-              SizedBox(width: 12),
-              Text(
-                'Submit Assignment',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
+          const SizedBox(height: 12),
+          WebFileUploadWidget(
+            controller: fileController,
+            label: 'Submit Assignment',
+            onUploadComplete: () async {
+              // 1. Upload files to Cloudinary first
+              final success = await fileController.uploadFiles(
+                folder: 'submissions/assignments',
+                tags: {
+                  'type': 'assignment',
+                  'activityId': widget.assignment['id'],
+                },
+              );
+
+              if (success) {
+                // 2. Submit assignment data to Firestore
+                final submitted = await fileController.submitAssignment(
+                  assignmentId: widget.assignment['id'],
+                  instructorId: widget.assignment['instructorId'] ?? '',
+                  instructorName: widget.assignment['instructorName'] ?? '',
+                  sectionId:
+                      '', // Controller will use student's enrolled section
+                );
+
+                if (submitted) {
+                  // Reload submission data to show success state
+                  _loadSubmissionData();
+                }
+              }
+            },
           ),
-        ),
+        ],
       );
     });
   }
@@ -434,6 +454,16 @@ extension on AssignmentController {
       DateTime date;
       if (dueDate is Timestamp) {
         date = dueDate.toDate();
+      } else if (dueDate is String) {
+        // If it's already a formatted string from Firebase, just return it
+        if (dueDate.contains('at') &&
+            (dueDate.contains('AM') || dueDate.contains('PM'))) {
+          // Firebase format: "February 11, 2026 at 11:00:00 AM UTC+8"
+          // Just clean it up a bit
+          return dueDate.replaceAll(' UTC+8', '').replaceAll(' UTC', '');
+        }
+        // Try to parse ISO format
+        date = DateTime.parse(dueDate);
       } else if (dueDate is DateTime) {
         date = dueDate;
       } else {
@@ -461,6 +491,8 @@ extension on AssignmentController {
 
       return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute $period';
     } catch (e) {
+      // If all parsing fails, return the original string if it's a string
+      if (dueDate is String) return dueDate;
       return 'No due date';
     }
   }

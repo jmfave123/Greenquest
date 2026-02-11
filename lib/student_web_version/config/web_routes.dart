@@ -13,7 +13,6 @@ import '../screens/auth/web_pending_approval_screen.dart';
 import '../screens/auth/web_select_instructor_screen.dart';
 import '../screens/auth/web_select_course_screen.dart';
 import '../screens/auth/web_upload_cor_screen.dart';
-import 'web_bindings.dart';
 
 /// Web routes configuration for student portal
 /// Defines all navigation routes and their corresponding screens
@@ -42,7 +41,6 @@ class WebRoutes {
       GetPage(
         name: home,
         page: () => WebStudentHomeScreen(),
-        binding: WebHomeBinding(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),

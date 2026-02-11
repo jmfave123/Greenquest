@@ -36,8 +36,9 @@ class _WebSelectCourseScreenState extends State<WebSelectCourseScreen> {
               _buildHeader(isMobile),
               Expanded(
                 child: Obx(() {
-                  if (controller.isLoading.value)
+                  if (controller.isLoading.value) {
                     return const Center(child: CircularProgressIndicator());
+                  }
                   final assignments = controller.instructorAssignments;
                   if (assignments.isEmpty) return _buildEmptyState();
                   return _buildDepartmentList(assignments);

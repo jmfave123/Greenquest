@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import '../../../user/submit/quiz_new/quiz_controller.dart';
 import '../../../user/submit/student_submission_controller.dart';
 import '../../../shared/controllers/file_submission_controller.dart';
+import '../../widgets/submissions/web_file_upload_widget.dart';
+import '../../widgets/submissions/web_instructor_attachments_widget.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -95,6 +97,8 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
   }
 
   Widget _buildMainInfo() {
+    final List<dynamic> attachments = widget.quiz['attachments'] ?? [];
+
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -120,6 +124,7 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
             widget.quiz['instruction'] ?? 'No instructions provided.',
             style: WebTheme.bodyLarge.copyWith(height: 1.6),
           ),
+          WebInstructorAttachmentsWidget(attachments: attachments),
         ],
       ),
     );
@@ -302,7 +307,7 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
           child: const Column(
             children: [
               Icon(Icons.cloud_done_outlined, color: Colors.blue, size: 40),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Text(
                 'Handed In',
                 style: TextStyle(
@@ -310,7 +315,7 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
                   color: Colors.blue,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 'Awaiting instructor review',
                 style: TextStyle(fontSize: 12, color: WebTheme.textSecondary),
@@ -324,22 +329,41 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
 
   Widget _buildPendingState() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.pending_actions, size: 48, color: Colors.orange),
-        const SizedBox(height: 16),
         const Text(
-          'Not Handed In',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Please complete this quiz on your mobile device to submit your work.',
-          textAlign: TextAlign.center,
+          'Upload Files',
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
             color: WebTheme.textSecondary,
-            height: 1.5,
           ),
+        ),
+        const SizedBox(height: 12),
+        WebFileUploadWidget(
+          controller: fileController,
+          label: 'Submit Quiz',
+          onUploadComplete: () async {
+            // 1. Upload files to Cloudinary
+            final success = await fileController.uploadFiles(
+              folder: 'submissions/quizzes',
+              tags: {'type': 'quiz', 'activityId': widget.quiz['id']},
+            );
+
+            if (success) {
+              // 2. Submit quiz to Firestore
+              final submitted = await fileController.submitQuiz(
+                quizId: widget.quiz['id'],
+                instructorId: widget.quiz['instructorId'] ?? '',
+                instructorName: widget.quiz['instructorName'] ?? '',
+                sectionId: '',
+              );
+
+              if (submitted) {
+                _loadSubmissionData();
+              }
+            }
+          },
         ),
       ],
     );

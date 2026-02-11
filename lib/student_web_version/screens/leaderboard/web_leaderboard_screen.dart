@@ -19,7 +19,13 @@ class _WebLeaderboardScreenState extends State<WebLeaderboardScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late LeaderboardController controller;
   late TabController _tabController;
-  final List<String> _categories = ['All', 'Quizzes', 'Activities'];
+  final List<String> _categories = [
+    'All',
+    'Quizzes',
+    'Activities',
+    'PIT',
+    'Assignments',
+  ];
 
   @override
   void initState() {
