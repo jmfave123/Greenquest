@@ -41,6 +41,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'shared/screens/image_upload_example_screen.dart';
 import 'shared/services/online_status_service.dart';
+import 'shared/services/auth_service.dart';
+import 'shared/services/auth_middleware.dart';
 import 'student_web_version/config/web_routes.dart';
 import 'student_web_version/config/web_bindings.dart';
 
@@ -50,7 +52,11 @@ void main() async {
   // Ensure Flutter is fully initialized before proceeding
   await Future.delayed(const Duration(milliseconds: 100));
 
+  // Initialize Firebase FIRST before any Firebase-dependent services
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize AuthService AFTER Firebase is ready
+  Get.put(AuthService());
 
   // Initialize OneSignal only on mobile platforms (not web)
   if (!kIsWeb) {
@@ -105,34 +111,48 @@ class GreenQuestApp extends StatelessWidget {
           name: '/select-instructor',
           page: () => const SelectInstructorScreen(),
         ),
-        GetPage(name: '/home', page: () => const HomeScreen()),
+        GetPage(
+          name: '/home',
+          page: () => const HomeScreen(),
+          middlewares: [StudentMiddleware()],
+        ),
 
         // Web routes
         GetPage(name: '/login', page: () => const LoginScreen()),
-        GetPage(name: '/admin-dashboard', page: () => const AdminDashboard()),
+        GetPage(
+          name: '/admin-dashboard',
+          page: () => const AdminDashboard(),
+          middlewares: [AdminMiddleware()],
+        ),
         GetPage(
           name: '/admin-manage-instructors',
           page: () => const ManageInstructorsScreen(),
+          middlewares: [AdminMiddleware()],
         ),
         GetPage(
           name: '/admin-manage-departments',
           page: () => const DepartmentManagementScreen(),
+          middlewares: [AdminMiddleware()],
         ),
         GetPage(
           name: '/admin-manage-classes',
           page: () => const AdminClassManagementScreen(),
+          middlewares: [AdminMiddleware()],
         ),
         GetPage(
           name: '/admin-manage-trees',
           page: () => const ManageTreesScreen(),
+          middlewares: [AdminMiddleware()],
         ),
         GetPage(
           name: '/instructor-dashboard',
           page: () => const InstructorDashboardScreen(),
+          middlewares: [InstructorMiddleware()],
         ),
         GetPage(
           name: '/instructor-message-list',
           page: () => const InstructorMessageListScreen(),
+          middlewares: [InstructorMiddleware()],
         ),
         GetPage(
           name: '/instructor-register',
@@ -157,34 +177,57 @@ class GreenQuestApp extends StatelessWidget {
         GetPage(
           name: '/instructor-announcement',
           page: () => const InstructorAnnouncementScreen(),
+          middlewares: [InstructorMiddleware()],
         ),
         GetPage(
           name: '/instructor-planted-trees',
           page: () => const InstructorPlantedTreesScreen(),
+          middlewares: [InstructorMiddleware()],
         ),
         GetPage(
           name: '/instructor-profile',
           page: () => const InstructorProfileScreen(),
+          middlewares: [InstructorMiddleware()],
         ),
         GetPage(
           name: '/instructor-report',
           page: () => const InstructorReportScreen(),
+          middlewares: [InstructorMiddleware()],
         ),
         GetPage(
           name: '/instructor-class-report',
           page: () => const ClassReportScreen(),
+          middlewares: [InstructorMiddleware()],
         ),
-        GetPage(name: '/instructor-create', page: () => const CreateScreen()),
-        GetPage(name: '/assignment', page: () => const AssignmentScreen()),
-        GetPage(name: '/activity', page: () => const ActivityScreen()),
+        GetPage(
+          name: '/instructor-create',
+          page: () => const CreateScreen(),
+          middlewares: [InstructorMiddleware()],
+        ),
+        GetPage(
+          name: '/assignment',
+          page: () => const AssignmentScreen(),
+          middlewares: [InstructorMiddleware()],
+        ),
+        GetPage(
+          name: '/activity',
+          page: () => const ActivityScreen(),
+          middlewares: [InstructorMiddleware()],
+        ),
         GetPage(
           name: '/quiz',
           page: () => const QuizzesScreen(period: 'Prelim'),
+          middlewares: [InstructorMiddleware()],
         ),
-        GetPage(name: '/instructor-class', page: () => const ClassScreen()),
+        GetPage(
+          name: '/instructor-class',
+          page: () => const ClassScreen(),
+          middlewares: [InstructorMiddleware()],
+        ),
         GetPage(
           name: '/instructor-class-detail',
           page: () => const ClassDetailScreen(classData: {}),
+          middlewares: [InstructorMiddleware()],
         ),
         GetPage(
           name: '/image-upload-example',

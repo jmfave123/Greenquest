@@ -15,6 +15,7 @@ class WebRegisterScreen extends StatefulWidget {
 
 class _WebRegisterScreenState extends State<WebRegisterScreen> {
   final AuthController authController = Get.put(AuthController());
+
   final nameController = TextEditingController();
   final phoneController = TextEditingController();
   final emailController = TextEditingController();
@@ -212,7 +213,7 @@ class _WebRegisterScreenState extends State<WebRegisterScreen> {
                     LengthLimitingTextInputFormatter(10),
                   ],
                 ),
-                _buildPasswordField(hint: 'At least 6 characters'),
+                _buildPasswordField(hint: 'At least 8 characters'),
                 const SizedBox(height: 16),
                 Obx(
                   () => Row(
