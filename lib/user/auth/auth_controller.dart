@@ -1,5 +1,3 @@
-import 'dart:developer';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
@@ -74,7 +72,6 @@ class AuthController extends GetxController {
       }
       return {'success': false, 'message': message, 'error': e.code};
     } catch (e) {
-      log('Registration error: $e');
       return {
         'success': false,
         'message': 'An unexpected error occurred. Please try again.',
@@ -108,9 +105,7 @@ class AuthController extends GetxController {
         // Try to send verification email before signing out
         try {
           await refreshedUser.sendEmailVerification();
-          log('Verification email sent to ${refreshedUser.email}');
         } catch (e) {
-          log('Error sending verification email: $e');
           // Continue even if sending email fails
         }
 
@@ -156,7 +151,6 @@ class AuthController extends GetxController {
           await OneSignalHelper.registerStudentTags();
         }
       } catch (e) {
-        log('Error registering OneSignal tags: $e');
         // Continue login even if OneSignal fails
       }
 
@@ -204,7 +198,6 @@ class AuthController extends GetxController {
 
       return {'success': false, 'message': message, 'error': e.code};
     } catch (e) {
-      log('Login error: $e');
       isLoggedIn = false;
       errorMessage = 'An unexpected error occurred. Please try again.';
 
@@ -222,14 +215,9 @@ class AuthController extends GetxController {
       try {
         await OnlineStatusService().setOffline().timeout(
           const Duration(seconds: 5),
-          onTimeout: () {
-            log(
-              'OnlineStatusService.setOffline() timed out, continuing logout',
-            );
-          },
         );
       } catch (e) {
-        log('Error setting offline status: $e, continuing logout');
+        // Continue logout even if offline status fails
       }
 
       // Sign out from Firebase Auth
@@ -243,12 +231,9 @@ class AuthController extends GetxController {
       try {
         Get.deleteAll();
       } catch (e) {
-        log('Error clearing controllers: $e');
+        // Ignore errors during cleanup
       }
-
-      log('User logged out successfully');
     } catch (e) {
-      log('Logout error: $e');
       // Even if there's an error, clear local state
       isLoggedIn = false;
       errorMessage = null;
@@ -265,7 +250,6 @@ class AuthController extends GetxController {
             'Password reset link sent to $email. Please check your inbox.',
       };
     } on FirebaseAuthException catch (e) {
-      log('Password reset error: ${e.message}');
       String message;
       switch (e.code) {
         case 'user-not-found':
@@ -283,7 +267,6 @@ class AuthController extends GetxController {
       }
       return {'success': false, 'message': message, 'error': e.code};
     } catch (e) {
-      log('Unexpected password reset error: $e');
       return {
         'success': false,
         'message': 'An unexpected error occurred. Please try again.',
@@ -310,7 +293,6 @@ class AuthController extends GetxController {
       isLoggedIn = true;
       return true;
     } catch (e) {
-      log('Auth check error: $e');
       isLoggedIn = false;
       return false;
     }
@@ -326,7 +308,6 @@ class AuthController extends GetxController {
       await user.reload();
       return _auth.currentUser;
     } catch (e) {
-      log('Get current user error: $e');
       return null;
     }
   }
@@ -339,7 +320,6 @@ class AuthController extends GetxController {
         await user.sendEmailVerification();
       }
     } catch (e) {
-      log('Send email verification error: $e');
       rethrow;
     }
   }
@@ -355,11 +335,7 @@ class AuthController extends GetxController {
         'emailVerifiedAt': isVerified ? FieldValue.serverTimestamp() : null,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      log(
-        '✅ Synced email verification status: isVerified=$isVerified for user $userId',
-      );
     } catch (e) {
-      log('Error syncing email verification status: $e');
       // Don't throw - this is a sync operation, shouldn't block login
     }
   }
@@ -382,7 +358,6 @@ class AuthController extends GetxController {
         }
       }
     } catch (e) {
-      log('Error checking email verification status: $e');
       // Don't throw - this is a background sync
     }
   }

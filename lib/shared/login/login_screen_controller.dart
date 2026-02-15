@@ -36,7 +36,7 @@ class LoginScreenController extends GetxController {
       emailController.removeListener(_clearErrorOnInput);
       passwordController.removeListener(_clearErrorOnInput);
     } catch (e) {
-      debugPrint('Error removing listeners: $e');
+      // Ignore errors during cleanup
     }
 
     // Dispose controllers safely
@@ -44,7 +44,7 @@ class LoginScreenController extends GetxController {
       emailController.dispose();
       passwordController.dispose();
     } catch (e) {
-      debugPrint('Error disposing controllers: $e');
+      // Ignore errors during disposal
     }
 
     super.onClose();
@@ -66,9 +66,6 @@ class LoginScreenController extends GetxController {
       }
     } catch (e) {
       // Controllers might be disposed, ignore silently
-      debugPrint(
-        'Error clearing error message (controller may be disposed): $e',
-      );
     }
   }
 
@@ -86,7 +83,6 @@ class LoginScreenController extends GetxController {
           password.length >= 6;
     } catch (e) {
       // Controllers might be disposed, skip validation silently
-      debugPrint('Error in form validation (controller may be disposed): $e');
     }
   }
 
@@ -116,7 +112,6 @@ class LoginScreenController extends GetxController {
       return true;
     } catch (e) {
       // Controllers might be disposed
-      debugPrint('Error validating form (controller may be disposed): $e');
       return false;
     }
   }
@@ -145,13 +140,9 @@ class LoginScreenController extends GetxController {
         email = emailController.text.trim();
         password = passwordController.text.trim();
       } catch (e) {
-        debugPrint('Controllers disposed, aborting login: $e');
         isLoading.value = false;
         return;
       }
-
-      // Debug logging
-      debugPrint('Attempting Firebase login with email: $email');
 
       // Sign in with Firebase Auth
       final UserCredential userCredential = await _auth
@@ -159,8 +150,6 @@ class LoginScreenController extends GetxController {
 
       final User? user = userCredential.user;
       if (user != null) {
-        debugPrint('Firebase Auth successful for: ${user.email}');
-
         // Check if email is verified - but allow admin accounts to bypass this
         if (!user.emailVerified) {
           // Check if this is an admin account in Firestore
@@ -173,7 +162,6 @@ class LoginScreenController extends GetxController {
 
           if (adminQuery.docs.isNotEmpty) {
             // Admin account - allow login even if email not verified
-            debugPrint('Admin account - bypassing email verification');
           } else {
             // Regular user - require email verification
             errorMessage.value =
@@ -217,9 +205,6 @@ class LoginScreenController extends GetxController {
                 .limit(1)
                 .get();
 
-        debugPrint('Instructor query results: ${instructorQuery.docs.length}');
-        debugPrint('Admin query results: ${adminQuery.docs.length}');
-
         String userType = '';
 
         // Check if user exists in instructors collection
@@ -231,7 +216,6 @@ class LoginScreenController extends GetxController {
 
           // Check if account is not approved
           if (status != 'Approved') {
-            debugPrint('Instructor not approved. Status: $status');
             // Navigate to pending approval page instead of showing error
             Get.offAllNamed('/instructor-pending-approval');
             return;
@@ -239,7 +223,6 @@ class LoginScreenController extends GetxController {
 
           // Check if account is inactive
           if (!isActive) {
-            debugPrint('Instructor account is inactive');
             errorMessage.value =
                 'Your account has been deactivated. Please contact the administrator for assistance.';
             await _auth.signOut();
@@ -248,13 +231,9 @@ class LoginScreenController extends GetxController {
 
           // Account is approved and active
           userType = 'instructor';
-          debugPrint('Found approved and active instructor');
 
           // Check if phone is verified (required for first login after approval)
           if (!isPhoneVerified) {
-            debugPrint(
-              'Instructor phone not verified. Redirecting to OTP verification.',
-            );
             // Set user as online (will be set again after OTP verification)
             await OnlineStatusService().setOnline();
 
@@ -266,7 +245,6 @@ class LoginScreenController extends GetxController {
         // Check if user exists in admins collection
         else if (adminQuery.docs.isNotEmpty) {
           userType = 'admin';
-          debugPrint('Found admin');
         }
         // Check if user is a student (exists in users collection but not instructors/admins)
         else {
@@ -282,10 +260,6 @@ class LoginScreenController extends GetxController {
                 studentData['enrollmentStatus']?.toString() ?? 'none';
             final selectionComplete = studentData['selectionComplete'] ?? false;
 
-            debugPrint(
-              'Student account detected: $email, Status: $status, SelectionComplete: $selectionComplete',
-            );
-
             // Handle enrollment flow
             if (status == 'none' || !selectionComplete) {
               if (kIsWeb) {
@@ -298,7 +272,6 @@ class LoginScreenController extends GetxController {
 
             // Check if student is approved
             if (status != 'approved') {
-              debugPrint('Student not approved. Status: $status');
               // Navigate to pending approval page based on platform
               if (kIsWeb) {
                 Get.offAllNamed(WebRoutes.pendingApproval);
@@ -310,10 +283,8 @@ class LoginScreenController extends GetxController {
 
             // Student is approved - allow login
             userType = 'student';
-            debugPrint('Found approved student - allowing login');
           } else {
             // No user found in any collection
-            debugPrint('No user found in Firestore with UID: ${user.uid}');
             errorMessage.value =
                 'No account found with this email. Please register first.';
             await _auth.signOut(); // Sign out from Firebase Auth
@@ -349,8 +320,6 @@ class LoginScreenController extends GetxController {
         }
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase Auth failed: ${e.code} - ${e.message}');
-
       // Handle Firebase Auth errors
       String message = 'Login failed. Please try again.';
       switch (e.code) {
@@ -388,7 +357,6 @@ class LoginScreenController extends GetxController {
       errorMessage.value = message;
     } catch (e) {
       errorMessage.value = 'An unexpected error occurred. Please try again.';
-      debugPrint('Login error: $e');
     } finally {
       isLoading.value = false;
     }
@@ -434,8 +402,6 @@ class LoginScreenController extends GetxController {
         icon: const Icon(Icons.check_circle, color: Colors.white),
       );
     } on FirebaseAuthException catch (e) {
-      debugPrint('Password reset failed: ${e.code} - ${e.message}');
-
       // Handle specific errors
       String message = 'Failed to send reset email. Please try again.';
       switch (e.code) {
@@ -458,7 +424,6 @@ class LoginScreenController extends GetxController {
       // Re-throw with proper message for the dialog to catch
       throw Exception(message);
     } catch (e) {
-      debugPrint('Unexpected error in password reset: $e');
       throw Exception('An unexpected error occurred. Please try again.');
     }
   }
@@ -543,10 +508,11 @@ class LoginScreenController extends GetxController {
       await userCredential.user?.sendEmailVerification();
 
       // Then create Firestore document
+      // NOTE: Password is NOT stored - Firebase Auth handles password securely
       await _firestore.collection('admins').add({
         'name': 'Test Admin',
         'email': 'admin@gmail.com',
-        'password': 'admin123',
+        'uid': userCredential.user!.uid,
         'isActive': true,
         'isVerified': true,
         'createdAt': FieldValue.serverTimestamp(),
@@ -555,13 +521,12 @@ class LoginScreenController extends GetxController {
 
       Get.snackbar(
         'Test Admin Created',
-        'Admin account created: admin@gmail.com / admin123\nPlease check email for verification.',
+        'Admin account created: admin@gmail.com / admin123\nPassword is managed securely by Firebase Auth.',
         backgroundColor: Colors.green,
         colorText: Colors.white,
         duration: const Duration(seconds: 5),
       );
     } catch (e) {
-      debugPrint('Error creating test admin: $e');
       Get.snackbar(
         'Error',
         'Failed to create test admin: $e',
@@ -634,12 +599,25 @@ class LoginScreenController extends GetxController {
     try {
       // Use a specific document ID to avoid duplicates
       const String testInstructorId = 'test_instructor_123';
+      const String testEmail = 'instructor@test.com';
+      const String testPassword = '123456'; // Only used for Firebase Auth
 
+      // First create Firebase Auth user
+      final UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(
+            email: testEmail,
+            password: testPassword,
+          );
+
+      // Send email verification
+      await userCredential.user?.sendEmailVerification();
+
+      // Then create Firestore document
+      // NOTE: Password is NOT stored - Firebase Auth handles password securely
       await _firestore.collection('instructors').doc(testInstructorId).set({
-        'uid': testInstructorId,
+        'uid': userCredential.user!.uid,
         'name': 'Test Instructor',
-        'email': 'instructor@test.com',
-        'password': '123456',
+        'email': testEmail,
         'phone': '1234567890',
         'isActive': true,
         'isVerified': true,
@@ -650,12 +628,11 @@ class LoginScreenController extends GetxController {
 
       Get.snackbar(
         'Test Instructor Created',
-        'Instructor account created: instructor@test.com / 123456',
+        'Instructor account created: $testEmail / $testPassword\nPassword is managed securely by Firebase Auth.',
         backgroundColor: Colors.green,
         colorText: Colors.white,
       );
     } catch (e) {
-      debugPrint('Error creating test instructor: $e');
       Get.snackbar(
         'Error',
         'Failed to create test instructor: $e',
@@ -674,14 +651,11 @@ class LoginScreenController extends GetxController {
       final email = emailController.text.trim();
       final password = passwordController.text.trim();
 
-      debugPrint('Testing Firebase login with: $email');
-
       // Attempt Firebase Auth
       final UserCredential userCredential = await _auth
           .signInWithEmailAndPassword(email: email, password: password);
 
       if (userCredential.user != null) {
-        debugPrint('Test login successful for: $email');
         Get.snackbar(
           'Success',
           'Login test successful!',
@@ -689,7 +663,6 @@ class LoginScreenController extends GetxController {
         );
       }
     } catch (e) {
-      debugPrint('Test login error: $e');
       errorMessage.value = 'Test login failed: $e';
     } finally {
       isLoading.value = false;

@@ -125,14 +125,13 @@ class InstructorRegisterController extends GetxController {
         await user.sendEmailVerification();
 
         // Store instructor data in Firestore
+        // NOTE: Password is securely managed by Firebase Auth and NOT stored here
         await _firestore.collection('instructors').doc(user.uid).set({
           'uid': user.uid,
           'name': nameController.text.trim(),
           'email': emailController.text.trim(),
           'phone': phoneController.text.trim(),
-          'password':
-              passwordController.text
-                  .trim(), // Store password for Firestore auth
+          // Password is NOT stored - Firebase Auth handles it securely
           'isVerified': false,
           'isActive': false, // Set to false until admin approval
           'status': 'Pending', // Set status to Pending for admin review
@@ -185,7 +184,6 @@ class InstructorRegisterController extends GetxController {
       errorMessage.value = message;
     } catch (e) {
       errorMessage.value = 'An unexpected error occurred. Please try again.';
-      debugPrint('Registration error: $e');
     } finally {
       isLoading.value = false;
     }
@@ -201,7 +199,6 @@ class InstructorRegisterController extends GetxController {
       }
       return false;
     } catch (e) {
-      debugPrint('Error checking email verification: $e');
       return false;
     }
   }

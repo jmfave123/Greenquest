@@ -103,22 +103,6 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     );
   }
 
-  Future<void> _saveSection(
-    String departmentId,
-    String year,
-    String sectionLetter,
-    String departmentCode,
-    String? subCode,
-  ) async {
-    await _sectionService.createSection(
-      departmentId,
-      year,
-      sectionLetter,
-      departmentCode,
-      subCode,
-    );
-  }
-
   Future<void> _editSection(
     String sectionId,
     Map<String, dynamic> sectionData,
@@ -1545,265 +1529,31 @@ class _SemesterDetailViewState extends State<SemesterDetailView> {
     // Defer loading to avoid setState during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _loadSemesterData();
+        // _loadSemesterData();
+        SemesterService(widget.firestore)
+            .loadSemesterData(widget.semester['id'])
+            .then((data) {
+              if (!mounted) return;
+              setState(() {
+                _departments.clear();
+                _departments.addAll(data['departments'] ?? []);
+                _instructors.clear();
+                _instructors.addAll(data['instructors'] ?? []);
+                _classes.clear();
+                _classes.addAll(data['classes'] ?? []);
+                _isLoading = false;
+              });
+            })
+            .catchError((e) {
+              print('Error loading semester data: $e');
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+              }
+            });
       }
     });
-  }
-
-  Future<void> _loadSemesterData() async {
-    if (!mounted) return;
-
-    try {
-      if (mounted) {
-        setState(() {
-          _isLoading = true;
-        });
-      }
-
-      final semesterId = widget.semester['id'];
-
-      // Load assigned departments
-      final assignedDeptsSnapshot =
-          await widget.firestore
-              .collection('semesters')
-              .doc(semesterId)
-              .collection('departments')
-              .get();
-
-      _departments.clear();
-      for (var assignedDept in assignedDeptsSnapshot.docs) {
-        if (!mounted) return; // Check if widget is still mounted
-
-        final deptSnapshot =
-            await widget.firestore
-                .collection('departments')
-                .doc(assignedDept.id)
-                .get();
-
-        if (deptSnapshot.exists) {
-          final data = deptSnapshot.data()!;
-          final name = data['displayName'] ?? data['name'] ?? '';
-          if (name.trim().isNotEmpty) {
-            _departments.add({
-              'id': deptSnapshot.id,
-              'name': name,
-              'code': data['code'] ?? 'N/A',
-              'description': data['description'] ?? '',
-            });
-          }
-        }
-      }
-
-      // Load assigned instructors
-      final assignedInstructorsSnapshot =
-          await widget.firestore
-              .collection('semesters')
-              .doc(semesterId)
-              .collection('instructors')
-              .get();
-
-      _instructors.clear();
-      for (var assignedInstructor in assignedInstructorsSnapshot.docs) {
-        if (!mounted) return; // Check if widget is still mounted
-
-        final instructorSnapshot =
-            await widget.firestore
-                .collection('instructors')
-                .doc(assignedInstructor.id)
-                .get();
-
-        if (instructorSnapshot.exists) {
-          final data = instructorSnapshot.data()!;
-          final name = data['name'] ?? '';
-          if (name.trim().isNotEmpty && name.toLowerCase() != 'unknown') {
-            // Resolve department names from assignments
-            final assignments = data['assignments'];
-            final Set<String> departmentNames = {};
-            if (assignments != null &&
-                assignments is List &&
-                assignments.isNotEmpty) {
-              for (var assignment in assignments) {
-                if (assignment is Map) {
-                  final departmentId = assignment['departmentId']?.toString();
-                  if (departmentId != null && departmentId.isNotEmpty) {
-                    try {
-                      final deptDoc =
-                          await widget.firestore
-                              .collection('departments')
-                              .doc(departmentId)
-                              .get();
-                      if (deptDoc.exists) {
-                        final deptData = deptDoc.data();
-                        final deptName =
-                            deptData?['displayName'] ??
-                            deptData?['name'] ??
-                            deptData?['code'];
-                        if (deptName != null &&
-                            deptName.toString().trim().isNotEmpty) {
-                          final code = (deptData?['code'] ?? '').toString();
-                          if (code.isNotEmpty && code != deptName) {
-                            departmentNames.add(
-                              '${deptName.toString()} ($code)',
-                            );
-                          } else {
-                            departmentNames.add(deptName.toString());
-                          }
-                        }
-                      }
-                    } catch (e) {
-                      // Ignore per-department fetch errors
-                    }
-                  }
-                }
-              }
-            }
-
-            final resolvedDepartment =
-                departmentNames.isNotEmpty
-                    ? departmentNames.join(', ')
-                    : (data['department']?.toString() ?? 'N/A');
-
-            _instructors.add({
-              'id': instructorSnapshot.id,
-              'name': name,
-              'email': data['email'] ?? 'N/A',
-              'department': resolvedDepartment,
-            });
-          }
-        }
-      }
-
-      // Load assigned classes
-      final assignedClassesSnapshot =
-          await widget.firestore
-              .collection('semesters')
-              .doc(semesterId)
-              .collection('classes')
-              .get();
-
-      _classes.clear();
-      for (var assignedClass in assignedClassesSnapshot.docs) {
-        if (!mounted) return; // Check if widget is still mounted
-
-        // Find the class in instructors collection
-        for (var instructor in _instructors) {
-          if (!mounted) return; // Check if widget is still mounted
-
-          final classSnapshot =
-              await widget.firestore
-                  .collection('instructors')
-                  .doc(instructor['id'])
-                  .collection('classes')
-                  .doc(assignedClass.id)
-                  .get();
-
-          if (classSnapshot.exists) {
-            final classData = classSnapshot.data()!;
-            final sectionName = classData['section']?.toString().trim() ?? '';
-            if (sectionName.isNotEmpty) {
-              // Load students for this class
-              List<Map<String, dynamic>> students = [];
-              try {
-                final studentsSnapshot =
-                    await widget.firestore
-                        .collection('instructors')
-                        .doc(instructor['id'])
-                        .collection('students')
-                        .where('selectedSectionCode', isEqualTo: sectionName)
-                        .get();
-
-                for (var studentDoc in studentsSnapshot.docs) {
-                  if (!mounted) return;
-                  final studentData = studentDoc.data();
-                  String studentProgramCode = 'N/A';
-                  final studentSectionCode =
-                      studentData['selectedSectionCode']?.toString().trim() ??
-                      '';
-                  if (studentSectionCode.isNotEmpty) {
-                    final studentSectionMatch = RegExp(
-                      r'^([A-Z]+)',
-                    ).firstMatch(studentSectionCode);
-                    if (studentSectionMatch != null) {
-                      studentProgramCode =
-                          studentSectionMatch.group(1) ?? 'N/A';
-                    }
-                  }
-
-                  // Fetch idNumber from users collection
-                  String idNumber = '';
-                  try {
-                    final userDoc =
-                        await widget.firestore
-                            .collection('users')
-                            .doc(studentDoc.id)
-                            .get();
-                    if (userDoc.exists) {
-                      final userData = userDoc.data() ?? {};
-                      idNumber = userData['idNumber']?.toString() ?? '';
-                    } else {
-                      // Fallback: try matching by studentId
-                      final studentId =
-                          studentData['studentId']?.toString() ?? '';
-                      if (studentId.isNotEmpty) {
-                        final userQuery =
-                            await widget.firestore
-                                .collection('users')
-                                .where('studentId', isEqualTo: studentId)
-                                .limit(1)
-                                .get();
-                        if (userQuery.docs.isNotEmpty) {
-                          final userData = userQuery.docs.first.data();
-                          idNumber = userData['idNumber']?.toString() ?? '';
-                        }
-                      }
-                    }
-                  } catch (e) {
-                    print(
-                      'Error fetching idNumber for student ${studentDoc.id}: $e',
-                    );
-                  }
-
-                  students.add({
-                    'name': studentData['studentName']?.toString() ?? 'Unknown',
-                    'email': studentData['email']?.toString() ?? '',
-                    'studentId': studentData['studentId']?.toString() ?? '',
-                    'idNumber': idNumber,
-                    'program': studentProgramCode,
-                  });
-                }
-              } catch (e) {
-                print(
-                  'Error loading students for class ${classSnapshot.id}: $e',
-                );
-              }
-
-              _classes.add({
-                'id': classSnapshot.id,
-                'section': sectionName,
-                'instructorName': instructor['name'],
-                'instructorId': instructor['id'],
-                'department': instructor['department'],
-                'students': students,
-              });
-              break; // Found the class, no need to continue searching
-            }
-          }
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error loading semester data: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
   @override
