@@ -10,9 +10,12 @@ import '../shared/widgets/skeleton_loading.dart';
 import 'services/department_service.dart';
 import 'services/section_service.dart';
 import 'services/semester_service.dart';
+import 'services/semester_assignment_service.dart';
 import 'widgets/dialogs/create_department_dialog.dart';
 import 'widgets/dialogs/edit_department_dialog.dart';
 import 'widgets/dialogs/add_section_dialog.dart';
+import 'widgets/dialogs/create_semester_dialog.dart';
+import 'widgets/dialogs/edit_semester_dialog.dart';
 
 class DepartmentManagementScreen extends StatefulWidget {
   const DepartmentManagementScreen({super.key});
@@ -408,143 +411,16 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
   }
 
   // Semester Management Methods
-  Future<void> _createSemester() async {
-    final TextEditingController yearController = TextEditingController();
-    String selectedSemester = '1st Semester';
-
+  void _createSemester() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-              contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF34A853).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_month,
-                            color: Color(0xFF34A853),
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Create New Semester',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: yearController,
-                      decoration: InputDecoration(
-                        labelText: 'Academic Year',
-                        hintText: 'e.g., 2024-2025',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE5E7EB),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF34A853),
-                          ),
-                        ),
-                      ),
-                      keyboardType: TextInputType.text,
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedSemester,
-                      decoration: InputDecoration(
-                        labelText: 'Semester',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE5E7EB),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF34A853),
-                          ),
-                        ),
-                      ),
-                      items:
-                          ['1st Semester', '2nd Semester', 'Summer'].map((
-                            String semester,
-                          ) {
-                            return DropdownMenuItem<String>(
-                              value: semester,
-                              child: Text(semester),
-                            );
-                          }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          selectedSemester = newValue!;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed:
-                              () => _saveSemester(
-                                yearController.text.trim(),
-                                selectedSemester,
-                              ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF34A853),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Create Semester'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder:
+          (context) => CreateSemesterDialog(
+            onSave: (year, semester) {
+              _semesterService.createSemester(year, semester);
+            },
+          ),
     );
-  }
-
-  Future<void> _saveSemester(String year, String semester) async {
-    await _semesterService.createSemester(year, semester);
   }
 
   Future<void> _loadSemesters() async {
@@ -572,151 +448,18 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     );
   }
 
-  Future<void> _editSemester(Map<String, dynamic> semester) async {
-    final TextEditingController yearController = TextEditingController(
-      text: semester['year'] ?? '',
-    );
-    String selectedSemester = semester['semester'] ?? '1st Semester';
+  void _editSemester(Map<String, dynamic> semester) {
     final String semesterId = semester['id'] ?? '';
-
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-              contentPadding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF34A853).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.edit,
-                            color: Color(0xFF34A853),
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Edit Semester',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: yearController,
-                      decoration: InputDecoration(
-                        labelText: 'Academic Year',
-                        hintText: 'e.g., 2024-2025',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE5E7EB),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF34A853),
-                          ),
-                        ),
-                      ),
-                      keyboardType: TextInputType.text,
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedSemester,
-                      decoration: InputDecoration(
-                        labelText: 'Semester',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE5E7EB),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF34A853),
-                          ),
-                        ),
-                      ),
-                      items:
-                          ['1st Semester', '2nd Semester', 'Summer'].map((
-                            String semester,
-                          ) {
-                            return DropdownMenuItem<String>(
-                              value: semester,
-                              child: Text(semester),
-                            );
-                          }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          selectedSemester = newValue!;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed:
-                              () => _updateSemester(
-                                semesterId,
-                                yearController.text.trim(),
-                                selectedSemester,
-                              ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF34A853),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Update Semester'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder:
+          (context) => EditSemesterDialog(
+            semesterData: semester,
+            onUpdate: (year, semesterName) {
+              _semesterService.updateSemester(semesterId, year, semesterName);
+            },
+          ),
     );
-  }
-
-  Future<void> _updateSemester(
-    String semesterId,
-    String year,
-    String semester,
-  ) async {
-    await _semesterService.updateSemester(semesterId, year, semester);
   }
 
   // Responsive helpers
@@ -2212,128 +1955,31 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
   List<String> _selectedInstructors = [];
   List<String> _selectedClasses = [];
   bool _isLoading = true;
+  late final SemesterAssignmentService _assignmentService;
 
   @override
   void initState() {
     super.initState();
+    _assignmentService = SemesterAssignmentService(widget.firestore);
     _loadData();
   }
 
   Future<void> _loadData() async {
     try {
-      // Load departments
-      final departmentsSnapshot =
-          await widget.firestore.collection('departments').get();
-      _departments =
-          departmentsSnapshot.docs
-              .map((doc) {
-                final data = doc.data();
-                return {
-                  'id': doc.id,
-                  'name': data['displayName'] ?? data['name'] ?? '',
-                  'code': data['code'] ?? 'N/A',
-                };
-              })
-              .where((dept) => dept['name'].toString().trim().isNotEmpty)
-              .toList();
-
-      // Load instructors
-      final instructorsSnapshot =
-          await widget.firestore.collection('instructors').get();
-      // Enrich instructors with department names resolved from assignments
-      _instructors = [];
-      for (var doc in instructorsSnapshot.docs) {
-        final data = doc.data();
-        final name = (data['name'] ?? '').toString();
-        if (name.trim().isEmpty) continue;
-
-        // Only include approved instructors - exclude pending and rejected
-        final instructorStatus = data['status']?.toString() ?? 'Pending';
-        if (instructorStatus != 'Approved') {
-          continue;
-        }
-
-        // Collect department names from assignments → departments collection
-        final assignments = data['assignments'];
-        final Set<String> departmentNames = {};
-        if (assignments != null &&
-            assignments is List &&
-            assignments.isNotEmpty) {
-          for (var assignment in assignments) {
-            if (assignment is Map) {
-              final departmentId = assignment['departmentId']?.toString();
-              if (departmentId != null && departmentId.isNotEmpty) {
-                try {
-                  final deptDoc =
-                      await widget.firestore
-                          .collection('departments')
-                          .doc(departmentId)
-                          .get();
-                  if (deptDoc.exists) {
-                    final deptData = deptDoc.data();
-                    final deptName =
-                        deptData?['displayName'] ??
-                        deptData?['name'] ??
-                        deptData?['code'];
-                    if (deptName != null &&
-                        deptName.toString().trim().isNotEmpty) {
-                      final code = (deptData?['code'] ?? '').toString();
-                      // Prefer "Name (CODE)" if code is available and different
-                      if (code.isNotEmpty && code != deptName) {
-                        departmentNames.add('${deptName.toString()} ($code)');
-                      } else {
-                        departmentNames.add(deptName.toString());
-                      }
-                    }
-                  }
-                } catch (e) {
-                  // Ignore individual department fetch errors
-                }
-              }
-            }
-          }
-        }
-
-        final resolvedDepartment =
-            departmentNames.isNotEmpty
-                ? departmentNames.join(', ')
-                : (data['department']?.toString() ?? 'N/A');
-
-        _instructors.add({
-          'id': doc.id,
-          'name': name,
-          'email': data['email'] ?? 'N/A',
-          'department': resolvedDepartment,
-        });
-      }
-
-      // Load classes from all instructors
+      // Load all assignment data
+      final assignmentData = await _assignmentService.loadAssignmentData();
+      _departments = assignmentData['departments'] ?? [];
+      _instructors = assignmentData['instructors'] ?? [];
       _classes.clear();
-      for (var instructor in _instructors) {
-        final classesSnapshot =
-            await widget.firestore
-                .collection('instructors')
-                .doc(instructor['id'])
-                .collection('classes')
-                .get();
-
-        for (var classDoc in classesSnapshot.docs) {
-          final classData = classDoc.data();
-          final sectionName = classData['section']?.toString().trim() ?? '';
-          if (sectionName.isNotEmpty) {
-            _classes.add({
-              'id': classDoc.id,
-              'section': sectionName,
-              'instructorName': instructor['name'],
-              'instructorId': instructor['id'],
-              'department': instructor['department'],
-            });
-          }
-        }
-      }
+      _classes.addAll(assignmentData['classes'] ?? []);
 
       // Load existing assignments for this semester
-      await _loadExistingAssignments();
+      final semesterId = widget.semester['id'];
+      final existingAssignments = await _assignmentService
+          .loadExistingAssignments(semesterId);
+      _selectedDepartments = existingAssignments['departments'] ?? [];
+      _selectedInstructors = existingAssignments['instructors'] ?? [];
+      _selectedClasses = existingAssignments['classes'] ?? [];
 
       setState(() {
         _isLoading = false;
@@ -2346,226 +1992,33 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
     }
   }
 
-  Future<void> _loadExistingAssignments() async {
-    try {
-      final semesterId = widget.semester['id'];
-
-      // Load assigned departments
-      final assignedDeptsSnapshot =
-          await widget.firestore
-              .collection('semesters')
-              .doc(semesterId)
-              .collection('departments')
-              .get();
-      _selectedDepartments =
-          assignedDeptsSnapshot.docs.map((doc) => doc.id).toList();
-
-      // Load assigned instructors
-      final assignedInstructorsSnapshot =
-          await widget.firestore
-              .collection('semesters')
-              .doc(semesterId)
-              .collection('instructors')
-              .get();
-      _selectedInstructors =
-          assignedInstructorsSnapshot.docs.map((doc) => doc.id).toList();
-
-      // Load assigned classes
-      final assignedClassesSnapshot =
-          await widget.firestore
-              .collection('semesters')
-              .doc(semesterId)
-              .collection('classes')
-              .get();
-      _selectedClasses =
-          assignedClassesSnapshot.docs.map((doc) => doc.id).toList();
-    } catch (e) {
-      print('Error loading existing assignments: $e');
-    }
-  }
-
   Future<void> _saveAssignments() async {
     try {
       final semesterId = widget.semester['id'];
 
-      // Save department assignments
-      await _saveDepartmentAssignments(semesterId);
+      // Prepare semester data for instructor assignments
+      final semesterData = {
+        'semesterId': semesterId,
+        'displayName': widget.semester['displayName'] ?? '',
+        'year': widget.semester['year'] ?? '',
+        'semester': widget.semester['semester'] ?? '',
+        'isActive': widget.semester['isActive'] ?? true,
+        'assignedAt': Timestamp.now(),
+      };
 
-      // Save instructor assignments
-      await _saveInstructorAssignments(semesterId);
-
-      // Save class assignments
-      await _saveClassAssignments(semesterId);
-
-      Get.snackbar(
-        'Success',
-        'Assignments saved successfully',
-        backgroundColor: const Color(0xFF34A853),
-        colorText: Colors.white,
+      // Save all assignments using the service
+      await _assignmentService.saveAllAssignments(
+        semesterId,
+        semesterData,
+        _selectedDepartments,
+        _selectedInstructors,
+        _selectedClasses,
       );
 
       Navigator.of(context).pop();
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to save assignments: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> _saveDepartmentAssignments(String semesterId) async {
-    // Remove all existing department assignments
-    final existingDeptsSnapshot =
-        await widget.firestore
-            .collection('semesters')
-            .doc(semesterId)
-            .collection('departments')
-            .get();
-
-    for (var doc in existingDeptsSnapshot.docs) {
-      await doc.reference.delete();
-    }
-
-    // Add new department assignments
-    for (var deptId in _selectedDepartments) {
-      await widget.firestore
-          .collection('semesters')
-          .doc(semesterId)
-          .collection('departments')
-          .doc(deptId)
-          .set({'assignedAt': FieldValue.serverTimestamp()});
-    }
-  }
-
-  Future<void> _saveInstructorAssignments(String semesterId) async {
-    // Get semester data for the array
-    // Note: Using Timestamp.now() instead of FieldValue.serverTimestamp()
-    // because serverTimestamp() is not supported inside arrays
-    final semesterData = {
-      'semesterId': semesterId,
-      'displayName': widget.semester['displayName'] ?? '',
-      'year': widget.semester['year'] ?? '',
-      'semester': widget.semester['semester'] ?? '',
-      'isActive': widget.semester['isActive'] ?? true,
-      'assignedAt': Timestamp.now(),
-    };
-
-    // Remove all existing instructor assignments from subcollection
-    final existingInstructorsSnapshot =
-        await widget.firestore
-            .collection('semesters')
-            .doc(semesterId)
-            .collection('instructors')
-            .get();
-
-    // Get list of previously assigned instructors
-    final previouslyAssignedInstructors =
-        existingInstructorsSnapshot.docs.map((doc) => doc.id).toList();
-
-    // Remove semester from instructors who are no longer selected
-    for (var instructorId in previouslyAssignedInstructors) {
-      if (!_selectedInstructors.contains(instructorId)) {
-        // Remove from subcollection
-        await widget.firestore
-            .collection('semesters')
-            .doc(semesterId)
-            .collection('instructors')
-            .doc(instructorId)
-            .delete();
-
-        // Remove semester from instructor's assignedSemesters array
-        final instructorRef = widget.firestore
-            .collection('instructors')
-            .doc(instructorId);
-        final instructorDoc = await instructorRef.get();
-
-        if (instructorDoc.exists) {
-          final instructorData = instructorDoc.data() as Map<String, dynamic>;
-          final assignedSemesters =
-              (instructorData['assignedSemesters'] as List<dynamic>?) ?? [];
-
-          // Remove this semester from the array
-          final updatedSemesters =
-              assignedSemesters
-                  .where((sem) => sem['semesterId'] != semesterId)
-                  .toList();
-
-          await instructorRef.update({
-            'assignedSemesters': updatedSemesters,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      }
-    }
-
-    // Add new instructor assignments
-    for (var instructorId in _selectedInstructors) {
-      // Add to semester subcollection
-      await widget.firestore
-          .collection('semesters')
-          .doc(semesterId)
-          .collection('instructors')
-          .doc(instructorId)
-          .set({'assignedAt': FieldValue.serverTimestamp()});
-
-      // Add semester to instructor's assignedSemesters array
-      final instructorRef = widget.firestore
-          .collection('instructors')
-          .doc(instructorId);
-      final instructorDoc = await instructorRef.get();
-
-      if (instructorDoc.exists) {
-        final instructorData = instructorDoc.data() as Map<String, dynamic>;
-        final assignedSemesters =
-            (instructorData['assignedSemesters'] as List<dynamic>?) ?? [];
-
-        // Check if semester already exists in array
-        final semesterExists = assignedSemesters.any(
-          (sem) => sem['semesterId'] == semesterId,
-        );
-
-        if (!semesterExists) {
-          // Add semester to array
-          assignedSemesters.add(semesterData);
-
-          await instructorRef.update({
-            'assignedSemesters': assignedSemesters,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      } else {
-        // If instructor document doesn't exist, create it with the semester array
-        await instructorRef.set({
-          'assignedSemesters': [semesterData],
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-    }
-  }
-
-  Future<void> _saveClassAssignments(String semesterId) async {
-    // Remove all existing class assignments
-    final existingClassesSnapshot =
-        await widget.firestore
-            .collection('semesters')
-            .doc(semesterId)
-            .collection('classes')
-            .get();
-
-    for (var doc in existingClassesSnapshot.docs) {
-      await doc.reference.delete();
-    }
-
-    // Add new class assignments
-    for (var classId in _selectedClasses) {
-      await widget.firestore
-          .collection('semesters')
-          .doc(semesterId)
-          .collection('classes')
-          .doc(classId)
-          .set({'assignedAt': FieldValue.serverTimestamp()});
+      // Error handling is done in the service
+      print('Error in _saveAssignments: $e');
     }
   }
 
