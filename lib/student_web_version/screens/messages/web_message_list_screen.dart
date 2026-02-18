@@ -10,6 +10,7 @@ import '../../widgets/layout/web_sidebar.dart';
 import '../../../shared/models/message_model.dart';
 import '../../../shared/services/file_download_service.dart';
 import '../../../shared/services/file_upload_service.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 class WebMessageListScreen extends StatefulWidget {
   const WebMessageListScreen({super.key});
@@ -84,9 +85,7 @@ class _WebMessageListScreenState extends State<WebMessageListScreen> {
   Widget _buildMainContent(BuildContext context) {
     return Obx(() {
       if (controller.isLoading.value) {
-        return const Center(
-          child: CircularProgressIndicator(color: WebTheme.primaryGreen),
-        );
+        return _buildSkeletonLoading();
       }
 
       if (controller.selectedInstructor.value == null) {
@@ -686,5 +685,29 @@ class _WebMessageListScreenState extends State<WebMessageListScreen> {
         colorText: Colors.white,
       );
     }
+  }
+
+  Widget _buildSkeletonLoading() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const SkeletonText(width: 200, height: 24),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: 5,
+                itemBuilder:
+                    (context, index) => const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: SkeletonMessageCard(),
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

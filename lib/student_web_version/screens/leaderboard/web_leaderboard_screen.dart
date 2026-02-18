@@ -6,6 +6,7 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 class WebLeaderboardScreen extends StatefulWidget {
   const WebLeaderboardScreen({super.key});
@@ -128,9 +129,7 @@ class _WebLeaderboardScreenState extends State<WebLeaderboardScreen>
   Widget _buildLeaderboardBody() {
     return Obx(() {
       if (controller.isLoadingLeaderboard.value) {
-        return const Center(
-          child: CircularProgressIndicator(color: WebTheme.primaryGreen),
-        );
+        return _buildSkeletonLoading();
       }
 
       return TabBarView(
@@ -384,6 +383,23 @@ class _WebLeaderboardScreenState extends State<WebLeaderboardScreen>
           const Text('Be the first one to climb the leaderboard!'),
         ],
       ),
+    );
+  }
+
+  Widget _buildSkeletonLoading() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SkeletonLeaderboardPodium(),
+        const SizedBox(height: 32),
+        ...List.generate(
+          5,
+          (index) => const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: SkeletonLeaderboardItem(),
+          ),
+        ),
+      ],
     );
   }
 }

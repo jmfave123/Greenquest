@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
 import '../../../user/select/select_controller.dart';
 import '../../../shared/services/file_upload_service.dart';
 import '../../config/web_theme.dart';
@@ -70,7 +71,8 @@ class _WebUploadCorScreenState extends State<WebUploadCorScreen> {
       appBar: WebAppBar(
         title: 'Upload COR',
         showNotifications: false,
-        showProfileDropdown: false,
+        showProfileDropdown: true,
+        logoutOnly: true,
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -92,6 +94,46 @@ class _WebUploadCorScreenState extends State<WebUploadCorScreen> {
     );
   }
 
+  ImageProvider? _getProfileImage() {
+    final url = controller.selectedInstructorProfileImage.value;
+    if (url.isEmpty) return null;
+    if (url.startsWith('data:image/') || url.startsWith('/9j/')) {
+      try {
+        return MemoryImage(base64Decode(url));
+      } catch (_) {
+        return null;
+      }
+    }
+    return NetworkImage(url);
+  }
+
+  Color _getAvatarColor(String name) {
+    final colors = [
+      const Color(0xFF43A047),
+      const Color(0xFF2196F3),
+      const Color(0xFF9C27B0),
+      const Color(0xFFF57C00),
+      const Color(0xFFE91E63),
+      const Color(0xFF00BCD4),
+    ];
+    return colors[name.hashCode.abs() % colors.length];
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length == 1) {
+      return parts[0]
+          .substring(0, parts[0].length > 2 ? 2 : parts[0].length)
+          .toUpperCase();
+    } else {
+      final first = parts[0].isNotEmpty ? parts[0][0] : '';
+      final last =
+          parts[parts.length - 1].isNotEmpty ? parts[parts.length - 1][0] : '';
+      return (first + last).toUpperCase();
+    }
+  }
+
   Widget _buildSummaryCard() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -105,38 +147,66 @@ class _WebUploadCorScreenState extends State<WebUploadCorScreen> {
         children: [
           Text('Enrollment Summary', style: WebTheme.headingSmall),
           const SizedBox(height: 20),
-          _buildInfoRow(
-            Icons.person,
-            'Instructor',
-            controller.selectedInstructorName.value,
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundImage: _getProfileImage(),
+                backgroundColor: _getAvatarColor(
+                  controller.selectedInstructorName.value,
+                ),
+                child:
+                    _getProfileImage() == null
+                        ? Text(
+                          _getInitials(controller.selectedInstructorName.value),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                        : null,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Instructor', style: WebTheme.bodySmall),
+                    Text(
+                      controller.selectedInstructorName.value,
+                      style: WebTheme.bodyLarge.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const Divider(height: 24),
-          _buildInfoRow(
-            Icons.school,
-            'Section',
-            controller.selectedSectionCode.value,
+          Row(
+            children: [
+              const Icon(Icons.school, color: WebTheme.primaryGreen, size: 20),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Section', style: WebTheme.bodySmall),
+                    Text(
+                      controller.selectedSectionCode.value,
+                      style: WebTheme.bodyLarge.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: WebTheme.primaryGreen, size: 20),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: WebTheme.bodySmall),
-            Text(
-              value,
-              style: WebTheme.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -164,6 +234,21 @@ class _WebUploadCorScreenState extends State<WebUploadCorScreen> {
         ),
         child: Column(
           children: [
+            if (_selectedFile != null)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    onPressed: () => setState(() => _selectedFile = null),
+                    icon: const Icon(Icons.close),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.red.withOpacity(0.1),
+                      foregroundColor: Colors.red,
+                    ),
+                    tooltip: 'Remove file',
+                  ),
+                ],
+              ),
             Icon(
               _selectedFile != null ? Icons.check_circle : Icons.upload_file,
               size: 64,
@@ -199,18 +284,25 @@ class _WebUploadCorScreenState extends State<WebUploadCorScreen> {
             onPressed: _selectedFile == null || _isUploading ? null : _submit,
             style: ElevatedButton.styleFrom(
               minimumSize: const Size.fromHeight(56),
+              backgroundColor: WebTheme.primaryGreen,
             ),
             child:
                 _isUploading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Submit Enrollment'),
+                    : const Text(
+                      'Submit COR',
+                      style: TextStyle(color: Colors.white),
+                    ),
           ),
         ),
         const SizedBox(height: 16),
         TextButton.icon(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back),
-          label: const Text('Back'),
+          icon: const Icon(Icons.arrow_back, color: WebTheme.primaryGreen),
+          label: const Text(
+            'Back',
+            style: TextStyle(color: WebTheme.primaryGreen),
+          ),
         ),
       ],
     );

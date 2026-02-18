@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../user/select/select_controller.dart';
+import '../../../shared/widgets/search_bar_widget.dart';
+import '../../../shared/widgets/instructor_selection_footer.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -60,7 +62,8 @@ class _WebSelectInstructorScreenState extends State<WebSelectInstructorScreen> {
       appBar: WebAppBar(
         title: 'Select Your Instructor',
         showNotifications: false,
-        showProfileDropdown: false,
+        showProfileDropdown: true,
+        logoutOnly: true,
       ),
       body: Center(
         child: ConstrainedBox(
@@ -78,7 +81,16 @@ class _WebSelectInstructorScreenState extends State<WebSelectInstructorScreen> {
                   return _buildGrid(instructors, isMobile, isDesktop);
                 }),
               ),
-              _buildFooter(),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: InstructorSelectionFooter(
+                  selectedInstructorId: controller.selectedInstructorId,
+                  selectedInstructorName: controller.selectedInstructorName,
+                  studentName: controller.studentName,
+                  onContinue: () => Get.toNamed(WebRoutes.selectCourse),
+                  isWeb: true,
+                ),
+              ),
             ],
           ),
         ),
@@ -98,20 +110,10 @@ class _WebSelectInstructorScreenState extends State<WebSelectInstructorScreen> {
             style: WebTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
-          TextField(
+          SearchBarWidget(
             controller: _searchController,
-            onChanged: (v) => controller.searchQuery.value = v,
-            decoration: InputDecoration(
-              hintText: 'Search by name...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.clear),
-                onPressed: () {
-                  _searchController.clear();
-                  controller.searchQuery.value = '';
-                },
-              ),
-            ),
+            searchQuery: controller.searchQuery,
+            hintText: 'Search instructors...',
           ),
         ],
       ),
@@ -249,42 +251,6 @@ class _WebSelectInstructorScreenState extends State<WebSelectInstructorScreen> {
           Text('No instructors found', style: WebTheme.headingSmall),
         ],
       ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: WebTheme.borderLight)),
-      ),
-      child: Obx(() {
-        final hasSelection = controller.selectedInstructorId.value.isNotEmpty;
-        return Row(
-          children: [
-            if (hasSelection)
-              Expanded(
-                child: Text(
-                  'Selected: ${controller.selectedInstructorName.value}',
-                  style: WebTheme.bodyLarge.copyWith(
-                    color: WebTheme.primaryGreen,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            const Spacer(),
-            ElevatedButton(
-              onPressed:
-                  hasSelection
-                      ? () => Get.toNamed(WebRoutes.selectCourse)
-                      : null,
-              style: ElevatedButton.styleFrom(minimumSize: const Size(200, 50)),
-              child: const Text('Continue'),
-            ),
-          ],
-        );
-      }),
     );
   }
 }

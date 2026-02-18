@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:greenquest/student_web_version/widgets/footer_apporoval_screen.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -22,6 +24,7 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
 
   String instructorName = '';
   String instructorId = '';
+  String instructorProfileImage = '';
   String enrollmentStatus = 'pending';
   bool isLoading = true;
   StreamSubscription<DocumentSnapshot>? _statusListener;
@@ -54,9 +57,26 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
         final name = data['selectedInstructorName'] ?? '';
         final id = data['selectedInstructorId'] ?? '';
 
+        // Fetch instructor profile image from instructors collection
+        String profileImg = '';
+        if (id.isNotEmpty) {
+          try {
+            final instructorDoc =
+                await _firestore.collection('instructors').doc(id).get();
+            if (instructorDoc.exists) {
+              final instructorData =
+                  instructorDoc.data() as Map<String, dynamic>;
+              profileImg = instructorData['profileImageUrl'] ?? '';
+            }
+          } catch (e) {
+            debugPrint('Error fetching instructor profile: $e');
+          }
+        }
+
         setState(() {
           instructorName = name;
           instructorId = id;
+          instructorProfileImage = profileImg;
           enrollmentStatus = status;
           isLoading = false;
         });
@@ -121,11 +141,6 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
     });
   }
 
-  Future<void> _logout() async {
-    await _auth.signOut();
-    Get.offAllNamed('/login');
-  }
-
   Future<void> _cancelRequest() async {
     try {
       setState(() => isLoading = true);
@@ -151,7 +166,7 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
         colorText: Colors.white,
       );
 
-      Get.offAllNamed('/select-instructor');
+      Get.offAllNamed(WebRoutes.selectInstructor);
     } catch (e) {
       debugPrint('Error cancelling request: $e');
       Get.snackbar('Error', 'Failed to cancel request. Please try again.');
@@ -168,18 +183,69 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
           'Are you sure you want to cancel your enrollment request? You will be able to select a different instructor.',
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Keep')),
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text(
+              'Keep',
+              style: TextStyle(color: WebTheme.primaryGreen),
+            ),
+          ),
           ElevatedButton(
             onPressed: () {
               Get.back();
               _cancelRequest();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Cancel Request'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: WebTheme.primaryGreen,
+            ),
+            child: const Text(
+              'Cancel Request',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  ImageProvider? _getProfileImage() {
+    if (instructorProfileImage.isEmpty) return null;
+    if (instructorProfileImage.startsWith('data:image/') ||
+        instructorProfileImage.startsWith('/9j/')) {
+      try {
+        return MemoryImage(base64Decode(instructorProfileImage));
+      } catch (_) {
+        return null;
+      }
+    }
+    return NetworkImage(instructorProfileImage);
+  }
+
+  Color _getAvatarColor(String name) {
+    final colors = [
+      const Color(0xFF43A047),
+      const Color(0xFF2196F3),
+      const Color(0xFF9C27B0),
+      const Color(0xFFF57C00),
+      const Color(0xFFE91E63),
+      const Color(0xFF00BCD4),
+    ];
+    return colors[name.hashCode.abs() % colors.length];
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length == 1) {
+      return parts[0]
+          .substring(0, parts[0].length > 2 ? 2 : parts[0].length)
+          .toUpperCase();
+    } else {
+      final first = parts[0].isNotEmpty ? parts[0][0] : '';
+      final last =
+          parts[parts.length - 1].isNotEmpty ? parts[parts.length - 1][0] : '';
+      return (first + last).toUpperCase();
+    }
   }
 
   @override
@@ -193,7 +259,8 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
         title: 'GreenQuest Enrollment Status',
         onMenuPressed: null,
         showNotifications: false,
-        showProfileDropdown: false,
+        showProfileDropdown: true,
+        logoutOnly: true,
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -277,31 +344,50 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
                       if (enrollmentStatus != 'rejected' &&
                           instructorName.isNotEmpty) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: WebTheme.backgroundLight,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: WebTheme.borderLight),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.person_outline,
-                                size: 20,
-                                color: WebTheme.primaryGreen,
+                              CircleAvatar(
+                                radius: 28,
+                                backgroundImage: _getProfileImage(),
+                                backgroundColor: _getAvatarColor(
+                                  instructorName,
+                                ),
+                                child:
+                                    _getProfileImage() == null
+                                        ? Text(
+                                          _getInitials(instructorName),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                        : null,
                               ),
-                              const SizedBox(width: 12),
-                              Flexible(
-                                child: Text(
-                                  'Instructor: $instructorName',
-                                  style: WebTheme.bodyMedium.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Instructor',
+                                      style: WebTheme.bodySmall,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      instructorName,
+                                      style: WebTheme.bodyLarge.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -311,64 +397,37 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
                       ],
 
                       // Action Buttons
-                      Flex(
-                        direction: isMobile ? Axis.vertical : Axis.horizontal,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: isMobile ? double.infinity : null,
-                            child: OutlinedButton.icon(
-                              onPressed: _logout,
-                              icon: const Icon(Icons.logout_rounded),
-                              label: const Text('Logout'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
+                      SizedBox(
+                        width: isMobile ? double.infinity : null,
+                        child: ElevatedButton.icon(
+                          onPressed: isLoading ? null : _loadUserData,
+                          icon:
+                              isLoading
+                                  ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                  : const Icon(Icons.refresh_rounded),
+                          label: Text(
+                            isLoading ? 'Updating...' : 'Refresh Status',
                           ),
-                          if (isMobile)
-                            const SizedBox(height: 12)
-                          else
-                            const SizedBox(width: 16),
-                          SizedBox(
-                            width: isMobile ? double.infinity : null,
-                            child: ElevatedButton.icon(
-                              onPressed: isLoading ? null : _loadUserData,
-                              icon:
-                                  isLoading
-                                      ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                      : const Icon(Icons.refresh_rounded),
-                              label: Text(
-                                isLoading ? 'Updating...' : 'Refresh Status',
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: WebTheme.primaryGreen,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: WebTheme.primaryGreen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 16,
                             ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
                           ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -391,9 +450,9 @@ class _WebPendingApprovalScreenState extends State<WebPendingApprovalScreen> {
               const SizedBox(height: 24),
 
               // Footer info
-              const Text(
-                'Need help? Contact support at support@greenquest.com',
-                style: WebTheme.bodySmall,
+              footerText(
+                'Need help? Contact support at greenquest01@gmail.com',
+                WebTheme.bodySmall,
               ),
             ],
           ),

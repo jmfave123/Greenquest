@@ -6,6 +6,7 @@ import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
 import '../../../user/notification/announcement_controller.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 class WebAnnouncementListScreen extends StatelessWidget {
   const WebAnnouncementListScreen({super.key});
@@ -37,11 +38,7 @@ class WebAnnouncementListScreen extends StatelessWidget {
               child: Obx(() {
                 if (controller.isLoading.value &&
                     controller.announcements.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: WebTheme.primaryGreen,
-                    ),
-                  );
+                  return _buildSkeletonLoading(context);
                 }
 
                 if (controller.selectedInstructorId.value.isEmpty) {
@@ -55,11 +52,7 @@ class WebAnnouncementListScreen extends StatelessWidget {
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting &&
                         !controller.announcements.isNotEmpty) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: WebTheme.primaryGreen,
-                        ),
-                      );
+                      return _buildSkeletonLoading(context);
                     }
 
                     final announcements = snapshot.data ?? [];
@@ -531,6 +524,26 @@ class WebAnnouncementListScreen extends StatelessWidget {
               ),
             ),
           ),
+    );
+  }
+
+  Widget _buildSkeletonLoading(BuildContext context) {
+    return SingleChildScrollView(
+      padding: WebResponsiveUtils.getResponsivePadding(context),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Column(
+            children: List.generate(
+              4,
+              (index) => const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: SkeletonAnnouncementCard(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -16,6 +16,7 @@ class SelectController extends GetxController {
   RxBool isLoading = false.obs;
   RxString selectedInstructorId = ''.obs;
   RxString selectedInstructorName = ''.obs;
+  RxString selectedInstructorProfileImage = ''.obs;
   RxList instructorAssignments = [].obs;
   RxBool isSelectionComplete = false.obs;
   RxString selectedDepartmentId = ''.obs;
@@ -184,6 +185,15 @@ class SelectController extends GetxController {
 
       selectedInstructorId.value = instructorId;
       selectedInstructorName.value = instructorName;
+
+      // Store instructor profile image
+      if (instructor != null) {
+        selectedInstructorProfileImage.value =
+            instructor['profileImageUrl'] ??
+            instructor['profileImage'] ??
+            instructor['img'] ??
+            '';
+      }
 
       // Cancel previous subscription
       _instructorSubscription?.cancel();

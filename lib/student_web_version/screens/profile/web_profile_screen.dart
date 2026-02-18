@@ -6,6 +6,7 @@ import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
 import '../../controllers/web_profile_controller.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 class WebProfileScreen extends StatelessWidget {
   const WebProfileScreen({super.key});
@@ -35,11 +36,7 @@ class WebProfileScreen extends StatelessWidget {
               color: WebTheme.backgroundLight,
               child: Obx(() {
                 if (controller.isLoading.value && controller.userData.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: WebTheme.primaryGreen,
-                    ),
-                  );
+                  return _buildSkeletonLoading(context);
                 }
                 return _buildContent(context, controller);
               }),
@@ -362,11 +359,13 @@ class WebProfileScreen extends StatelessWidget {
           const SizedBox(height: 24),
           _buildStatCard(Icons.eco, 'Trees Planted', '3', Colors.green),
           const SizedBox(height: 16),
-          _buildStatCard(
-            Icons.star,
-            'Total Points',
-            '${userData['points'] ?? 0}',
-            Colors.orange,
+          Obx(
+            () => _buildStatCard(
+              Icons.star,
+              'Total Points',
+              '${controller.totalPoints.value}',
+              Colors.orange,
+            ),
           ),
         ],
       ),
@@ -429,6 +428,169 @@ class WebProfileScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => _WebEditProfileDialog(controller: controller),
+    );
+  }
+
+  Widget _buildSkeletonLoading(BuildContext context) {
+    return SingleChildScrollView(
+      padding: WebResponsiveUtils.getResponsivePadding(context),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1000),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile header skeleton
+              Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: WebTheme.borderLight),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child:
+                    WebResponsiveUtils.isDesktop(context)
+                        ? Row(
+                          children: [
+                            SkeletonAvatar(radius: 50),
+                            const SizedBox(width: 24),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SkeletonText(width: 200, height: 24),
+                                  SizedBox(height: 8),
+                                  SkeletonText(width: 250, height: 16),
+                                ],
+                              ),
+                            ),
+                            SkeletonBox(
+                              width: 120,
+                              height: 40,
+                              borderRadius: 8,
+                            ),
+                          ],
+                        )
+                        : const Column(
+                          children: [
+                            SkeletonAvatar(radius: 50),
+                            SizedBox(height: 24),
+                            SkeletonText(width: 200, height: 24),
+                            SizedBox(height: 8),
+                            SkeletonText(width: 250, height: 16),
+                            SizedBox(height: 24),
+                            SkeletonBox(
+                              width: double.infinity,
+                              height: 40,
+                              borderRadius: 8,
+                            ),
+                          ],
+                        ),
+              ),
+              const SizedBox(height: 32),
+              // Personal info and stats skeleton
+              if (WebResponsiveUtils.isDesktop(context))
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: _buildInfoCardSkeleton()),
+                    const SizedBox(width: 32),
+                    Expanded(flex: 2, child: _buildStatsCardSkeleton()),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildStatsCardSkeleton(),
+                    const SizedBox(height: 24),
+                    _buildInfoCardSkeleton(),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCardSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: WebTheme.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonText(width: 150, height: 20),
+          const SizedBox(height: 20),
+          ...List.generate(
+            4,
+            (index) => const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonText(width: 100, height: 14),
+                  SizedBox(height: 8),
+                  SkeletonBox(
+                    width: double.infinity,
+                    height: 48,
+                    borderRadius: 12,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCardSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: WebTheme.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SkeletonText(width: 130, height: 20),
+          const SizedBox(height: 20),
+          ...List.generate(
+            3,
+            (index) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: WebTheme.backgroundLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    SkeletonText(width: 80, height: 16),
+                    SkeletonText(width: 40, height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 class WebMaterialsListScreen extends StatefulWidget {
   const WebMaterialsListScreen({super.key});
@@ -161,9 +162,7 @@ class _WebMaterialsListScreenState extends State<WebMaterialsListScreen> {
   Widget _buildMaterialsGrid() {
     return Obx(() {
       if (controller.isLoading.value) {
-        return const Center(
-          child: CircularProgressIndicator(color: WebTheme.primaryGreen),
-        );
+        return _buildSkeletonLoading();
       }
 
       final allMaterials = controller.searchMaterials(_searchQuery);
@@ -335,6 +334,20 @@ class _WebMaterialsListScreenState extends State<WebMaterialsListScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSkeletonLoading() {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: WebResponsiveUtils.getGridCrossAxisCount(context),
+        crossAxisSpacing: 20,
+        mainAxisSpacing: 20,
+        mainAxisExtent: 220,
+      ),
+      itemCount: 6,
+      itemBuilder: (context, index) => const SkeletonGridItem(),
     );
   }
 }

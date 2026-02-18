@@ -413,4 +413,6 @@ class SemesterService {
       return {'departments': [], 'instructors': [], 'classes': []};
     }
   }
+
+  Future<void> editSemester() async {}
 }

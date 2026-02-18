@@ -312,15 +312,10 @@ class _AdminDashboardState extends State<AdminDashboard>
                   userData['profileImageUrl']?.toString() ??
                   userData['profileUrl']?.toString() ??
                   '';
-              print(
-                '✅ Found idNumber via doc.id (${studentDoc.id}): "$idNumber"',
-              );
             } else {
               // Fallback: try matching by studentId field
               final studentId = studentData['studentId']?.toString() ?? '';
-              print(
-                '⚠️ User doc not found for ${studentDoc.id}, trying studentId: "$studentId"',
-              );
+
               if (studentId.isNotEmpty) {
                 final userQuery =
                     await _firestore
@@ -345,11 +340,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                 }
               }
             }
-          } catch (e) {
-            print(
-              '❌ Error fetching user data for student ${studentDoc.id}: $e',
-            );
-          }
+          } catch (e) {}
 
           print(
             '📝 Student: ${studentData['studentName']}, idNumber: "$idNumber"',

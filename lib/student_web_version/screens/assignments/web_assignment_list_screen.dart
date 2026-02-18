@@ -8,6 +8,7 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 class WebAssignmentListScreen extends StatefulWidget {
   const WebAssignmentListScreen({super.key});
@@ -55,7 +56,7 @@ class _WebAssignmentListScreenState extends State<WebAssignmentListScreen> {
               child: Obx(() {
                 if (controller.isLoading.value &&
                     controller.assignments.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
+                  return _buildSkeletonLoading(context);
                 }
                 return _buildContent(context);
               }),
@@ -304,38 +305,116 @@ class _WebAssignmentListScreenState extends State<WebAssignmentListScreen> {
       ),
     );
   }
+
+  Widget _buildSkeletonLoading(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: SingleChildScrollView(
+          padding: WebResponsiveUtils.getResponsivePadding(context),
+          child: Column(
+            children: List.generate(
+              6,
+              (index) => const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: SkeletonListItem(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 extension on AssignmentController {
   String getDueDateFormatted(dynamic dueDate) {
     if (dueDate == null) return 'No due date';
+
     try {
       DateTime date;
+
       if (dueDate is Timestamp) {
         date = dueDate.toDate();
       } else if (dueDate is DateTime) {
         date = dueDate;
+      } else if (dueDate is String) {
+        // Parse custom format: "Feb 11, 2026 11:00 AM"
+        date = _parseCustomDateString(dueDate);
+      } else if (dueDate is int) {
+        date = DateTime.fromMillisecondsSinceEpoch(dueDate);
       } else {
         return 'No due date';
       }
 
       final months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
+        'January',
+        'February',
+        'March',
+        'April',
         'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ];
-      return '${months[date.month - 1]} ${date.day}, ${date.year}';
+
+      // Format time
+      final hour =
+          date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+      final minute = date.minute.toString().padLeft(2, '0');
+      final second = date.second.toString().padLeft(2, '0');
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+
+      // Get timezone offset
+      final offset = date.timeZoneOffset;
+      final offsetHours = offset.inHours;
+      final timezone = 'UTC${offsetHours >= 0 ? '+' : ''}$offsetHours';
+
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute:$second $period $timezone';
     } catch (e) {
       return 'No due date';
     }
+  }
+
+  DateTime _parseCustomDateString(String dateStr) {
+    // Parse format: "Feb 11, 2026 11:00 AM"
+    final monthMap = {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'May': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Aug': 8,
+      'Sep': 9,
+      'Oct': 10,
+      'Nov': 11,
+      'Dec': 12,
+    };
+
+    final parts = dateStr.split(' ');
+    if (parts.length < 4) throw FormatException('Invalid date format');
+
+    final month = monthMap[parts[0]] ?? 1;
+    final day = int.parse(parts[1].replaceAll(',', ''));
+    final year = int.parse(parts[2]);
+    final timeParts = parts[3].split(':');
+    var hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1]);
+    final period = parts.length > 4 ? parts[4] : 'AM';
+
+    // Convert to 24-hour format
+    if (period == 'PM' && hour != 12) {
+      hour += 12;
+    } else if (period == 'AM' && hour == 12) {
+      hour = 0;
+    }
+
+    return DateTime(year, month, day, hour, minute);
   }
 }

@@ -6,6 +6,7 @@ import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
 import '../../controllers/web_home_controller.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 /// Main home screen for student web portal
 /// Displays dashboard with progress, tasks, and quick actions
@@ -44,7 +45,7 @@ class WebStudentHomeScreen extends StatelessWidget {
           Expanded(
             child: Obx(() {
               if (controller.isLoading.value) {
-                return const Center(child: CircularProgressIndicator());
+                return _buildSkeletonLoading(context);
               }
               return _buildContent(context);
             }),
@@ -668,6 +669,40 @@ class WebStudentHomeScreen extends StatelessWidget {
                     height: 1.3,
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading(BuildContext context) {
+    return Container(
+      color: WebTheme.backgroundLight,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: SingleChildScrollView(
+            padding: WebResponsiveUtils.getResponsivePadding(context),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Welcome header skeleton
+                SkeletonText(width: 250, height: 32),
+                SizedBox(height: 8),
+                SkeletonText(width: 200, height: 20),
+                SizedBox(height: 4),
+                SkeletonText(width: 300, height: 16),
+                SizedBox(height: 24),
+                // Progress card skeleton
+                SkeletonHomeProgressCard(),
+                SizedBox(height: 16),
+                // Category completion card skeleton
+                SkeletonCategoryCompletionCard(),
+                SizedBox(height: 16),
+                // Submit work card skeleton
+                SkeletonSubmitWorkCard(),
               ],
             ),
           ),

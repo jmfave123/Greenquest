@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/user/select/select_controller.dart';
+import 'package:greenquest/shared/widgets/search_bar_widget.dart';
+import 'package:greenquest/shared/widgets/instructor_selection_footer.dart';
 
 class SelectInstructorScreen extends StatefulWidget {
   const SelectInstructorScreen({super.key});
@@ -131,43 +133,10 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                 style: TextStyle(fontSize: 15, color: Colors.black54),
               ),
               const SizedBox(height: 24),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F2F2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Obx(
-                  () => TextField(
-                    controller: searchController,
-                    focusNode: searchFocusNode,
-                    decoration: InputDecoration(
-                      hintText: 'Search instructors...',
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: Colors.black38,
-                      ),
-                      suffixIcon:
-                          selectController.searchQuery.value.isNotEmpty
-                              ? IconButton(
-                                icon: const Icon(
-                                  Icons.clear,
-                                  color: Colors.black38,
-                                ),
-                                onPressed: () {
-                                  searchController.clear();
-                                  selectController.searchQuery.value = '';
-                                },
-                              )
-                              : null,
-                      border: InputBorder.none,
-                      hintStyle: const TextStyle(color: Colors.black38),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onChanged: (value) {
-                      selectController.searchQuery.value = value;
-                    },
-                  ),
-                ),
+              SearchBarWidget(
+                controller: searchController,
+                searchQuery: selectController.searchQuery,
+                hintText: 'Search instructors...',
               ),
               Obx(() {
                 RxList instructors = selectController.filteredInstructors;
@@ -370,85 +339,13 @@ class _SelectInstructorScreenState extends State<SelectInstructorScreen> {
                 );
               }),
 
-              // Show instructor info if selected
-              Obx(() {
-                if (selectController.selectedInstructorId.value.isNotEmpty) {
-                  return Container(
-                    margin: const EdgeInsets.only(top: 20, bottom: 10),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FA),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.person,
-                          color: Color(0xFF34A853),
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Selected: ${selectController.selectedInstructorName.value}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              Text(
-                                selectController.studentName.value.isNotEmpty
-                                    ? 'Student: ${selectController.studentName.value}'
-                                    : 'Tap to continue to course selection',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              }),
-
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Obx(
-                    () => ElevatedButton(
-                      onPressed:
-                          selectController.selectedInstructorId.value.isNotEmpty
-                              ? () => Get.toNamed('/select-course')
-                              : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            selectController
-                                    .selectedInstructorId
-                                    .value
-                                    .isNotEmpty
-                                ? const Color(0xFF43A047)
-                                : Colors.grey,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(56),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: const Text('Continue'),
-                    ),
-                  ),
-                ),
+              // Selection footer with continue button
+              InstructorSelectionFooter(
+                selectedInstructorId: selectController.selectedInstructorId,
+                selectedInstructorName: selectController.selectedInstructorName,
+                studentName: selectController.studentName,
+                onContinue: () => Get.toNamed('/select-course'),
+                isWeb: false,
               ),
             ],
           ),

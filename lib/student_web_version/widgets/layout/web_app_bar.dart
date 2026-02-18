@@ -16,6 +16,7 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onMenuPressed;
   final bool showNotifications;
   final bool showProfileDropdown;
+  final bool logoutOnly;
 
   const WebAppBar({
     super.key,
@@ -23,6 +24,7 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onMenuPressed,
     this.showNotifications = true,
     this.showProfileDropdown = true,
+    this.logoutOnly = false,
   });
 
   @override
@@ -171,41 +173,10 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget _buildProfileInfo(bool isDesktop) {
     return Row(
       children: [
-        Obx(() {
-          final controller = Get.find<WebHomeController>();
-          return CircleAvatar(
-            radius: 18,
-            backgroundColor: WebTheme.primaryGreen,
-            backgroundImage:
-                controller.profileImage.value.isNotEmpty
-                    ? NetworkImage(controller.profileImage.value)
-                    : null,
-            child:
-                controller.profileImage.value.isEmpty
-                    ? Text(
-                      controller.getInitials(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                    : null,
-          );
-        }),
+        _buildAvatar(),
         if (isDesktop) ...[
           const SizedBox(width: 8),
-          Obx(() {
-            final controller = Get.find<WebHomeController>();
-            return Text(
-              controller.fullName.value.split(' ').first,
-              style: const TextStyle(
-                color: WebTheme.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            );
-          }),
+          _buildUserName(),
           if (showProfileDropdown) ...[
             const SizedBox(width: 4),
             const Icon(Icons.arrow_drop_down, color: WebTheme.textSecondary),
@@ -215,7 +186,103 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _buildAvatar() {
+    try {
+      final controller = Get.find<WebHomeController>();
+      return Obx(() {
+        return CircleAvatar(
+          radius: 18,
+          backgroundColor: WebTheme.primaryGreen,
+          backgroundImage:
+              controller.profileImage.value.isNotEmpty
+                  ? NetworkImage(controller.profileImage.value)
+                  : null,
+          child:
+              controller.profileImage.value.isEmpty
+                  ? Text(
+                    controller.getInitials(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                  : null,
+        );
+      });
+    } catch (e) {
+      // Fallback when WebHomeController is not available (auth screens)
+      final user = FirebaseAuth.instance.currentUser;
+      final initials = _getInitials(user?.displayName ?? user?.email ?? 'User');
+      return CircleAvatar(
+        radius: 18,
+        backgroundColor: WebTheme.primaryGreen,
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildUserName() {
+    try {
+      final controller = Get.find<WebHomeController>();
+      return Obx(() {
+        return Text(
+          controller.fullName.value.split(' ').first,
+          style: const TextStyle(
+            color: WebTheme.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        );
+      });
+    } catch (e) {
+      // Fallback when WebHomeController is not available
+      final user = FirebaseAuth.instance.currentUser;
+      final name =
+          (user?.displayName ?? user?.email ?? 'User').split(' ').first;
+      return Text(
+        name,
+        style: const TextStyle(
+          color: WebTheme.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+    }
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
   List<PopupMenuEntry<String>> _buildDropdownItems() {
+    if (logoutOnly) {
+      // Show only logout option for auth screens
+      return [
+        const PopupMenuItem(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, size: 20, color: WebTheme.errorRed),
+              SizedBox(width: 12),
+              Text('Logout', style: TextStyle(color: WebTheme.errorRed)),
+            ],
+          ),
+        ),
+      ];
+    }
+
+    // Full menu for authenticated screens
     return [
       const PopupMenuItem(
         value: 'profile',

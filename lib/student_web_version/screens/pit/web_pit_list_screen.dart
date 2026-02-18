@@ -8,6 +8,7 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
+import '../../../shared/widgets/skeleton_loading.dart';
 
 class WebPitListScreen extends StatefulWidget {
   const WebPitListScreen({super.key});
@@ -53,11 +54,7 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
               color: WebTheme.backgroundLight,
               child: Obx(() {
                 if (controller.isLoading.value && controller.pits.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: WebTheme.primaryGreen,
-                    ),
-                  );
+                  return _buildSkeletonLoading(context);
                 }
                 return _buildContent(context);
               }),
@@ -286,34 +283,92 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
 
   String _formatDisplayDate(dynamic dateData) {
     if (dateData == null) return 'No due date';
+
     try {
       DateTime date;
+
       if (dateData is Timestamp) {
         date = dateData.toDate();
       } else if (dateData is DateTime) {
         date = dateData;
+      } else if (dateData is String) {
+        // Parse custom format: "Feb 11, 2026 11:00 AM"
+        date = _parseCustomDateString(dateData);
+      } else if (dateData is int) {
+        date = DateTime.fromMillisecondsSinceEpoch(dateData);
       } else {
         return 'No due date';
       }
 
       final months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
+        'January',
+        'February',
+        'March',
+        'April',
         'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ];
-      return '${months[date.month - 1]} ${date.day}, ${date.year}';
+
+      // Format time
+      final hour =
+          date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+      final minute = date.minute.toString().padLeft(2, '0');
+      final second = date.second.toString().padLeft(2, '0');
+      final period = date.hour >= 12 ? 'PM' : 'AM';
+
+      // Get timezone offset
+      final offset = date.timeZoneOffset;
+      final offsetHours = offset.inHours;
+      final timezone = 'UTC${offsetHours >= 0 ? '+' : ''}$offsetHours';
+
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute:$second $period $timezone';
     } catch (e) {
       return 'No due date';
     }
+  }
+
+  DateTime _parseCustomDateString(String dateStr) {
+    // Parse format: "Feb 11, 2026 11:00 AM"
+    final monthMap = {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'May': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Aug': 8,
+      'Sep': 9,
+      'Oct': 10,
+      'Nov': 11,
+      'Dec': 12,
+    };
+
+    final parts = dateStr.split(' ');
+    if (parts.length < 4) throw FormatException('Invalid date format');
+
+    final month = monthMap[parts[0]] ?? 1;
+    final day = int.parse(parts[1].replaceAll(',', ''));
+    final year = int.parse(parts[2]);
+    final timeParts = parts[3].split(':');
+    var hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1]);
+    final period = parts.length > 4 ? parts[4] : 'AM';
+
+    // Convert to 24-hour format
+    if (period == 'PM' && hour != 12) {
+      hour += 12;
+    } else if (period == 'AM' && hour == 12) {
+      hour = 0;
+    }
+
+    return DateTime(year, month, day, hour, minute);
   }
 
   Widget _buildEmptyState() {
@@ -334,6 +389,26 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
               textAlign: TextAlign.center,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: SingleChildScrollView(
+          padding: WebResponsiveUtils.getResponsivePadding(context),
+          child: Column(
+            children: List.generate(
+              6,
+              (index) => const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: SkeletonListItem(),
+              ),
+            ),
+          ),
         ),
       ),
     );

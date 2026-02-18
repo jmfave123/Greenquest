@@ -14,6 +14,7 @@ class WebProfileController extends GetxController {
   final RxBool isLoading = true.obs;
   final RxBool isImageLoading = false.obs;
   final RxMap<String, dynamic> userData = <String, dynamic>{}.obs;
+  final RxInt totalPoints = 0.obs;
 
   // Image upload services
   final ImagePicker _picker = ImagePicker();
@@ -63,11 +64,52 @@ class WebProfileController extends GetxController {
       if (doc.exists) {
         userData.value = doc.data()!;
         _populateControllers();
+        // Fetch total points from submissions
+        await _calculateTotalPoints();
       }
     } catch (e) {
       print('Error fetching profile data: $e');
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  /// Calculate total points for the logged-in student from all submissions
+  Future<void> _calculateTotalPoints() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Get the student's instructor ID
+      final instructorId = userData['selectedInstructorId'] as String?;
+      if (instructorId == null || instructorId.isEmpty) {
+        totalPoints.value = 0;
+        return;
+      }
+
+      int points = 0;
+
+      // Get all submissions for this student from the unified collection
+      final allSubmissions =
+          await _firestore
+              .collection('submissions')
+              .where('studentId', isEqualTo: user.uid)
+              .where('instructorId', isEqualTo: instructorId)
+              .get();
+
+      // Sum up all grades
+      for (var doc in allSubmissions.docs) {
+        final data = doc.data();
+        final grade = data['grade'];
+        if (grade != null && grade is num) {
+          points += grade.toInt();
+        }
+      }
+
+      totalPoints.value = points;
+    } catch (e) {
+      print('Error calculating total points: $e');
+      totalPoints.value = 0;
     }
   }
 
