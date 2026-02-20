@@ -8,6 +8,7 @@ import '../../shared/controllers/file_submission_controller.dart';
 import '../../shared/services/instructor_class_service.dart';
 import '../../shared/widgets/skeleton_loading.dart';
 import 'create_controller.dart';
+import '../topics/topic_controller.dart';
 
 class QuizzesScreen extends StatefulWidget {
   final String? period;
@@ -32,6 +33,7 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
   final FileSubmissionController _fileController = Get.put(
     FileSubmissionController(),
   );
+  final TopicController _topicController = Get.put(TopicController());
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.create;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _instructionController = TextEditingController();
@@ -48,6 +50,10 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
   Map<String, bool> _selectedClasses = {};
   bool _isLoadingClasses = true;
 
+  // Topic selection
+  String? _selectedTopicId;
+  String? _selectedTopicName;
+
   // Excel category options
   final Map<String, String> _categories = {
     'class_standing': 'Class Standing Performance Items (10%)',
@@ -60,6 +66,9 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Load topics from Firestore
+    _topicController.loadTopics();
 
     // Clear files when creating a new item (not editing)
     if (!widget.isEdit) {
@@ -122,6 +131,14 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
       _titleController.text = data['title'] ?? '';
       _instructionController.text = data['instruction'] ?? '';
       _pointsController.text = data['points'] ?? '100';
+
+      // Load topic data
+      final topicId = data['topicId'];
+      final topicName = data['topicName'];
+      if (topicId != null && topicId != '' && topicId != 'null') {
+        _selectedTopicId = topicId;
+        _selectedTopicName = topicName;
+      }
 
       // Set selected classes
       if (data['selectedClasses'] != null) {
@@ -410,6 +427,8 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
         period: widget.period,
         category: categoryToSave,
         attachments: attachmentUrls,
+        topicId: _selectedTopicId,
+        topicName: _selectedTopicName,
       );
 
       if (success) {
@@ -428,6 +447,8 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
         period: widget.period,
         category: categoryToSave,
         attachments: attachmentUrls,
+        topicId: _selectedTopicId,
+        topicName: _selectedTopicName,
       );
 
       if (success) {
@@ -449,8 +470,119 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
       _selectedClasses = Map.fromEntries(
         _classes.map((e) => MapEntry(e, false)),
       );
+      _selectedTopicId = null;
+      _selectedTopicName = null;
       _showTitleError = false;
     });
+  }
+
+  // Show topic selection dialog
+  Future<void> _showCreateTopicDialog() async {
+    final TextEditingController topicController = TextEditingController();
+
+    await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              width: 400,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  const Text(
+                    'Create topic',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  // Topic Name Field
+                  TextField(
+                    controller: topicController,
+                    decoration: InputDecoration(
+                      labelText: 'Topic name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF34A853)),
+                      ),
+                    ),
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 24),
+                  // Action Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final topicName = topicController.text.trim();
+                          if (topicName.isEmpty) {
+                            Get.snackbar(
+                              'Error',
+                              'Please enter a topic name',
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
+                            );
+                            return;
+                          }
+
+                          // Check for duplicates
+                          if (_topicController.topicExists(topicName)) {
+                            Get.snackbar(
+                              'Error',
+                              'A topic with this name already exists',
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
+                            );
+                            return;
+                          }
+
+                          // Create topic
+                          final newTopic = await _topicController.createTopic(
+                            topicName: topicName,
+                          );
+
+                          if (newTopic != null) {
+                            Navigator.of(context).pop(true);
+                            Get.snackbar(
+                              'Success',
+                              'Topic created',
+                              backgroundColor: const Color(0xFF34A853),
+                              colorText: Colors.white,
+                            );
+
+                            // Auto-select the newly created topic
+                            setState(() {
+                              _selectedTopicId = newTopic.id;
+                              _selectedTopicName = newTopic.topic;
+                            });
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF34A853),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Create'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
   }
 
   @override
@@ -489,6 +621,87 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
               }
             },
           ),
+          const SizedBox(height: 24),
+          // Topic Dropdown
+          const Text(
+            'Topic',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Obx(() {
+            final topics = _topicController.topics;
+            return DropdownButtonFormField<String>(
+              value: _selectedTopicName,
+              isExpanded: true,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF9E9E9E)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF9E9E9E)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF34A853)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              hint: const Text('No topic'),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: null,
+                  child: Text('No topic'),
+                ),
+                ...topics.map((topic) {
+                  return DropdownMenuItem<String>(
+                    value: topic.topic,
+                    child: Text(
+                      topic.topic,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  );
+                }),
+                const DropdownMenuItem<String>(
+                  value: '__create_new__',
+                  child: Row(
+                    children: [
+                      Icon(Icons.add, size: 18, color: Color(0xFF34A853)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Create topic',
+                        style: TextStyle(color: Color(0xFF34A853)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (value) async {
+                if (value == '__create_new__') {
+                  await _showCreateTopicDialog();
+                } else {
+                  setState(() {
+                    _selectedTopicName = value;
+                    if (value == null) {
+                      _selectedTopicId = null;
+                    } else {
+                      final topic = topics.firstWhere((t) => t.topic == value);
+                      _selectedTopicId = topic.id;
+                    }
+                  });
+                }
+              },
+            );
+          }),
           const SizedBox(height: 24),
           // Instruction Field
           ResponsiveFormField(

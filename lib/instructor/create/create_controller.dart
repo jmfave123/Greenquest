@@ -282,6 +282,8 @@ class CreateController extends GetxController {
     String? period,
     List<String>? attachments,
     String? category,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -313,6 +315,8 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
         'type': 'Quiz',
+        'topicId': topicId,
+        'topicName': topicName,
         // Add assigned semester data
         if (semester != null) 'assignedSemester': semester,
       };
@@ -1207,6 +1211,8 @@ class CreateController extends GetxController {
     String? period,
     String? category,
     List<String>? attachments,
+    String? topicId,
+    String? topicName,
   }) async {
     try {
       isLoading.value = true;
@@ -1221,6 +1227,8 @@ class CreateController extends GetxController {
         'period': period,
         'attachments': attachments ?? [],
         'updatedAt': FieldValue.serverTimestamp(),
+        'topicId': topicId,
+        'topicName': topicName,
         if (category != null) 'category': category,
       };
 

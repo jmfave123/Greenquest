@@ -80,7 +80,28 @@ class LeaderboardController extends GetxController {
   /// Optimized method to load all leaderboards with minimal queries
   Future<void> _loadAllLeaderboardsOptimized(String instructorId) async {
     try {
-      // Step 1: Get all students for this instructor (1 query)
+      // Step 1: Get enrolled student IDs from instructor's students subcollection
+      final enrolledStudentsQuery =
+          await _firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('students')
+              .get();
+
+      if (enrolledStudentsQuery.docs.isEmpty) {
+        leaderboardData['All'] = [];
+        leaderboardData['Quizzes'] = [];
+        leaderboardData['Activities'] = [];
+        leaderboardData['PIT'] = [];
+        leaderboardData['Assignments'] = [];
+        return;
+      }
+
+      // Get enrolled student IDs
+      final enrolledStudentIds =
+          enrolledStudentsQuery.docs.map((doc) => doc.id).toSet();
+
+      // Step 2: Get all students for this instructor (1 query)
       final studentsQuery =
           await _firestore
               .collection('users')
@@ -96,7 +117,7 @@ class LeaderboardController extends GetxController {
         return;
       }
 
-      // Step 2: Get ALL submissions for this instructor in one query
+      // Step 3: Get ALL submissions for this instructor in one query
       final allSubmissions =
           await _firestore
               .collection('submissions')
@@ -147,7 +168,7 @@ class LeaderboardController extends GetxController {
         }
       }
 
-      // Step 4: Build leaderboard lists
+      // Step 4: Build leaderboard lists - only include enrolled students
       List<Map<String, dynamic>> allLeaderboard = [];
       List<Map<String, dynamic>> quizLeaderboard = [];
       List<Map<String, dynamic>> activityLeaderboard = [];
@@ -157,6 +178,10 @@ class LeaderboardController extends GetxController {
       for (var studentDoc in studentsQuery.docs) {
         final studentData = studentDoc.data();
         final studentId = studentDoc.id;
+
+        // Skip students who are not enrolled
+        if (!enrolledStudentIds.contains(studentId)) continue;
+
         final studentName =
             (studentData['fullName'] as String?) ??
             (studentData['name'] as String?) ??
