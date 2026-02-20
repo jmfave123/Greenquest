@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../shared/services/file_upload_service.dart';
+import '../../shared/utils/auth_error_utils.dart';
+import '../../shared/widgets/forgot_password_dialog.dart';
+import '../../user/auth/auth_controller.dart';
 
 class InstructorController extends GetxController {
   var name = ''.obs;
@@ -16,12 +19,18 @@ class InstructorController extends GetxController {
   var errorMessage = ''.obs;
   var isEditing = false.obs;
   var isUploadingImage = false.obs;
+  var isPasswordSaving = false.obs;
 
   // Form controllers for editing
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
   final aboutController = TextEditingController();
+
+  // Password change controllers
+  final currentPasswordController = TextEditingController();
+  final newPasswordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
 
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
@@ -42,6 +51,9 @@ class InstructorController extends GetxController {
     emailController.dispose();
     phoneController.dispose();
     aboutController.dispose();
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
     super.onClose();
   }
 
@@ -502,5 +514,162 @@ class InstructorController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Handle password change
+  Future<void> handlePasswordChange({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    if (isPasswordSaving.value) return;
+
+    if (currentPassword.isEmpty ||
+        newPassword.isEmpty ||
+        confirmPassword.isEmpty) {
+      Get.snackbar(
+        'Missing Information',
+        'Please fill out all password fields before continuing.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (newPassword != confirmPassword) {
+      Get.snackbar(
+        'Passwords Do Not Match',
+        'Make sure the new password and confirmation are the same.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (newPassword.trim().length < 8) {
+      Get.snackbar(
+        'Password Too Short',
+        'Use at least 8 characters for your new password.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (newPassword.trim() == currentPassword.trim()) {
+      Get.snackbar(
+        'Password Unchanged',
+        'Choose a password that is different from your current one.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      Get.snackbar(
+        'Not Signed In',
+        'Please re-login before updating your password.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    final email = user.email;
+    if (email == null || email.isEmpty) {
+      Get.snackbar(
+        'Password Not Supported',
+        'This account is linked to a social provider. Use the provider settings to change the password.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    isPasswordSaving.value = true;
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword.trim());
+
+      await _firestore.collection('instructors').doc(user.uid).update({
+        'passwordUpdatedAt': FieldValue.serverTimestamp(),
+      });
+
+      currentPasswordController.clear();
+      newPasswordController.clear();
+      confirmPasswordController.clear();
+
+      Get.snackbar(
+        'Password Updated',
+        'Your password has been changed successfully.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } on FirebaseAuthException catch (e) {
+      final message = AuthErrorUtils.friendlyMessage(
+        code: e.code,
+        scenario: AuthErrorScenario.passwordChange,
+        fallback: 'Unable to change password. Please try again.',
+        rawMessage: e.message,
+      );
+      Get.snackbar(
+        'Password Update Failed',
+        message,
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Password Update Failed',
+        'Something went wrong while updating your password. Please try again later.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      isPasswordSaving.value = false;
+    }
+  }
+
+  /// Show password reset guide for forgot password
+  void showPasswordResetGuide() {
+    Get.dialog(
+      ForgotPasswordDialog(
+        onResetPassword: (email) async {
+          final authController = Get.find<AuthController>();
+          final result = await authController.resetPassword(email);
+          if (result['success']) {
+            // Show success message after dialog closes
+            Future.delayed(const Duration(milliseconds: 300), () {
+              Get.snackbar(
+                'Success',
+                'Password reset link has been sent to your email!',
+                snackPosition: SnackPosition.TOP,
+                backgroundColor: Colors.green,
+                colorText: Colors.white,
+                duration: const Duration(seconds: 3),
+              );
+            });
+          } else {
+            throw Exception(result['message']);
+          }
+        },
+      ),
+    );
   }
 }

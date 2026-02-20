@@ -294,16 +294,6 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
           ],
         ),
       ),
-      const PopupMenuItem(
-        value: 'settings',
-        child: Row(
-          children: [
-            Icon(Icons.settings_outlined, size: 20),
-            SizedBox(width: 12),
-            Text('Settings'),
-          ],
-        ),
-      ),
       const PopupMenuDivider(),
       const PopupMenuItem(
         value: 'logout',
@@ -322,9 +312,6 @@ class WebAppBar extends StatelessWidget implements PreferredSizeWidget {
     switch (value) {
       case 'profile':
         Get.toNamed(WebRoutes.profile);
-        break;
-      case 'settings':
-        // TODO: Navigate to settings
         break;
       case 'logout':
         await FirebaseAuth.instance.signOut();

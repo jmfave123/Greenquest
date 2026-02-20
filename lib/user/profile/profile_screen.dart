@@ -5,6 +5,7 @@ import '../../shared/login/custom_drawer.dart';
 import 'edit_profile_screen.dart';
 import 'about_screen.dart';
 import 'privacy_policy_screen.dart';
+import 'change_password_screen.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
@@ -177,6 +178,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => const EditProfileScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.lock_outline,
+                  color: Color(0xFF34A853),
+                ),
+                title: const Text('Change Password'),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 18,
+                  color: Colors.black,
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ChangePasswordScreen(),
                     ),
                   );
                 },

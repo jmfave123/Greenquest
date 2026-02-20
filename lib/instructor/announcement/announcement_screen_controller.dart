@@ -299,7 +299,7 @@ class AnnouncementScreenController extends GetxController {
       Get.snackbar(
         'Error',
         'Please fill in both title and content',
-        snackPosition: SnackPosition.BOTTOM,
+        snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.orange,
         colorText: Colors.white,
       );

@@ -63,8 +63,7 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
           (context) => ConfirmationDialog(
             title: 'Unsend Message',
             message: 'Are you sure you want to unsend this message?',
-            warningMessage:
-                'This message will be replaced with "You unsent a message".',
+
             confirmText: 'Unsend',
             cancelText: 'Cancel',
             icon: Icons.undo_outlined,

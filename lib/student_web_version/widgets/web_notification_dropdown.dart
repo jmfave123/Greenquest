@@ -6,6 +6,11 @@ import 'package:intl/intl.dart';
 import '../../user/notification/notification_controller.dart';
 import '../config/web_theme.dart';
 import '../config/web_routes.dart';
+import '../screens/assignments/web_assignment_detail_screen.dart';
+import '../screens/activities/web_activity_detail_screen.dart';
+import '../screens/quizzes/web_quiz_detail_screen.dart';
+import '../screens/pit/web_pit_detail_screen.dart';
+import '../screens/materials/web_materials_detail_screen.dart';
 
 class WebNotificationDropdown extends StatefulWidget {
   const WebNotificationDropdown({super.key});
@@ -92,6 +97,159 @@ class _WebNotificationDropdownState extends State<WebNotificationDropdown> {
     if (user == null) return true;
     final readBy = List<String>.from(notification['readBy'] ?? []);
     return readBy.contains(user.uid);
+  }
+
+  Future<void> _navigateToScreen(
+    Map<String, dynamic> n,
+    NotificationController controller,
+  ) async {
+    controller.markAsRead(n['id']);
+    Get.back();
+
+    String type = n['type']?.toString().toLowerCase() ?? 'announcement';
+    String? itemId = n['itemId']?.toString();
+    final instructorId = n['instructorId']?.toString();
+    final metadata = n['metadata'] as Map<String, dynamic>?;
+
+    // Handle graded notifications — resolve actual activity type from metadata
+    if (type == 'graded' && metadata != null) {
+      final activityType = metadata['activityType']?.toString() ?? '';
+      if (activityType.isNotEmpty) type = activityType.toLowerCase();
+      if (itemId == null || itemId.isEmpty) {
+        itemId = metadata['activityId']?.toString();
+      }
+    }
+
+    // Announcements and tree types — go to announcements list
+    if (type == 'announcement' ||
+        type == 'tree_approved' ||
+        type == 'tree_rejected') {
+      Get.toNamed(WebRoutes.announcements);
+      return;
+    }
+
+    // Missing identifiers — fallback
+    if (itemId == null ||
+        itemId.isEmpty ||
+        instructorId == null ||
+        instructorId.isEmpty) {
+      Get.toNamed(WebRoutes.announcements);
+      return;
+    }
+
+    try {
+      DocumentSnapshot doc;
+      switch (type) {
+        case 'assignment':
+          doc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .collection('assignments')
+                  .doc(itemId)
+                  .get();
+          break;
+        case 'activity':
+          doc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .collection('activities')
+                  .doc(itemId)
+                  .get();
+          break;
+        case 'quiz':
+          doc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .collection('quizzes')
+                  .doc(itemId)
+                  .get();
+          break;
+        case 'pit':
+          doc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .collection('pits')
+                  .doc(itemId)
+                  .get();
+          break;
+        case 'material':
+          doc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .collection('materials')
+                  .doc(itemId)
+                  .get();
+          break;
+        default:
+          Get.toNamed(WebRoutes.announcements);
+          return;
+      }
+
+      if (!doc.exists) {
+        Get.snackbar(
+          'Error',
+          'Item not found or has been deleted',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      final data = doc.data() as Map<String, dynamic>;
+      data['id'] = doc.id;
+
+      // Materials need instructor name resolved separately
+      if (type == 'material') {
+        try {
+          final instDoc =
+              await FirebaseFirestore.instance
+                  .collection('instructors')
+                  .doc(instructorId)
+                  .get();
+          if (instDoc.exists) {
+            final instData = instDoc.data() as Map<String, dynamic>;
+            data['instructorName'] =
+                instData['name']?.toString() ?? 'Unknown Instructor';
+          } else {
+            data['instructorName'] = 'Unknown Instructor';
+          }
+        } catch (_) {
+          data['instructorName'] = 'Unknown Instructor';
+        }
+      }
+
+      switch (type) {
+        case 'assignment':
+          Get.to(() => WebAssignmentDetailScreen(assignment: data));
+          break;
+        case 'activity':
+          Get.to(() => WebActivityDetailScreen(activity: data));
+          break;
+        case 'quiz':
+          Get.to(() => WebQuizDetailScreen(quiz: data));
+          break;
+        case 'pit':
+          Get.to(() => WebPitDetailScreen(pit: data));
+          break;
+        case 'material':
+          Get.to(() => WebMaterialsDetailScreen(material: data));
+          break;
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to load item: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   @override
@@ -302,13 +460,7 @@ class _WebNotificationDropdownState extends State<WebNotificationDropdown> {
     final icon = _getNotificationIcon(type);
 
     return InkWell(
-      onTap: () {
-        controller.markAsRead(n['id']);
-        Get.back();
-        // Since WebRoutes.announcements is currently used for notifications on web,
-        // we'll go there. In a more complete implementation, we'd go to specific detail screens.
-        Get.toNamed(WebRoutes.announcements);
-      },
+      onTap: () => _navigateToScreen(n, controller),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         color: isRead ? Colors.white : WebTheme.primaryGreen.withOpacity(0.04),

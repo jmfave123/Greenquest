@@ -6,6 +6,7 @@ import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/widgets/skeleton_loading.dart';
 import '../../shared/widgets/edit_profile_dialog.dart';
 import 'profile_screen_controller.dart';
+import 'instructor_password_change_card.dart';
 
 class InstructorProfileScreen extends StatefulWidget {
   const InstructorProfileScreen({super.key});
@@ -417,6 +418,32 @@ class _InstructorProfileScreenState extends State<InstructorProfileScreen> {
                               ],
                             );
                           }),
+                          const SizedBox(height: 40),
+                          // Password Change Section
+                          Obx(
+                            () => InstructorPasswordChangeCard(
+                              currentPasswordController:
+                                  _controller!.currentPasswordController,
+                              newPasswordController:
+                                  _controller!.newPasswordController,
+                              confirmPasswordController:
+                                  _controller!.confirmPasswordController,
+                              isProcessing: _controller!.isPasswordSaving.value,
+                              onSubmit: ({
+                                required currentPassword,
+                                required newPassword,
+                                required confirmPassword,
+                              }) async {
+                                await _controller!.handlePasswordChange(
+                                  currentPassword: currentPassword,
+                                  newPassword: newPassword,
+                                  confirmPassword: confirmPassword,
+                                );
+                              },
+                              onForgotPassword:
+                                  _controller!.showPasswordResetGuide,
+                            ),
+                          ),
                         ],
                       ),
                     ),

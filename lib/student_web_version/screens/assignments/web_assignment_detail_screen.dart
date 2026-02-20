@@ -90,6 +90,20 @@ class _WebAssignmentDetailScreenState extends State<WebAssignmentDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
+              // Back button
+              TextButton.icon(
+                onPressed: () => Get.toNamed(WebRoutes.assignments),
+                icon: const Icon(Icons.arrow_back, size: 20),
+                label: const Text('Back to Assignments'),
+                style: TextButton.styleFrom(
+                  foregroundColor: WebTheme.primaryGreen,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               if (isDesktop)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -81,6 +81,20 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
+              // Back button
+              TextButton.icon(
+                onPressed: () => Get.toNamed(WebRoutes.quizzes),
+                icon: const Icon(Icons.arrow_back, size: 20),
+                label: const Text('Back to Quizzes'),
+                style: TextButton.styleFrom(
+                  foregroundColor: WebTheme.primaryGreen,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

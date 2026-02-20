@@ -155,6 +155,8 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
       Get.snackbar(
         "Error",
         "Please fill in all schedule fields including room!",
+        colorText: Colors.white,
+        backgroundColor: Colors.red,
       );
       return;
     }

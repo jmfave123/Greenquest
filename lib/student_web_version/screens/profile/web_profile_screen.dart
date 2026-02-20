@@ -5,6 +5,7 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
+import '../../widgets/profile/web_password_change_card.dart';
 import '../../controllers/web_profile_controller.dart';
 import '../../../shared/widgets/skeleton_loading.dart';
 
@@ -75,6 +76,19 @@ class WebProfileScreen extends StatelessWidget {
                     _buildPersonalInfo(controller),
                   ],
                 ),
+              const SizedBox(height: 32),
+              Obx(
+                () => WebPasswordChangeCard(
+                  currentPasswordController:
+                      controller.currentPasswordController,
+                  newPasswordController: controller.newPasswordController,
+                  confirmPasswordController:
+                      controller.confirmPasswordController,
+                  isProcessing: controller.isPasswordSaving.value,
+                  onSubmit: controller.handlePasswordChange,
+                  onForgotPassword: controller.showPasswordResetGuide,
+                ),
+              ),
             ],
           ),
         ),

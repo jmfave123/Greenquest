@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../shared/services/file_upload_service.dart';
+import '../../shared/utils/auth_error_utils.dart';
 
 class ProfileController extends GetxController {
   final _auth = FirebaseAuth.instance;
@@ -17,6 +18,7 @@ class ProfileController extends GetxController {
 
   RxBool isLoading = false.obs;
   RxBool isUploadingImage = false.obs;
+  RxBool isChangingPassword = false.obs;
   RxMap userData = {}.obs;
 
   @override
@@ -367,6 +369,135 @@ class ProfileController extends GetxController {
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
+    }
+  }
+
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    if (isChangingPassword.value) return false;
+
+    if (currentPassword.isEmpty ||
+        newPassword.isEmpty ||
+        confirmPassword.isEmpty) {
+      Get.snackbar(
+        'Missing information',
+        'Please fill out all password fields before continuing.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    if (newPassword != confirmPassword) {
+      Get.snackbar(
+        'Passwords do not match',
+        'Make sure the new password and confirmation match.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    if (newPassword.trim().length < 8) {
+      Get.snackbar(
+        'Password too short',
+        'Use at least 8 characters for your new password.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    if (currentPassword.trim() == newPassword.trim()) {
+      Get.snackbar(
+        'Password unchanged',
+        'Choose a password that is different from your current one.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      Get.snackbar(
+        'Not signed in',
+        'Please re-login before updating your password.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    final email = user.email;
+    if (email == null || email.isEmpty) {
+      Get.snackbar(
+        'Unsupported',
+        'This account is linked to a social provider. Change the password from the provider settings.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+
+    isChangingPassword.value = true;
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword.trim());
+
+      await _firestore.collection('users').doc(user.uid).update({
+        'passwordUpdatedAt': FieldValue.serverTimestamp(),
+      });
+
+      Get.snackbar(
+        'Password updated',
+        'Your password has been changed successfully.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+      return true;
+    } on FirebaseAuthException catch (e) {
+      final message = AuthErrorUtils.friendlyMessage(
+        code: e.code,
+        scenario: AuthErrorScenario.passwordChange,
+        fallback: 'Unable to change password. Please try again.',
+        rawMessage: e.message,
+      );
+
+      Get.snackbar(
+        'Password update failed',
+        message,
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    } catch (e) {
+      Get.snackbar(
+        'Password update failed',
+        'Something went wrong while updating your password. Please try again later.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    } finally {
+      isChangingPassword.value = false;
     }
   }
 }
