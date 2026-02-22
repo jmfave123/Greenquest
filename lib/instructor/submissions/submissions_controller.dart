@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1607,11 +1609,6 @@ class SubmissionsController extends GetxController {
   }
 
   // Get submission collection name based on item type
-  // NOTE: Now all submissions use unified 'submissions' collection
-  @Deprecated('Use unified submissions collection directly')
-  String _getSubmissionCollectionName(String itemType) {
-    return 'submissions'; // Unified collection for all submission types
-  }
 
   // Get activity ID field name based on item type
   // NOTE: Now all submissions use unified 'activityId' field

@@ -271,7 +271,6 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
   }
 
   Widget _buildNavigationItem(NavigationItemData item, bool isSelected) {
-    // Check if this is the Create or Announcements item and should be disabled
     final isCreateItem = item.item == InstructorNavigationItem.create;
     final isAnnouncementsItem =
         item.item == InstructorNavigationItem.announcements;
@@ -279,53 +278,11 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
         (isCreateItem || isAnnouncementsItem) &&
         (!_hasAssignedSections || _isCheckingSections);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      child: Material(
-        color: Colors.transparent,
-        child: Opacity(
-          opacity: isDisabled ? 0.5 : 1.0,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: isDisabled ? null : () => _handleNavigationSelect(item.item),
-            child: Container(
-              decoration:
-                  isSelected
-                      ? BoxDecoration(
-                        color: const Color(0xFF34A853),
-                        borderRadius: BorderRadius.circular(8),
-                      )
-                      : null,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  SafeAssetImage(
-                    assetPath: item.iconPath,
-                    width: 22,
-                    color:
-                        isDisabled
-                            ? Colors.grey
-                            : (isSelected ? Colors.white : Colors.black87),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    item.label,
-                    style: TextStyle(
-                      color:
-                          isDisabled
-                              ? Colors.grey
-                              : (isSelected ? Colors.white : Colors.black87),
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return _SidebarNavItem(
+      item: item,
+      isSelected: isSelected,
+      isDisabled: isDisabled,
+      onTap: isDisabled ? null : () => _handleNavigationSelect(item.item),
     );
   }
 
@@ -500,6 +457,101 @@ class _InstructorSidebarState extends State<InstructorSidebar> {
 
             const SizedBox(height: 24),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Isolated sidebar nav item — hover state is self-contained, no parent rebuilds.
+class _SidebarNavItem extends StatefulWidget {
+  final NavigationItemData item;
+  final bool isSelected;
+  final bool isDisabled;
+  final VoidCallback? onTap;
+
+  const _SidebarNavItem({
+    required this.item,
+    required this.isSelected,
+    required this.isDisabled,
+    this.onTap,
+  });
+
+  @override
+  State<_SidebarNavItem> createState() => _SidebarNavItemState();
+}
+
+class _SidebarNavItemState extends State<_SidebarNavItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.isSelected || (_hovered && !widget.isDisabled);
+
+    // Colours
+    Color bgColor;
+    Color fgColor;
+    if (widget.isDisabled) {
+      bgColor = Colors.transparent;
+      fgColor = Colors.grey;
+    } else if (widget.isSelected) {
+      bgColor = const Color(0xFF34A853);
+      fgColor = Colors.white;
+    } else if (_hovered) {
+      bgColor = const Color(0xFF34A853).withOpacity(0.08);
+      fgColor = const Color(0xFF34A853);
+    } else {
+      bgColor = Colors.transparent;
+      fgColor = Colors.black87;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: MouseRegion(
+        cursor:
+            widget.isDisabled
+                ? SystemMouseCursors.forbidden
+                : SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Opacity(
+            opacity: widget.isDisabled ? 0.5 : 1.0,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: SafeAssetImage(
+                      key: ValueKey(fgColor.value),
+                      assetPath: widget.item.iconPath,
+                      width: 22,
+                      color: fgColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeInOut,
+                    style: TextStyle(
+                      color: fgColor,
+                      fontWeight: (active) ? FontWeight.w600 : FontWeight.w500,
+                      fontSize: 15,
+                    ),
+                    child: Text(widget.item.label),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
