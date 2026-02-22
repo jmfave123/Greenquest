@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:greenquest/instructor/message/message_list_screen.dart';
 import 'package:greenquest/instructor/report/class_report_screen.dart';
@@ -49,6 +50,15 @@ import 'student_web_version/config/web_bindings.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables FIRST
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    if (kDebugMode) {
+      print('⚠️ Warning: .env file not found. Using default configuration.');
+    }
+  }
+
   // Ensure Flutter is fully initialized before proceeding
   await Future.delayed(const Duration(milliseconds: 100));
 
@@ -61,11 +71,19 @@ void main() async {
   // Initialize OneSignal only on mobile platforms (not web)
   if (!kIsWeb) {
     try {
-      OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-      OneSignal.initialize("679023d3-f6ec-425a-8370-8828fbdac926");
-      OneSignal.Notifications.requestPermission(false);
+      final oneSignalAppId = dotenv.env['ONESIGNAL_APP_ID'];
+      if (oneSignalAppId != null && oneSignalAppId.isNotEmpty) {
+        OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+        OneSignal.initialize(oneSignalAppId);
+        OneSignal.Notifications.requestPermission(false);
+      } else if (kDebugMode) {
+        print('⚠️ Warning: ONESIGNAL_APP_ID not configured in .env');
+      }
     } catch (e) {
       // Don't throw - allow app to continue even if OneSignal fails
+      if (kDebugMode) {
+        print('⚠️ OneSignal initialization error: $e');
+      }
     }
   }
 

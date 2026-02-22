@@ -1,8 +1,14 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+/// Cloudinary configuration for image uploads
+/// Credentials are stored in .env file (never commit secrets to version control)
 class CloudinaryConfig {
-  // Cloudinary credentials
-  static const String cloudName = 'dddnu6i5q';
-  static const String apiKey = '333337596671818';
-  static const String apiSecret = 'UJKccyN0O_VjmG9QrEvsU_f9lxA';
+  // Cloudinary credentials from environment variables
+  static String get cloudName => dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
+
+  static String get apiKey => dotenv.env['CLOUDINARY_API_KEY'] ?? '';
+
+  static String get apiSecret => dotenv.env['CLOUDINARY_API_SECRET'] ?? '';
 
   // Default upload folder for your app
   static const String defaultFolder = 'greenquest';
@@ -28,13 +34,31 @@ class CloudinaryConfig {
   // Maximum file size in bytes (5MB)
   static const int maxFileSize = 5 * 1024 * 1024;
 
-  // Check if config is properly set up
+  /// Validates that Cloudinary credentials are properly configured
+  /// Throws an exception if credentials are missing or invalid
+  static void validateConfiguration() {
+    if (cloudName.isEmpty) {
+      throw Exception(
+        'CLOUDINARY_CLOUD_NAME is not configured. '
+        'Please add it to your .env file.',
+      );
+    }
+    if (apiKey.isEmpty) {
+      throw Exception(
+        'CLOUDINARY_API_KEY is not configured. '
+        'Please add it to your .env file.',
+      );
+    }
+    if (apiSecret.isEmpty) {
+      throw Exception(
+        'CLOUDINARY_API_SECRET is not configured. '
+        'Please add it to your .env file.',
+      );
+    }
+  }
+
+  /// Check if config is properly set up (returns boolean instead of throwing)
   static bool get isConfigured {
-    return cloudName != 'your_cloud_name_here' &&
-        apiKey != 'your_api_key_here' &&
-        apiSecret != 'your_api_secret_here' &&
-        cloudName.isNotEmpty &&
-        apiKey.isNotEmpty &&
-        apiSecret.isNotEmpty;
+    return cloudName.isNotEmpty && apiKey.isNotEmpty && apiSecret.isNotEmpty;
   }
 }
