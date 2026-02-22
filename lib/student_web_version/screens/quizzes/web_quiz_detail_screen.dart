@@ -5,6 +5,7 @@ import '../../../user/submit/student_submission_controller.dart';
 import '../../../shared/controllers/file_submission_controller.dart';
 import '../../widgets/submissions/web_file_upload_widget.dart';
 import '../../widgets/submissions/web_instructor_attachments_widget.dart';
+import '../../../core/utils/date_utils.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -342,6 +343,7 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
   }
 
   Widget _buildPendingState() {
+    final isPastDue = DueDateUtils.isPastDue(widget.quiz['dueDate']);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -357,6 +359,7 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
         WebFileUploadWidget(
           controller: fileController,
           label: 'Submit Quiz',
+          isDisabled: isPastDue,
           onUploadComplete: () async {
             // 1. Upload files to Cloudinary
             final success = await fileController.uploadFiles(

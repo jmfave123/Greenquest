@@ -335,6 +335,17 @@ extension on ActivityController {
         date = dueDate.toDate();
       } else if (dueDate is DateTime) {
         date = dueDate;
+      } else if (dueDate is String) {
+        // The controller pre-formats the due date as a human-readable string
+        // (e.g. "Feb 28, 2026 11:00 AM"). Return it directly.
+        if (dueDate.isEmpty) return 'No due date';
+        // Handle Firebase server-formatted strings: "February 11, 2026 at 11:00:00 AM UTC+8"
+        if (dueDate.contains('at') &&
+            (dueDate.contains('AM') || dueDate.contains('PM'))) {
+          return dueDate.replaceAll(' UTC+8', '').replaceAll(' UTC', '');
+        }
+        // For already-formatted strings like "Feb 28, 2026 11:00 AM"
+        return dueDate;
       } else {
         return 'No due date';
       }
@@ -355,6 +366,7 @@ extension on ActivityController {
       ];
       return '${months[date.month - 1]} ${date.day}, ${date.year}';
     } catch (e) {
+      if (dueDate is String && dueDate.isNotEmpty) return dueDate;
       return 'No due date';
     }
   }

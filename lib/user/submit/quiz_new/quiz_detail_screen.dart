@@ -9,6 +9,7 @@ import 'package:greenquest/user/submit/student_submission_controller.dart';
 import 'package:greenquest/user/submit/file_picker_screen.dart';
 import 'package:greenquest/shared/controllers/file_submission_controller.dart';
 import 'package:greenquest/shared/widgets/linkable_text.dart';
+import 'package:greenquest/core/utils/date_utils.dart';
 
 class QuizDetailScreen extends StatefulWidget {
   final Map<String, dynamic> assignment;
@@ -561,6 +562,57 @@ class _QuizDetailScreenState extends State<QuizDetailScreen>
                             submissionController!.isGraded.value;
 
                         if (!isSubmitted) {
+                          final isPastDue = DueDateUtils.isPastDue(
+                            widget.assignment['dueDate'],
+                          );
+                          if (isPastDue) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: null,
+                                    style: ElevatedButton.styleFrom(
+                                      disabledBackgroundColor:
+                                          Colors.grey.shade300,
+                                      disabledForegroundColor:
+                                          Colors.grey.shade500,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(30),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.lock_outline),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Add or Create',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Work cannot be turned in after the due date.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
                           return SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(

@@ -322,8 +322,16 @@ extension on QuizController {
       } else if (dueDate is DateTime) {
         date = dueDate;
       } else if (dueDate is String) {
-        // Parse custom format: "Feb 11, 2026 11:00 AM"
-        date = _parseCustomDateString(dueDate);
+        // The controller pre-formats the due date as a human-readable string
+        // (e.g. "Feb 28, 2026 11:00 AM"). Return it directly.
+        if (dueDate.isEmpty) return 'No due date';
+        // Handle Firebase server-formatted strings: "February 11, 2026 at 11:00:00 AM UTC+8"
+        if (dueDate.contains('at') &&
+            (dueDate.contains('AM') || dueDate.contains('PM'))) {
+          return dueDate.replaceAll(' UTC+8', '').replaceAll(' UTC', '');
+        }
+        // For already-formatted strings like "Feb 28, 2026 11:00 AM"
+        return dueDate;
       } else if (dueDate is int) {
         date = DateTime.fromMillisecondsSinceEpoch(dueDate);
       } else {
@@ -331,73 +339,28 @@ extension on QuizController {
       }
 
       final months = [
-        'January',
-        'February',
-        'March',
-        'April',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
         'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
-
-      // Format time
       final hour =
           date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
       final minute = date.minute.toString().padLeft(2, '0');
-      final second = date.second.toString().padLeft(2, '0');
       final period = date.hour >= 12 ? 'PM' : 'AM';
 
-      // Get timezone offset
-      final offset = date.timeZoneOffset;
-      final offsetHours = offset.inHours;
-      final timezone = 'UTC${offsetHours >= 0 ? '+' : ''}$offsetHours';
-
-      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute:$second $period $timezone';
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute $period';
     } catch (e) {
+      if (dueDate is String && (dueDate as String).isNotEmpty) return dueDate;
       return 'No due date';
     }
-  }
-
-  DateTime _parseCustomDateString(String dateStr) {
-    // Parse format: "Feb 11, 2026 11:00 AM"
-    final monthMap = {
-      'Jan': 1,
-      'Feb': 2,
-      'Mar': 3,
-      'Apr': 4,
-      'May': 5,
-      'Jun': 6,
-      'Jul': 7,
-      'Aug': 8,
-      'Sep': 9,
-      'Oct': 10,
-      'Nov': 11,
-      'Dec': 12,
-    };
-
-    final parts = dateStr.split(' ');
-    if (parts.length < 4) throw FormatException('Invalid date format');
-
-    final month = monthMap[parts[0]] ?? 1;
-    final day = int.parse(parts[1].replaceAll(',', ''));
-    final year = int.parse(parts[2]);
-    final timeParts = parts[3].split(':');
-    var hour = int.parse(timeParts[0]);
-    final minute = int.parse(timeParts[1]);
-    final period = parts.length > 4 ? parts[4] : 'AM';
-
-    // Convert to 24-hour format
-    if (period == 'PM' && hour != 12) {
-      hour += 12;
-    } else if (period == 'AM' && hour == 12) {
-      hour = 0;
-    }
-
-    return DateTime(year, month, day, hour, minute);
   }
 }

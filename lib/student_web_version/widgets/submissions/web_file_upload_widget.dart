@@ -9,15 +9,21 @@ class WebFileUploadWidget extends StatelessWidget {
   final VoidCallback onUploadComplete;
   final String label;
 
+  /// When true the widget renders a locked, non-interactive state.
+  /// Use this when the due date has passed and submission is no longer allowed.
+  final bool isDisabled;
+
   const WebFileUploadWidget({
     super.key,
     required this.controller,
     required this.onUploadComplete,
     this.label = 'Submit Files',
+    this.isDisabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (isDisabled) return _buildDisabledState();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -37,6 +43,68 @@ class WebFileUploadWidget extends StatelessWidget {
           }
           return _buildActionButtons();
         }),
+      ],
+    );
+  }
+
+  /// Renders a grayed-out, non-interactive state shown when the due date
+  /// has passed. Matches the "Work cannot be turned in after the due date"
+  /// pattern from the design reference.
+  Widget _buildDisabledState() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              Icon(Icons.lock_outline, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(
+                'Submission closed',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: null, // disabled
+            style: ElevatedButton.styleFrom(
+              disabledBackgroundColor: Colors.grey.shade300,
+              disabledForegroundColor: Colors.grey.shade500,
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.send_outlined, color: Colors.grey.shade500),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }

@@ -5,6 +5,7 @@ import '../../shared/controllers/file_submission_controller.dart';
 import '../../shared/services/file_upload_service.dart';
 import '../../shared/widgets/linkable_text.dart';
 import 'submission_success_screen.dart';
+import '../../core/utils/date_utils.dart';
 
 class FilePickerScreen extends StatefulWidget {
   final String assignmentId;
@@ -117,29 +118,11 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
     }
   }
 
-  /// Check if the due date has passed
+  /// Returns true when the due date has passed.
+  /// Delegates to [DueDateUtils.isPastDue] which handles all date formats
+  /// produced by controllers (Timestamp, DateTime, pre-formatted String).
   bool _isDueDatePassed() {
-    try {
-      final dueDate = widget.itemData['dueDate'];
-      if (dueDate == null) return false;
-
-      DateTime dueDatetime;
-      if (dueDate is DateTime) {
-        dueDatetime = dueDate;
-      } else if (dueDate is String) {
-        dueDatetime = DateTime.parse(dueDate);
-      } else if (dueDate is Timestamp) {
-        dueDatetime = dueDate.toDate();
-      } else {
-        return false;
-      }
-
-      // Check if current time is after due date
-      return DateTime.now().isAfter(dueDatetime);
-    } catch (e) {
-      print('Error checking due date: $e');
-      return false; // If error, allow submission
-    }
+    return DueDateUtils.isPastDue(widget.itemData['dueDate']);
   }
 
   Future<void> _handleSubmission() async {

@@ -6,6 +6,7 @@ import 'package:greenquest/user/submit/assignment/assignment_controller.dart';
 import 'package:greenquest/user/submit/assignment/assignment_detail_screen.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
 import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
+import 'package:greenquest/core/utils/date_utils.dart';
 
 class AssignmentListScreen extends StatefulWidget {
   const AssignmentListScreen({super.key});
@@ -38,26 +39,10 @@ class _AssignmentListScreenState extends State<AssignmentListScreen> {
     String badgeText;
     IconData badgeIcon;
 
-    // Check if past due date for not submitted items
-    bool isPastDue = false;
-    if (status.toLowerCase() == 'not_submitted' && dueDate != null) {
-      try {
-        DateTime? dueDatetime;
-        if (dueDate is DateTime) {
-          dueDatetime = dueDate;
-        } else if (dueDate is String) {
-          dueDatetime = DateTime.parse(dueDate);
-        } else if (dueDate is Timestamp) {
-          dueDatetime = dueDate.toDate();
-        }
-
-        if (dueDatetime != null) {
-          isPastDue = DateTime.now().isAfter(dueDatetime);
-        }
-      } catch (e) {
-        isPastDue = false;
-      }
-    }
+    // Delegate past-due check to shared utility (core/utils/date_utils.dart)
+    final bool isPastDue =
+        status.toLowerCase() == 'not_submitted' &&
+        DueDateUtils.isPastDue(dueDate);
 
     switch (status.toLowerCase()) {
       case 'submitted':
