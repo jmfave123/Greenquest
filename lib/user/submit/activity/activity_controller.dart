@@ -10,7 +10,7 @@ class ActivityController extends GetxController {
   // Note: Firebase Storage will be added when dependencies are available
 
   // Observable variables
-  var isLoading = false.obs;
+  var isLoading = true.obs;
   var activities = <Map<String, dynamic>>[].obs;
   var errorMessage = ''.obs;
   var currentInstructorUid = ''.obs;
@@ -48,6 +48,7 @@ class ActivityController extends GetxController {
   /// Load activities for the current logged-in user's selected instructor
   Future<void> loadCurrentInstructorActivities() async {
     try {
+      isLoading.value = true;
       print('🔍 Loading current instructor activities...');
 
       // Check if user is authenticated with valid token

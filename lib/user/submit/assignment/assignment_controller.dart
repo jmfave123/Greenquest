@@ -9,7 +9,7 @@ class AssignmentController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Observable variables
-  final RxBool isLoading = false.obs;
+  final RxBool isLoading = true.obs;
   final RxList<Map<String, dynamic>> assignments = <Map<String, dynamic>>[].obs;
   final RxString errorMessage = ''.obs;
   final RxString currentInstructorUid = ''.obs;

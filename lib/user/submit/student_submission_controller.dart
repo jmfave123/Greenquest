@@ -162,12 +162,6 @@ class StudentSubmissionController extends GetxController {
     }
   }
 
-  // Get collection name based on activity type (deprecated - kept for backwards compatibility)
-  @Deprecated('Use unified submissions collection directly')
-  String _getCollectionName(String activityType) {
-    return 'submissions'; // Unified collection for all submission types
-  }
-
   // Get status color for UI
   Color getStatusColor() {
     if (isGraded.value) {

@@ -11,7 +11,7 @@ class UserAnnouncementController extends GetxController {
   // Observable variables
   final RxList<Map<String, dynamic>> announcements =
       <Map<String, dynamic>>[].obs;
-  final RxBool isLoading = false.obs;
+  final RxBool isLoading = true.obs;
   final RxString selectedInstructorId = ''.obs;
   final RxString selectedInstructorName = ''.obs;
   final RxInt unreadCount = 0.obs;
@@ -60,6 +60,8 @@ class UserAnnouncementController extends GetxController {
       }
     } catch (e) {
       log('Error getting selected instructor: $e');
+    } finally {
+      isLoading.value = false;
     }
   }
 
@@ -374,6 +376,7 @@ class UserAnnouncementController extends GetxController {
 
   // Force reload instructor selection and announcements
   Future<void> forceReload() async {
+    isLoading.value = true;
     selectedInstructorId.value = '';
     selectedInstructorName.value = '';
     announcements.clear();

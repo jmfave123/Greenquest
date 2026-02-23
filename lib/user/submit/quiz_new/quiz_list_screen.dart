@@ -120,8 +120,8 @@ class _QuizListScreenState extends State<QuizListScreen> {
       default: // 'not_submitted'
         if (isPastDue) {
           badgeColor = const Color(0xFFF44336); // Red
-          badgeText = 'Late';
-          badgeIcon = Icons.warning_amber_rounded;
+          badgeText = 'Closed';
+          badgeIcon = Icons.lock_outline;
         } else {
           badgeColor = const Color(0xFF9E9E9E); // Gray
           badgeText = 'Not Yet Submitted';

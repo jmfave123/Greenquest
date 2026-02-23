@@ -8,7 +8,8 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
-import '../../../shared/widgets/skeleton_loading.dart';
+import '../../../core/utils/date_utils.dart';
+import '../../widgets/web_card_skeleton.dart';
 
 class WebPitListScreen extends StatefulWidget {
   const WebPitListScreen({super.key});
@@ -53,8 +54,8 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
             child: Container(
               color: WebTheme.backgroundLight,
               child: Obx(() {
-                if (controller.isLoading.value && controller.pits.isEmpty) {
-                  return _buildSkeletonLoading(context);
+                if (controller.isLoading.value) {
+                  return const WebCardSkeletonGrid();
                 }
                 return _buildContent(context);
               }),
@@ -230,21 +231,9 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
     Color badgeColor;
     String badgeText;
 
-    bool isPastDue = false;
-    if (status.toLowerCase() == 'not_submitted' && dueDate != null) {
-      try {
-        DateTime? dueDatetime;
-        if (dueDate is Timestamp) {
-          dueDatetime = dueDate.toDate();
-        } else if (dueDate is DateTime) {
-          dueDatetime = dueDate;
-        }
-
-        if (dueDatetime != null) {
-          isPastDue = DateTime.now().isAfter(dueDatetime);
-        }
-      } catch (e) {}
-    }
+    final isPastDue =
+        status.toLowerCase() == 'not_submitted' &&
+        DueDateUtils.isPastDue(dueDate);
 
     switch (status.toLowerCase()) {
       case 'submitted':
@@ -261,7 +250,7 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
         break;
       default:
         badgeColor = isPastDue ? Colors.red : Colors.grey;
-        badgeText = isPastDue ? 'Late' : 'Pending';
+        badgeText = isPastDue ? 'Closed' : 'Pending';
     }
 
     return Container(
@@ -352,26 +341,6 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
               textAlign: TextAlign.center,
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonLoading(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1200),
-        child: SingleChildScrollView(
-          padding: WebResponsiveUtils.getResponsivePadding(context),
-          child: Column(
-            children: List.generate(
-              6,
-              (index) => const Padding(
-                padding: EdgeInsets.only(bottom: 16),
-                child: SkeletonListItem(),
-              ),
-            ),
-          ),
         ),
       ),
     );

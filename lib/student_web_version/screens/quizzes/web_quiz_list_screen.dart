@@ -8,7 +8,8 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
-import '../../../shared/widgets/skeleton_loading.dart';
+import '../../../core/utils/date_utils.dart';
+import '../../widgets/web_card_skeleton.dart';
 
 class WebQuizListScreen extends StatefulWidget {
   const WebQuizListScreen({super.key});
@@ -53,8 +54,8 @@ class _WebQuizListScreenState extends State<WebQuizListScreen> {
             child: Container(
               color: WebTheme.backgroundLight,
               child: Obx(() {
-                if (controller.isLoading.value && controller.quizzes.isEmpty) {
-                  return _buildSkeletonLoading(context);
+                if (controller.isLoading.value) {
+                  return const WebCardSkeletonGrid();
                 }
                 return _buildContent(context);
               }),
@@ -230,10 +231,9 @@ class _WebQuizListScreenState extends State<WebQuizListScreen> {
     Color badgeColor;
     String badgeText;
 
-    // bool isPastDue = false;
-    // Note: QuizController formats dates into strings in loadQuizzes()
-    // So we might need to be careful here if we want real-time late status.
-    // However, the controller already handles basic status.
+    final isPastDue =
+        status.toLowerCase() == 'not_submitted' &&
+        DueDateUtils.isPastDue(dueDate);
 
     switch (status.toLowerCase()) {
       case 'submitted':
@@ -245,8 +245,8 @@ class _WebQuizListScreenState extends State<WebQuizListScreen> {
         badgeText = 'Graded';
         break;
       default:
-        badgeColor = Colors.grey;
-        badgeText = 'Pending';
+        badgeColor = isPastDue ? Colors.red : Colors.grey;
+        badgeText = isPastDue ? 'Closed' : 'Pending';
     }
 
     return Container(
@@ -284,26 +284,6 @@ class _WebQuizListScreenState extends State<WebQuizListScreen> {
               textAlign: TextAlign.center,
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonLoading(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1200),
-        child: SingleChildScrollView(
-          padding: WebResponsiveUtils.getResponsivePadding(context),
-          child: Column(
-            children: List.generate(
-              6,
-              (index) => const Padding(
-                padding: EdgeInsets.only(bottom: 16),
-                child: SkeletonListItem(),
-              ),
-            ),
-          ),
         ),
       ),
     );

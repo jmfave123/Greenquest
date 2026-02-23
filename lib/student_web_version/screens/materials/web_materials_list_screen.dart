@@ -7,7 +7,7 @@ import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
-import '../../../shared/widgets/skeleton_loading.dart';
+import '../../widgets/web_card_skeleton.dart';
 
 class WebMaterialsListScreen extends StatefulWidget {
   const WebMaterialsListScreen({super.key});
@@ -64,18 +64,23 @@ class _WebMaterialsListScreenState extends State<WebMaterialsListScreen> {
   }
 
   Widget _buildContent(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1200),
-        child: Column(
-          children: [
-            _buildHeader(context),
-            _buildSearchBar(),
-            Expanded(child: _buildMaterialsGrid()),
-          ],
+    return Obx(() {
+      if (controller.isLoading.value) {
+        return const WebMaterialsSkeletonGrid();
+      }
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            children: [
+              _buildHeader(context),
+              _buildSearchBar(),
+              Expanded(child: _buildMaterialsGrid()),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -161,10 +166,6 @@ class _WebMaterialsListScreenState extends State<WebMaterialsListScreen> {
 
   Widget _buildMaterialsGrid() {
     return Obx(() {
-      if (controller.isLoading.value) {
-        return _buildSkeletonLoading();
-      }
-
       final allMaterials = controller.searchMaterials(_searchQuery);
 
       if (allMaterials.isEmpty) {
@@ -334,20 +335,6 @@ class _WebMaterialsListScreenState extends State<WebMaterialsListScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSkeletonLoading() {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: WebResponsiveUtils.getGridCrossAxisCount(context),
-        crossAxisSpacing: 20,
-        mainAxisSpacing: 20,
-        mainAxisExtent: 220,
-      ),
-      itemCount: 6,
-      itemBuilder: (context, index) => const SkeletonGridItem(),
     );
   }
 }

@@ -1,6 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../../user/submit/quiz_new/quiz_controller.dart';
 import '../../../user/submit/student_submission_controller.dart';
 import '../../../shared/controllers/file_submission_controller.dart';
 import '../../widgets/submissions/web_file_upload_widget.dart';
@@ -23,14 +23,12 @@ class WebQuizDetailScreen extends StatefulWidget {
 
 class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  late QuizController controller;
   late StudentSubmissionController submissionController;
   late FileSubmissionController fileController;
 
   @override
   void initState() {
     super.initState();
-    controller = Get.find<QuizController>();
     submissionController = Get.put(StudentSubmissionController());
     fileController = Get.put(FileSubmissionController());
     _loadSubmissionData();
@@ -189,12 +187,49 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
             const SizedBox(width: 20),
             _buildInfoChip(
               Icons.calendar_today_outlined,
-              'Due: ${widget.quiz['dueDate'] ?? 'No date'}',
+              'Due: ${_getDueDateFormatted(widget.quiz['dueDate'])}',
             ),
           ],
         ),
       ],
     );
+  }
+
+  String _getDueDateFormatted(dynamic dueDate) {
+    if (dueDate == null) return 'No due date';
+    try {
+      DateTime? date;
+      if (dueDate is Timestamp) {
+        date = dueDate.toDate();
+      } else if (dueDate is DateTime) {
+        date = dueDate;
+      } else if (dueDate is String) {
+        // Already formatted by controller — pass through
+        if (dueDate.contains('AM') || dueDate.contains('PM')) return dueDate;
+        date = DateTime.tryParse(dueDate);
+      }
+      if (date == null) return dueDate.toString();
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final ampm = date.hour < 12 ? 'AM' : 'PM';
+      return '${months[date.month - 1]} ${date.day}, ${date.year} $hour:$minute $ampm';
+    } catch (_) {
+      return dueDate.toString();
+    }
   }
 
   Widget _buildInfoChip(IconData icon, String label) {

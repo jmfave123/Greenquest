@@ -10,7 +10,7 @@ class PitController extends GetxController {
 
   // Observable variables
   final RxList<Map<String, dynamic>> pits = <Map<String, dynamic>>[].obs;
-  final RxBool isLoading = false.obs;
+  final RxBool isLoading = true.obs;
   final RxString errorMessage = ''.obs;
   final RxString currentInstructorUid = ''.obs;
   final RxString currentInstructorName = ''.obs;

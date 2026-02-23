@@ -8,7 +8,7 @@ class MaterialsListScreenController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Observable variables
-  var isLoading = false.obs;
+  var isLoading = true.obs;
   var materials = <Map<String, dynamic>>[].obs;
   var errorMessage = ''.obs;
   var currentInstructorUid = ''.obs;
@@ -46,73 +46,64 @@ class MaterialsListScreenController extends GetxController {
     try {
       print('🔍 Loading current instructor materials...');
 
-      // Check if user is authenticated with valid token
       final user = _auth.currentUser;
       print('👤 Current user: ${user?.uid}');
 
-      if (user != null) {
-        // Refresh user to ensure token is valid
-        await user.reload();
-        final refreshedUser = _auth.currentUser;
-        print('🔄 Refreshed user: ${refreshedUser?.uid}');
-
-        if (refreshedUser != null) {
-          // Check if user has selected an instructor
-          final selectedInstructor = await _getSelectedInstructor(
-            refreshedUser.uid,
-          );
-
-          if (selectedInstructor != null &&
-              selectedInstructor['instructorId'] != null) {
-            // Load materials from the selected instructor
-            final instructorId = selectedInstructor['instructorId'].toString();
-            final instructorName =
-                selectedInstructor['instructorName']?.toString() ??
-                'Unknown Instructor';
-
-            print(
-              '✅ User has selected instructor: $instructorName (ID: $instructorId)',
-            );
-            currentInstructorUid.value = instructorId;
-            currentInstructorName.value = instructorName;
-
-            // Get user's section code for filtering
-            final sectionCode = await _getUserSectionCode();
-            userSectionCode.value = sectionCode ?? '';
-            await loadMaterialsByInstructorUidWithSectionFilter(
-              instructorId,
-              sectionCode,
-            );
-          } else {
-            // No instructor selected, load all materials
-            print('⚠️ No instructor selected, loading all materials');
-            currentInstructorUid.value = '';
-            currentInstructorName.value = '';
-            // Get user's section code for filtering
-            final sectionCode = await _getUserSectionCode();
-            userSectionCode.value = sectionCode ?? '';
-            await loadMaterialsWithSectionFilter(sectionCode);
-          }
-        } else {
-          // Token expired, load all materials as fallback
-          print('⚠️ User token expired, loading all materials');
-          currentInstructorUid.value = '';
-          currentInstructorName.value = '';
-          await loadMaterials();
-        }
-      } else {
-        // If no user is logged in, load all materials as fallback
+      if (user == null) {
         print('⚠️ No user logged in, loading all materials');
+        await loadMaterials();
+        return;
+      }
+
+      // Single Firestore read — extract both instructor selection and section code
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+
+      String? instructorId;
+      String? instructorName;
+      String? sectionCode;
+
+      if (userDoc.exists) {
+        final userData = userDoc.data()!;
+        final selectionComplete = userData['selectionComplete'] ?? false;
+        final rawInstructorId = userData['selectedInstructorId']?.toString();
+
+        if (selectionComplete &&
+            rawInstructorId != null &&
+            rawInstructorId.isNotEmpty) {
+          instructorId = rawInstructorId;
+          instructorName =
+              userData['selectedInstructorName']?.toString() ??
+              'Unknown Instructor';
+        }
+
+        sectionCode = userData['selectedSectionCode']?.toString();
+      }
+
+      userSectionCode.value = sectionCode ?? '';
+
+      if (instructorId != null) {
+        print(
+          '✅ User has selected instructor: $instructorName (ID: $instructorId)',
+        );
+        currentInstructorUid.value = instructorId;
+        currentInstructorName.value = instructorName ?? 'Unknown Instructor';
+        await loadMaterialsByInstructorUidWithSectionFilter(
+          instructorId,
+          sectionCode,
+        );
+      } else {
+        print('⚠️ No instructor selected, loading all materials');
         currentInstructorUid.value = '';
         currentInstructorName.value = '';
-        await loadMaterials();
+        await loadMaterialsWithSectionFilter(sectionCode);
       }
     } catch (e) {
       print('❌ Error loading current instructor materials: $e');
-      // Fallback to loading all materials
       currentInstructorUid.value = '';
       currentInstructorName.value = '';
       await loadMaterials();
+    } finally {
+      isLoading.value = false;
     }
   }
 

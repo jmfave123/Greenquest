@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import '../../../shared/services/file_download_service.dart';
-import '../../../shared/utils/file_type_utils.dart';
 import '../../config/web_theme.dart';
+import 'web_attachment_item_widget.dart';
 
-/// Reusable widget to display instructor-attached files
-/// Shows file icons, names, types, and download functionality
+/// Displays a titled list of instructor-attached files.
+///
+/// Each item is rendered by [WebAttachmentItemWidget] which handles
+/// preview and download actions via [AttachmentActionHelper].
+///
+/// Accepts attachments as either:
+/// - `String` — a raw Cloudinary/Firebase URL
+/// - `Map`    — a map with `name`, `url`, and `type` keys
 class WebInstructorAttachmentsWidget extends StatelessWidget {
   final List<dynamic> attachments;
   final String title;
@@ -18,9 +22,7 @@ class WebInstructorAttachmentsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (attachments.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    if (attachments.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,147 +37,58 @@ class WebInstructorAttachmentsWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        ...attachments.map((file) => _buildFileItem(context, file)),
+        ...attachments.map((file) {
+          final parsed = _parseAttachment(file);
+          return WebAttachmentItemWidget(
+            fileName: parsed.name,
+            fileUrl: parsed.url,
+            fileType: parsed.type,
+          );
+        }),
       ],
     );
   }
 
-  Widget _buildFileItem(BuildContext context, dynamic file) {
-    String fileName;
-    String fileUrl;
-    String fileType;
+  // ---------------------------------------------------------------------------
+  // Parsing — converts raw Firebase/Cloudinary data into typed fields
+  // ---------------------------------------------------------------------------
 
-    if (file is String) {
-      // Handle URL strings (from Firebase)
-      fileUrl = file;
-      // Extract filename from Cloudinary URL
-      final uri = Uri.parse(fileUrl);
-      final pathSegments = uri.pathSegments;
-      if (pathSegments.isNotEmpty) {
-        // Get the last segment (filename with extension)
-        final lastSegment = pathSegments.last;
-        fileName = Uri.decodeComponent(lastSegment);
-        // Extract file extension
-        final dotIndex = fileName.lastIndexOf('.');
-        if (dotIndex != -1) {
-          fileType = fileName.substring(dotIndex + 1);
-        } else {
-          fileType = 'file';
-        }
-      } else {
-        fileName = 'Attachment';
-        fileType = 'file';
-      }
-    } else if (file is Map) {
-      // Handle file objects
-      fileName = file['name'] ?? 'File';
-      fileUrl = file['url'] ?? '';
-      fileType = file['type'] ?? 'unknown';
-    } else {
-      fileName = 'File';
-      fileUrl = '';
-      fileType = 'unknown';
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: WebTheme.backgroundLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: WebTheme.borderLight),
-      ),
-      child: Row(
-        children: [
-          _getFileIcon(fileType),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fileName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  fileType.toUpperCase(),
-                  style: const TextStyle(
-                    color: WebTheme.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed:
-                () => _handleFileDownload(context, fileUrl, fileName, fileType),
-            icon: const Icon(
-              Icons.file_download_outlined,
-              color: WebTheme.primaryGreen,
-            ),
-            tooltip: 'Download',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _getFileIcon(String type) {
-    IconData icon;
-    Color color;
-
-    final lowerType = type.toLowerCase();
-    if (lowerType.contains('pdf')) {
-      icon = Icons.picture_as_pdf;
-      color = Colors.red.shade400;
-    } else if (lowerType.contains('doc') || lowerType.contains('text')) {
-      icon = Icons.description;
-      color = Colors.blue.shade400;
-    } else if (FileTypeUtils.isImageFile(lowerType)) {
-      icon = Icons.image;
-      color = Colors.purple.shade400;
-    } else {
-      icon = Icons.insert_drive_file;
-      color = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-
-  void _handleFileDownload(
-    BuildContext context,
-    String url,
-    String name,
-    String type,
-  ) {
-    if (url.isEmpty) {
-      Get.snackbar(
-        'Error',
-        'Invalid file URL',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+  _AttachmentData _parseAttachment(dynamic file) {
+    if (file is String) return _parseFromUrl(file);
+    if (file is Map) {
+      return _AttachmentData(
+        name: file['name'] as String? ?? 'File',
+        url: file['url'] as String? ?? '',
+        type: file['type'] as String? ?? 'unknown',
       );
-      return;
     }
-
-    FileDownloadService.handleFileAction(
-      fileUrl: url,
-      fileName: name,
-      fileType: type,
-      context: context,
-    );
+    return const _AttachmentData(name: 'File', url: '', type: 'unknown');
   }
+
+  _AttachmentData _parseFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.pathSegments.isEmpty) {
+      return _AttachmentData(name: 'Attachment', url: url, type: 'file');
+    }
+    final lastSegment = Uri.decodeComponent(uri.pathSegments.last);
+    final dotIndex = lastSegment.lastIndexOf('.');
+    final ext = dotIndex != -1 ? lastSegment.substring(dotIndex + 1) : 'file';
+    return _AttachmentData(name: lastSegment, url: url, type: ext);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Internal value object — keeps parsing results typed and immutable
+// -----------------------------------------------------------------------------
+
+class _AttachmentData {
+  final String name;
+  final String url;
+  final String type;
+
+  const _AttachmentData({
+    required this.name,
+    required this.url,
+    required this.type,
+  });
 }
