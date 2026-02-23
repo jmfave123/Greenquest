@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:universal_html/html.dart' as html;
 import 'package:url_launcher/url_launcher.dart';
 import '../../../shared/services/file_download_service.dart';
 import '../../../shared/utils/file_type_utils.dart';
@@ -120,6 +122,11 @@ class AttachmentActionHelper {
   }
 
   static Future<void> _openInBrowser(String url) async {
+    if (kIsWeb) {
+      html.window.open(url, '_blank');
+      return;
+    }
+    // Mobile / desktop
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);

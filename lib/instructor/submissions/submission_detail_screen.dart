@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
@@ -185,24 +184,6 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
         margin: const EdgeInsets.all(16),
       ),
     );
-  }
-
-  String _formatSubmissionDate(dynamic submittedAt) {
-    if (submittedAt == null) return 'Unknown';
-
-    try {
-      if (submittedAt is Timestamp) {
-        final date = submittedAt.toDate();
-        return '${date.day}/${date.month}/${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-      } else if (submittedAt is String) {
-        final date = DateTime.parse(submittedAt);
-        return '${date.day}/${date.month}/${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-      }
-    } catch (e) {
-      return 'Invalid date';
-    }
-
-    return 'Unknown';
   }
 
   Color _getFileTypeColor(String type) {
@@ -682,7 +663,7 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Submitted: ${_formatSubmissionDate(widget.submissionData['submittedAt'])}',
+                      'Submitted: ${submissionsController.formatSubmissionDate(widget.submissionData['submittedAt'])}',
                       style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                   ],

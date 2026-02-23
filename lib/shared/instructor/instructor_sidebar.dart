@@ -521,6 +521,7 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeInOut,
+              width: double.infinity,
               decoration: BoxDecoration(
                 color: bgColor,
                 borderRadius: BorderRadius.circular(8),
@@ -528,25 +529,27 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: SafeAssetImage(
-                      key: ValueKey(fgColor.value),
-                      assetPath: widget.item.iconPath,
-                      width: 22,
-                      color: fgColor,
-                    ),
+                  SafeAssetImage(
+                    assetPath: widget.item.iconPath,
+                    width: 22,
+                    color: fgColor,
                   ),
                   const SizedBox(width: 12),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeInOut,
-                    style: TextStyle(
-                      color: fgColor,
-                      fontWeight: (active) ? FontWeight.w600 : FontWeight.w500,
-                      fontSize: 15,
+                  Expanded(
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeInOut,
+                      style: TextStyle(
+                        color: fgColor,
+                        fontWeight:
+                            (active) ? FontWeight.w600 : FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                      child: Text(
+                        widget.item.label,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Text(widget.item.label),
                   ),
                 ],
               ),

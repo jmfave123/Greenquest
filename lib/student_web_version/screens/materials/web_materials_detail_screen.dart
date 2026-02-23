@@ -1,29 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../../shared/services/file_download_service.dart';
-import '../../../shared/utils/file_type_utils.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
 import '../../widgets/layout/web_app_bar.dart';
 import '../../widgets/layout/web_sidebar.dart';
+import '../../widgets/submissions/web_attachment_item_widget.dart';
 
-class WebMaterialsDetailScreen extends StatelessWidget {
+class WebMaterialsDetailScreen extends StatefulWidget {
   final Map<String, dynamic> material;
 
   const WebMaterialsDetailScreen({super.key, required this.material});
 
   @override
+  State<WebMaterialsDetailScreen> createState() =>
+      _WebMaterialsDetailScreenState();
+}
+
+class _WebMaterialsDetailScreenState extends State<WebMaterialsDetailScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // Expose material from widget for the helper methods below
+  Map<String, dynamic> get material => widget.material;
+
+  @override
   Widget build(BuildContext context) {
     final isDesktop = WebResponsiveUtils.isDesktop(context);
-    final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
     return Scaffold(
-      key: scaffoldKey,
+      key: _scaffoldKey,
       appBar: WebAppBar(
         title: 'Material Details',
         onMenuPressed:
-            isDesktop ? null : () => scaffoldKey.currentState?.openDrawer(),
+            isDesktop ? null : () => _scaffoldKey.currentState?.openDrawer(),
       ),
       drawer:
           !isDesktop
@@ -238,116 +247,46 @@ class WebMaterialsDetailScreen extends StatelessWidget {
               style: TextStyle(color: WebTheme.textSecondary, fontSize: 14),
             )
           else
-            ...attachments.map((file) => _buildFileItem(context, file)),
+            ...attachments.map((file) {
+              // Firestore returns Map<Object?, Object?> — use toString() for safe access.
+              // Materials store full {name, url, type} Maps; old data may be URL strings.
+              String fileName;
+              String fileUrl;
+              String fileType;
+
+              if (file is Map) {
+                fileName = file['name']?.toString() ?? '';
+                fileUrl = file['url']?.toString() ?? '';
+                fileType = file['type']?.toString() ?? 'unknown';
+                // Fallback for Maps where name was not stored
+                if (fileName.isEmpty) {
+                  final seg =
+                      Uri.tryParse(fileUrl)?.pathSegments.lastOrNull ?? '';
+                  fileName =
+                      Uri.decodeComponent(seg).isNotEmpty
+                          ? Uri.decodeComponent(seg)
+                          : 'Attachment';
+                }
+              } else {
+                // Old format: plain URL string — extract what we can
+                fileUrl = file.toString();
+                final uri = Uri.tryParse(fileUrl);
+                final seg = uri?.pathSegments.lastOrNull ?? '';
+                final decoded = Uri.decodeComponent(seg);
+                final dotIdx = decoded.lastIndexOf('.');
+                fileType =
+                    dotIdx != -1 ? decoded.substring(dotIdx + 1) : 'file';
+                fileName = decoded.isNotEmpty ? decoded : 'Attachment';
+              }
+
+              return WebAttachmentItemWidget(
+                fileName: fileName,
+                fileUrl: fileUrl,
+                fileType: fileType,
+              );
+            }),
         ],
       ),
-    );
-  }
-
-  Widget _buildFileItem(BuildContext context, dynamic file) {
-    final fileName = file is Map ? (file['name'] ?? 'File') : 'File';
-    final fileUrl = file is Map ? (file['url'] ?? '') : '';
-    final fileType = file is Map ? (file['type'] ?? 'unknown') : 'unknown';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: WebTheme.backgroundLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: WebTheme.borderLight),
-      ),
-      child: Row(
-        children: [
-          _getFileIcon(fileType),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fileName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  fileType.toUpperCase(),
-                  style: const TextStyle(
-                    color: WebTheme.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed:
-                () => _handleFileDownload(context, fileUrl, fileName, fileType),
-            icon: const Icon(
-              Icons.file_download_outlined,
-              color: WebTheme.primaryGreen,
-            ),
-            tooltip: 'Download',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _getFileIcon(String type) {
-    IconData icon;
-    Color color;
-
-    final lowerType = type.toLowerCase();
-    if (lowerType.contains('pdf')) {
-      icon = Icons.picture_as_pdf;
-      color = Colors.red.shade400;
-    } else if (lowerType.contains('doc') || lowerType.contains('text')) {
-      icon = Icons.description;
-      color = Colors.blue.shade400;
-    } else if (FileTypeUtils.isImageFile(lowerType)) {
-      icon = Icons.image;
-      color = Colors.purple.shade400;
-    } else {
-      icon = Icons.insert_drive_file;
-      color = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-
-  void _handleFileDownload(
-    BuildContext context,
-    String url,
-    String name,
-    String type,
-  ) {
-    if (url.isEmpty) {
-      Get.snackbar(
-        'Error',
-        'Invalid file URL',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    FileDownloadService.handleFileAction(
-      fileUrl: url,
-      fileName: name,
-      fileType: type,
-      context: context,
     );
   }
 }

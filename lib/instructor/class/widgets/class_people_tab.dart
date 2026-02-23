@@ -782,18 +782,52 @@ class _ClassPeopleTabState extends State<ClassPeopleTab> {
     }
   }
 
-  /// Format enrollment date
+  /// Format enrollment date — matches canonical format used across the instructor side
+  /// Output: "Jan 15, 2024 10:30 AM"
   String _formatEnrollmentDate(dynamic timestamp) {
     if (timestamp == null) return 'Unknown';
 
     try {
+      DateTime? date;
+
       if (timestamp is DateTime) {
-        return '${timestamp.month}/${timestamp.day}/${timestamp.year}';
+        date = timestamp;
       } else if (timestamp is Timestamp) {
-        final dateTime = timestamp.toDate();
-        return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
+        date = timestamp.toDate();
+      } else if (timestamp is String) {
+        date = DateTime.parse(timestamp);
       }
-      return 'Recently enrolled';
+
+      if (date == null) return 'Unknown';
+
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+
+      final month = months[date.month - 1];
+      final day = date.day;
+      final year = date.year;
+      int hour = date.hour;
+      final minute = date.minute.toString().padLeft(2, '0');
+      final ampm = hour >= 12 ? 'PM' : 'AM';
+      if (hour == 0) {
+        hour = 12;
+      } else if (hour > 12) {
+        hour -= 12;
+      }
+
+      return '$month $day, $year $hour:$minute $ampm';
     } catch (e) {
       return 'Unknown';
     }

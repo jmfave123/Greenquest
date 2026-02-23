@@ -421,7 +421,7 @@ class _InstructorReportScreenState extends State<InstructorReportScreen> {
                                                         ),
                                                         Flexible(
                                                           child: Text(
-                                                            '${c['students']} Students',
+                                                            '${c['students']} Student/s',
                                                             style:
                                                                 const TextStyle(
                                                                   fontSize: 13,
@@ -432,24 +432,9 @@ class _InstructorReportScreenState extends State<InstructorReportScreen> {
                                                           ),
                                                         ),
                                                         const Spacer(),
-                                                        const Icon(
-                                                          Icons.circle,
-                                                          size: 10,
-                                                          color: Color(
-                                                            0xFF34A853,
-                                                          ),
-                                                        ),
+
                                                         const SizedBox(
                                                           width: 4,
-                                                        ),
-                                                        const Text(
-                                                          'Active',
-                                                          style: TextStyle(
-                                                            color: Color(
-                                                              0xFF34A853,
-                                                            ),
-                                                            fontSize: 12,
-                                                          ),
                                                         ),
                                                       ],
                                                     ),

@@ -505,7 +505,7 @@ class _ClassClassworkTabState extends State<ClassClassworkTab> {
                   Row(
                     children: [
                       Text(
-                        'Submitted: ${_formatSubmissionDate(submittedAt)}',
+                        'Submitted: ${widget.submissionsController.formatSubmissionDate(submittedAt)}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
@@ -914,34 +914,6 @@ class _ClassClassworkTabState extends State<ClassClassworkTab> {
         return Colors.orange;
       default:
         return Colors.grey;
-    }
-  }
-
-  /// Format submission date
-  String _formatSubmissionDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown';
-
-    try {
-      DateTime? dateTime;
-
-      if (timestamp is String) {
-        // Try to parse the string timestamp
-        dateTime = DateTime.parse(timestamp);
-      } else if (timestamp is DateTime) {
-        dateTime = timestamp;
-      } else if (timestamp is Timestamp) {
-        dateTime = timestamp.toDate();
-      } else {
-        return 'Recently submitted';
-      }
-
-      return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
-    } catch (e) {
-      _logger.warning(
-        'Error formatting submission date',
-        context: {'error': e.toString()},
-      );
-      return 'Recently submitted';
     }
   }
 }
