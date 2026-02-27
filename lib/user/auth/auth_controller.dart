@@ -15,8 +15,9 @@ class AuthController extends GetxController {
     String phoneNumber,
     String email,
     String idNumber,
-    String password,
-  ) async {
+    String password, {
+    String nstpComponent = '',
+  }) async {
     try {
       // Check if student ID number already exists
       final querySnapshot =
@@ -42,6 +43,7 @@ class AuthController extends GetxController {
         'phoneNumber': phoneNumber,
         'email': email,
         'idNumber': idNumber,
+        'nstpComponent': nstpComponent,
         'createdAt': FieldValue.serverTimestamp(),
         'role': 'user',
         'isVerified': false,

@@ -50,6 +50,8 @@ dependencies:
   gal: ^2.3.2
   universal_html: ^2.2.4
   syncfusion_flutter_xlsio: ^25.1.35  # Excel export functionality
+  pdf: ^3.11.0               # PDF generation
+  printing: ^5.13.1          # PDF preview / share / save
   flutter_launcher_icons: "^0.13.1" # Add this line
   syncfusion_flutter_datagrid: ^25.2.7
   shimmer: ^3.0.0

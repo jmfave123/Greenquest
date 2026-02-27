@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:greenquest/instructor/planted_trees/planted_trees_screen_controller.dart';
+import 'nstp_form_widget.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
@@ -54,6 +55,70 @@ class _InstructorPlantedTreesScreenState
     });
   }
 
+  void _showNstpFormPreview(BuildContext context, Map<String, dynamic> row) {
+    // Build a data map compatible with NstpFormWidget from the tree row data.
+    // Fields like treeNames/nstpComponent may not exist yet on old submissions.
+    final formData = <String, dynamic>{
+      'studentName': row['by'] ?? '',
+      'sectionName': '',
+      'nstpComponent': row['nstpComponent'] ?? '',
+      'quantity': row['quantity'] ?? 0,
+      'treeNames': row['treeNames'] ?? <String>[row['name'] ?? ''],
+      'location': row['location'] ?? '',
+      // Build a synthetic Timestamp from the date string if needed
+      'submittedAt': null,
+    };
+
+    showDialog(
+      context: context,
+      builder:
+          (_) => Dialog(
+            backgroundColor: Colors.white,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 32,
+              vertical: 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Dialog title bar
+                Container(
+                  color: const Color(0xFF1A237E),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'NSTP Monitoring Form Preview',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                // Scrollable form
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: NstpFormWidget(data: formData),
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,6 +170,43 @@ class _InstructorPlantedTreesScreenState
                                 ),
                                 Row(
                                   children: [
+                                    // ── NSTP Form preview button ──────────
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF1A237E,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 22,
+                                          vertical: 16,
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        // Open NSTP form with blank/demo data
+                                        // so you can see the layout immediately.
+                                        // Real per-student data is passed when
+                                        // clicking the row-level document icon.
+                                        _showNstpFormPreview(context, {});
+                                      },
+                                      icon: const Icon(
+                                        Icons.description_outlined,
+                                        color: Colors.white,
+                                      ),
+                                      label: const Text(
+                                        'Preview NSTP Form',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // ── Register Tree button ──────────────
                                     ElevatedButton.icon(
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(
@@ -388,6 +490,23 @@ class _InstructorPlantedTreesScreenState
                                                                 r,
                                                               );
                                                             },
+                                                          ),
+                                                          IconButton(
+                                                            tooltip:
+                                                                'Generate NSTP Form',
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .description_outlined,
+                                                              color: Color(
+                                                                0xFF1A237E,
+                                                              ),
+                                                            ),
+                                                            onPressed:
+                                                                () =>
+                                                                    _showNstpFormPreview(
+                                                                      context,
+                                                                      r,
+                                                                    ),
                                                           ),
                                                           IconButton(
                                                             icon: const Icon(

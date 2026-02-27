@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:greenquest/core/utils/app_logger.dart';
 
 class TreePlantingController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -19,11 +20,20 @@ class TreePlantingController extends GetxController {
     loadMyTreeSubmissions();
   }
 
-  /// Submit tree planting with evidence
+  /// Submits a tree planting activity record.
+  ///
+  /// [quantity] — number of trees planted.
+  /// [plantDate] — ISO date string (yyyy-MM-dd).
+  /// [location] — place where trees were planted.
+  /// [treeNames] — names of trees planted (up to 5 entries).
+  /// [uploadedFiles] — Cloudinary upload metadata for photo evidence.
+  ///
+  /// Returns `true` on success, `false` on failure.
   Future<bool> submitTreePlanting({
     required int quantity,
     required String plantDate,
     required String location,
+    required List<String> treeNames,
     required List<Map<String, dynamic>> uploadedFiles,
   }) async {
     try {
@@ -64,12 +74,14 @@ class TreePlantingController extends GetxController {
         'studentName':
             userData['fullName'] ?? user.displayName ?? 'Unknown Student',
         'studentIdNumber': userData['idNumber'] ?? user.uid,
+        'nstpComponent': userData['nstpComponent'] ?? '',
         'instructorId': selectedInstructorId,
         'instructorName': instructorName,
         'sectionName': selectedSectionCode,
         'quantity': quantity,
         'plantDate': Timestamp.fromDate(DateTime.parse(plantDate)),
         'location': location,
+        'treeNames': treeNames,
         'files':
             uploadedFiles
                 .map(
@@ -90,7 +102,7 @@ class TreePlantingController extends GetxController {
       // Save directly to submissions collection
       await _firestore.collection('submissions').add(submissionData);
 
-      print('✅ Tree planting submission saved successfully');
+      AppLogger('Tree planting submission saved successfully');
 
       // Reload submissions
       await loadMyTreeSubmissions();
@@ -98,7 +110,7 @@ class TreePlantingController extends GetxController {
       isSubmitting.value = false;
       return true;
     } catch (e) {
-      print('❌ Error submitting tree planting: $e');
+      AppLogger('Error submitting tree planting');
       isSubmitting.value = false;
       return false;
     }
@@ -150,7 +162,7 @@ class TreePlantingController extends GetxController {
       totalTreesPlanted.value = approvedTrees;
       isLoadingSubmissions.value = false;
     } catch (e) {
-      print('❌ Error loading tree submissions: $e');
+      AppLogger('Error loading tree submissions');
       myTreeSubmissions.value = [];
       totalTreesPlanted.value = 0;
       isLoadingSubmissions.value = false;

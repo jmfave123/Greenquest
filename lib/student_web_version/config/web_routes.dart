@@ -9,6 +9,7 @@ import '../screens/messages/web_message_list_screen.dart';
 import '../screens/profile/web_profile_screen.dart';
 import '../screens/notifications/web_announcement_list_screen.dart';
 import '../screens/pit/web_pit_list_screen.dart';
+import '../screens/plant_trees/web_plant_trees_screen.dart';
 import '../screens/auth/web_pending_approval_screen.dart';
 import '../screens/auth/web_select_instructor_screen.dart';
 import '../screens/auth/web_select_course_screen.dart';
@@ -30,6 +31,7 @@ class WebRoutes {
   static const String profile = '/student-web-profile';
   static const String announcements = '/student-web-announcements';
   static const String pits = '/student-web-pits';
+  static const String plantTrees = '/student-web-plant-trees';
   static const String login = '/student-web-login';
   static const String register = '/student-web-register';
   static const String pendingApproval = '/student-web-pending-approval';
@@ -98,6 +100,12 @@ class WebRoutes {
       GetPage(
         name: pits,
         page: () => const WebPitListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: plantTrees,
+        page: () => const WebPlantTreesScreen(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),

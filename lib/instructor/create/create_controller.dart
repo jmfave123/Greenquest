@@ -907,9 +907,6 @@ class CreateController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      print('📊 Total items loaded: ${allItems.length}');
-      print('📊 All items data: $allItems');
-
       // Only update if controller is still mounted
       if (isMounted) {
         createdItems.value = allItems;

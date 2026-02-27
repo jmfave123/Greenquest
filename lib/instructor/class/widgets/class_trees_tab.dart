@@ -9,6 +9,8 @@ import '../../../shared/widgets/custom_dialogs.dart';
 import '../../../shared/services/notify_service.dart';
 import '../../../shared/services/in_app_notification_service.dart';
 import '../../instructor_dashboard_controller.dart';
+import '../../planted_trees/nstp_form_widget.dart';
+import '../../planted_trees/nstp_pdf_export_service.dart';
 import '../class_detail_constants.dart';
 
 /// Trees Tab Widget - Shows planted trees for the class
@@ -125,11 +127,6 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
               .where('sectionName', isEqualTo: sectionName)
               .get();
 
-      _logger.success(
-        'Tree submissions loaded',
-        context: {'count': snapshot.docs.length},
-      );
-
       final trees =
           snapshot.docs.map((doc) {
             final data = doc.data();
@@ -143,6 +140,9 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
               'plantDate': data['plantDate'] ?? '',
               'quantity': data['quantity'] ?? 1,
               'location': data['location'] ?? '',
+              'sectionName': data['sectionName'] ?? '',
+              'nstpComponent': data['nstpComponent'] ?? '',
+              'treeNames': data['treeNames'] ?? <String>[],
               'status': data['status'] ?? ClassDetailConstants.statusSubmitted,
               'feedback': data['feedback'],
               'files': data['files'] ?? [],
@@ -285,6 +285,40 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
             const SizedBox(height: 12),
             _buildActionButtons(tree),
           ],
+
+          // NSTP Form button — always visible on student submissions
+          if (isStudentSubmission) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: () async => _showNstpFormDialog(tree),
+                icon: const Icon(
+                  Icons.description_outlined,
+                  size: 16,
+                  color: Color(0xFF1A237E),
+                ),
+                label: const Text(
+                  'NSTP Form',
+                  style: TextStyle(
+                    color: Color(0xFF1A237E),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF1A237E)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -400,13 +434,64 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
               children: [
                 const Icon(Icons.location_on, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
-                Text(
-                  tree['location'],
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                Expanded(
+                  child: Text(
+                    tree['location'],
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
           ],
+          // Tree species names
+          Builder(
+            builder: (_) {
+              final treeNames = tree['treeNames'];
+              final names =
+                  treeNames is List
+                      ? treeNames
+                          .map((e) => e.toString())
+                          .where((s) => s.isNotEmpty)
+                          .toList()
+                      : <String>[];
+              if (names.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Icon(Icons.park, size: 13, color: Color(0xFF388E3C)),
+                    ...names.asMap().entries.map(
+                      (e) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF388E3C).withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF388E3C).withOpacity(0.35),
+                          ),
+                        ),
+                        child: Text(
+                          '${e.key + 1}. ${e.value}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF2E7D32),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ] else
           Text(
             'Planted by: ${tree['plantedBy']}',
@@ -555,6 +640,151 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
           Expanded(child: Text(feedback, style: const TextStyle(fontSize: 13))),
         ],
       ),
+    );
+  }
+
+  /// Opens the NSTP monitoring form dialog.
+  /// If [tree] is missing nstpComponent or treeNames (old submissions),
+  /// falls back to fetching them live from the users collection.
+  Future<void> _showNstpFormDialog(Map<String, dynamic> tree) async {
+    final studentId = tree['studentId'] as String? ?? '';
+
+    // Show a brief loading indicator while resolving missing fields.
+    String nstpComponent = (tree['nstpComponent'] as String? ?? '').trim();
+    List<String> treeNames =
+        (tree['treeNames'] is List)
+            ? List<String>.from(tree['treeNames'] as List)
+            : <String>[];
+
+    // Fallback: fetch from users collection if fields are missing.
+    if ((nstpComponent.isEmpty || treeNames.isEmpty) && studentId.isNotEmpty) {
+      try {
+        final userDoc =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(studentId)
+                .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data()!;
+          if (nstpComponent.isEmpty) {
+            nstpComponent = (userData['nstpComponent'] as String? ?? '').trim();
+          }
+          if (treeNames.isEmpty && userData['treeNames'] is List) {
+            treeNames = List<String>.from(userData['treeNames'] as List);
+          }
+        }
+      } catch (e) {
+        _logger.warning('Could not fetch user fallback data: $e');
+      }
+    }
+
+    final formData = <String, dynamic>{
+      'studentName': tree['studentName'] ?? '',
+      'sectionName': tree['sectionName'] ?? '',
+      'nstpComponent': nstpComponent,
+      'quantity': tree['quantity'] ?? 0,
+      'treeNames': treeNames,
+      'location': tree['location'] ?? '',
+      'submittedAt': tree['submittedAt'],
+      'files': tree['files'] ?? <dynamic>[],
+    };
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => Dialog(
+            backgroundColor: Colors.white,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 16,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title bar
+                  Container(
+                    color: const Color(0xFF1A237E),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'NSTP Monitoring Form',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        // Export PDF button
+                        TextButton.icon(
+                          onPressed: () async {
+                            try {
+                              await NstpPdfExportService.exportToPdf(formData);
+                            } catch (e) {
+                              if (dialogContext.mounted) {
+                                ScaffoldMessenger.of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Failed to export PDF.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.picture_as_pdf,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          label: const Text(
+                            'Export PDF',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.15),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Scrollable form
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: NstpFormWidget(data: formData),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
     );
   }
 

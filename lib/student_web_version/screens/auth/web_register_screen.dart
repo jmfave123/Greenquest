@@ -5,6 +5,7 @@ import 'package:greenquest/shared/login/login_screen.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import '../../../shared/widgets/safe_asset_image.dart';
+import '../../../admin/services/nstp_component_service.dart';
 
 class WebRegisterScreen extends StatefulWidget {
   const WebRegisterScreen({super.key});
@@ -24,6 +25,31 @@ class _WebRegisterScreenState extends State<WebRegisterScreen> {
   final RxBool isLoading = false.obs;
   final RxBool isPasswordVisible = false.obs;
   final RxBool agreeTerms = false.obs;
+
+  final NstpComponentService _componentService = NstpComponentService();
+  final RxList<String> nstpComponents = <String>[].obs;
+  final RxBool isLoadingComponents = true.obs;
+  final RxnString selectedNstpComponent = RxnString();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNstpComponents();
+  }
+
+  Future<void> _loadNstpComponents() async {
+    isLoadingComponents.value = true;
+    try {
+      final components = await _componentService.getActiveComponents();
+      nstpComponents.assignAll(
+        components.map((c) => c['name'] as String).toList(),
+      );
+    } catch (e) {
+      // Silently ignore — user will see empty dropdown
+    } finally {
+      isLoadingComponents.value = false;
+    }
+  }
 
   Future<void> _register() async {
     if (!agreeTerms.value) {
@@ -59,6 +85,12 @@ class _WebRegisterScreenState extends State<WebRegisterScreen> {
       return;
     }
 
+    if (selectedNstpComponent.value == null ||
+        selectedNstpComponent.value!.isEmpty) {
+      showErrorSnackBar(context, message: 'Please select your NSTP component');
+      return;
+    }
+
     isLoading.value = true;
     try {
       final res = await authController.registerUser(
@@ -67,6 +99,7 @@ class _WebRegisterScreenState extends State<WebRegisterScreen> {
         emailController.text,
         idController.text,
         passwordController.text,
+        nstpComponent: selectedNstpComponent.value ?? '',
       );
       if (res['success']) {
         showInfoSnackBar(context, message: res['message']);
@@ -214,6 +247,86 @@ class _WebRegisterScreenState extends State<WebRegisterScreen> {
                   ],
                 ),
                 _buildPasswordField(hint: 'At least 8 characters'),
+                const SizedBox(height: 20),
+                // NSTP Component dropdown
+                Obx(() {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'NSTP Component',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      isLoadingComponents.value
+                          ? Container(
+                            height: 48,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Center(
+                              child: SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF34A853),
+                                ),
+                              ),
+                            ),
+                          )
+                          : DropdownButtonFormField<String>(
+                            value: selectedNstpComponent.value,
+                            hint: const Text(
+                              'Select your NSTP component',
+                              style: TextStyle(color: Colors.black26),
+                            ),
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(
+                                Icons.account_tree_outlined,
+                                size: 20,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF34A853),
+                                  width: 2,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                            dropdownColor: Colors.white,
+                            items:
+                                nstpComponents
+                                    .map(
+                                      (name) => DropdownMenuItem(
+                                        value: name,
+                                        child: Text(name),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged:
+                                (value) => selectedNstpComponent.value = value,
+                          ),
+                    ],
+                  );
+                }),
                 const SizedBox(height: 16),
                 Obx(
                   () => Row(

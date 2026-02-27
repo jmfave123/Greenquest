@@ -52,6 +52,12 @@ class _WebSidebarState extends State<WebSidebar> {
       route: WebRoutes.pits,
     ),
     SidebarItem(
+      icon: Icons.park_outlined,
+      activeIcon: Icons.park,
+      label: 'Plant Trees',
+      route: WebRoutes.plantTrees,
+    ),
+    SidebarItem(
       icon: Icons.leaderboard_outlined,
       activeIcon: Icons.leaderboard,
       label: 'Leaderboard',

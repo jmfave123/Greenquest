@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:greenquest/components/snackbarUtils.dart';
 import 'package:greenquest/user/auth/auth_controller.dart';
 import '../../shared/widgets/safe_asset_image.dart';
+import '../../admin/services/nstp_component_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,7 +17,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool agreeTerms = false;
   bool isLoading = false;
   bool _isPasswordVisible = false;
+  String? _selectedNstpComponent;
+  List<String> _nstpComponents = [];
+  bool _isLoadingComponents = false;
   final AuthController authController = Get.put(AuthController());
+  final NstpComponentService _componentService = NstpComponentService();
   final TextEditingController fullNameController = TextEditingController();
   final TextEditingController phoneNumberController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
@@ -26,6 +31,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    _loadNstpComponents();
+  }
+
+  Future<void> _loadNstpComponents() async {
+    setState(() => _isLoadingComponents = true);
+    try {
+      final components = await _componentService.getActiveComponents();
+      setState(() {
+        _nstpComponents = components.map((c) => c['name'] as String).toList();
+      });
+    } catch (e) {
+      // Silently ignore — dropdown will remain empty and user can retry
+    } finally {
+      setState(() => _isLoadingComponents = false);
+    }
   }
 
   void _showTermsModal(BuildContext context) {
@@ -247,6 +267,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
+                    // NSTP Component dropdown
+                    _isLoadingComponents
+                        ? Container(
+                          height: 58,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF2F2F2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Center(
+                            child: SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF43A047),
+                              ),
+                            ),
+                          ),
+                        )
+                        : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF2F2F2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedNstpComponent,
+                              hint: const Text(
+                                'Select NSTP Component',
+                                style: TextStyle(color: Colors.black38),
+                              ),
+                              isExpanded: true,
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down,
+                                color: Colors.black54,
+                              ),
+                              dropdownColor: Colors.white,
+                              items:
+                                  _nstpComponents
+                                      .map(
+                                        (name) => DropdownMenuItem(
+                                          value: name,
+                                          child: Text(name),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedNstpComponent = value);
+                              },
+                            ),
+                          ),
+                        ),
+                    const SizedBox(height: 20),
                     TextField(
                       controller: passwordController,
                       obscureText: !_isPasswordVisible,
@@ -381,6 +455,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return;
                           }
 
+                          if (_selectedNstpComponent == null ||
+                              _selectedNstpComponent!.isEmpty) {
+                            showErrorSnackBar(
+                              context,
+                              message: 'Please select your NSTP component',
+                            );
+                            return;
+                          }
+
                           await _registerUser();
                         },
                         style: ElevatedButton.styleFrom(
@@ -425,6 +508,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         emailController.text,
         idNumberController.text,
         passwordController.text,
+        nstpComponent: _selectedNstpComponent ?? '',
       );
 
       setState(() {

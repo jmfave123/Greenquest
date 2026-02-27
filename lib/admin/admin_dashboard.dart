@@ -6,6 +6,7 @@ import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import 'widgets/period_management_card.dart';
+import 'widgets/nstp_component_management_card.dart';
 import '../shared/widgets/skeleton_loading.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -1211,6 +1212,9 @@ class _AdminDashboardState extends State<AdminDashboard>
                             const SizedBox(height: 24),
                             // Period Management Card
                             const PeriodManagementCard(),
+                            const SizedBox(height: 24),
+                            // NSTP Component Management Card
+                            const NstpComponentManagementCard(),
                             const SizedBox(height: 24),
                             // Search and Filter
                             Container(

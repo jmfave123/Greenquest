@@ -562,10 +562,6 @@ class SubmissionRoutingService {
   /// Gets the appropriate collection name for submission type
   /// NOTE: Now all submissions use unified 'submissions' collection
   /// This method is kept for backwards compatibility but always returns 'submissions'
-  @Deprecated('Use unified submissions collection directly')
-  static String _getSubmissionCollectionName(String submissionType) {
-    return 'submissions'; // Unified collection for all submission types
-  }
 
   /// Gets the appropriate collection name for activity type
   static String _getActivityCollectionName(String submissionType) {

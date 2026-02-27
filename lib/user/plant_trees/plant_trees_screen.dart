@@ -22,6 +22,10 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
 
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
+  final List<TextEditingController> _treeNameControllers = List.generate(
+    5,
+    (_) => TextEditingController(),
+  );
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -35,6 +39,9 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
   void dispose() {
     _quantityController.dispose();
     _locationController.dispose();
+    for (final c in _treeNameControllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -135,6 +142,11 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
         quantity: quantity,
         plantDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
         location: _locationController.text.trim(),
+        treeNames:
+            _treeNameControllers
+                .map((c) => c.text.trim())
+                .where((name) => name.isNotEmpty)
+                .toList(),
         uploadedFiles: _fileController.uploadedFiles,
       );
 
@@ -154,6 +166,9 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
         // Clear form
         _quantityController.clear();
         _locationController.clear();
+        for (final c in _treeNameControllers) {
+          c.clear();
+        }
         _selectedDate = DateTime.now();
         _fileController.clearFiles();
         setState(() {});
@@ -347,6 +362,49 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // Tree Names Section
+            const Text(
+              'Tree Names (Optional)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Enter the name of each tree species planted.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            ...List.generate(5, (index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: TextField(
+                  controller: _treeNameControllers[index],
+                  decoration: InputDecoration(
+                    labelText: 'Tree ${index + 1}',
+                    hintText: 'e.g. Narra, Molave',
+                    prefixIcon: const Icon(
+                      Icons.park,
+                      color: Color(0xFF34A853),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF34A853),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 4),
 
             // Photo Evidence Section
             const Text(

@@ -1,4 +1,3 @@
-
 /// Test the fixes for the submission routing issues
 class SubmissionRoutingTestFix {
   /// Test the course matching logic

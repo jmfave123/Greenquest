@@ -134,11 +134,7 @@ class InstructorController extends GetxController {
               .get();
 
       studentCount.value = approvedStudentsQuery.docs.length;
-      print(
-        '✅ Loaded ${studentCount.value} approved students from instructors/{instructorId}/students',
-      );
     } catch (e) {
-      print('❌ Error loading student count: $e');
       studentCount.value = 0;
     }
   }

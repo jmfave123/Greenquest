@@ -681,79 +681,6 @@ class TreeProgressService {
     return grades;
   }
 
-  /// Fetch grades from a submission collection and match to items (legacy method - kept for backwards compatibility)
-  @Deprecated('Use _fetchStudentGrades which uses unified collection')
-  Future<void> _fetchGradesFromCollection(
-    String studentId,
-    String instructorId,
-    String sectionCode,
-    String collection,
-    String idField,
-    Map<String, double> grades, {
-    String? activityType,
-  }) async {
-    // This method is deprecated but kept for backwards compatibility
-    // It now uses the unified submissions collection
-    try {
-      Query<Map<String, dynamic>> query = _firestore
-          .collection('submissions')
-          .where('studentId', isEqualTo: studentId)
-          .where('instructorId', isEqualTo: instructorId)
-          .where('sectionName', isEqualTo: sectionCode);
-
-      // Map collection to activityType if not provided
-      if (activityType == null) {
-        if (collection == 'assignment_submissions') {
-          activityType = 'assignment';
-        } else if (collection == 'activity_submissions') {
-          activityType = 'activity';
-        } else if (collection == 'quiz_submissions') {
-          activityType = 'quiz';
-        } else if (collection == 'submissions') {
-          activityType = 'pit';
-        }
-      }
-
-      // Add activityType filter
-      if (activityType != null) {
-        query = query.where('activityType', isEqualTo: activityType);
-      }
-
-      final snapshot = await query.get();
-
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>?;
-        if (data == null) continue;
-        final activityId = data['activityId'] as String?; // Unified activity ID
-        final grade = data['grade'];
-
-        if (activityId != null && grade != null && activityType != null) {
-          // Get item details to create the key
-          final itemDetails = await _getItemDetailsByActivityType(
-            activityId,
-            activityType,
-            instructorId,
-          );
-          if (itemDetails != null) {
-            final title = itemDetails['title'] as String?;
-            if (title != null) {
-              final key = _createGradeKey(title, activityId);
-              final gradeValue =
-                  (grade is num)
-                      ? grade.toDouble()
-                      : double.tryParse(grade.toString()) ?? 0.0;
-              if (gradeValue > 0) {
-                grades[key] = gradeValue;
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      print('❌ Error fetching grades from $collection: $e');
-    }
-  }
-
   /// Get item details to construct the grade key (using activityType)
   Future<Map<String, dynamic>?> _getItemDetailsByActivityType(
     String itemId,
@@ -795,30 +722,6 @@ class TreeProgressService {
       print('❌ Error getting item details for $itemId ($activityType): $e');
     }
     return null;
-  }
-
-  /// Get item details to construct the grade key (legacy method - kept for backwards compatibility)
-  @Deprecated('Use _getItemDetailsByActivityType instead')
-  Future<Map<String, dynamic>?> _getItemDetails(
-    String itemId,
-    String collection,
-    String instructorId,
-  ) async {
-    // Map collection to activityType for backwards compatibility
-    String activityType = '';
-    if (collection == 'assignment_submissions') {
-      activityType = 'assignment';
-    } else if (collection == 'activity_submissions') {
-      activityType = 'activity';
-    } else if (collection == 'quiz_submissions') {
-      activityType = 'quiz';
-    } else if (collection == 'submissions') {
-      activityType = 'pit';
-    }
-
-    if (activityType.isEmpty) return null;
-
-    return _getItemDetailsByActivityType(itemId, activityType, instructorId);
   }
 
   /// Create the grade key based on title and ID (matches class record logic)
