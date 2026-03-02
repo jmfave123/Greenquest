@@ -174,91 +174,59 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      // Get instructor's assigned semesters from their document
+      // Get instructor's assigned periods from their document
       final instructorDoc =
           await _firestore.collection('instructors').doc(user.uid).get();
 
       if (!instructorDoc.exists) {
-        print('⚠️ Instructor document not found');
+        debugPrint('⚠️ Instructor document not found');
         return;
       }
 
       final instructorData = instructorDoc.data();
-      final assignedSemesters =
-          (instructorData?['assignedSemesters'] as List<dynamic>?) ?? [];
+      final assignedPeriods =
+          (instructorData?['assignedPeriods'] as List<dynamic>?) ?? [];
 
-      if (assignedSemesters.isEmpty) {
-        print('⚠️ No assigned semesters found for instructor');
+      if (assignedPeriods.isEmpty) {
+        debugPrint('⚠️ No assigned periods found for instructor');
         _semesters = [];
         setState(() {});
         return;
       }
 
-      // Convert assigned semesters to list format
+      // Map each period to a display entry
       _semesters =
-          assignedSemesters
-              .map((sem) {
-                final semesterData = sem as Map<String, dynamic>;
+          assignedPeriods
+              .map((p) {
+                final periodData = p as Map<String, dynamic>;
+                final semesterName =
+                    periodData['semesterName'] as String? ?? '';
+                final type = periodData['type'] as String? ?? '';
+                final isActive = periodData['isActive'] as bool? ?? false;
                 return {
-                  'id': semesterData['semesterId'] as String? ?? '',
-                  'displayName': semesterData['displayName'] ?? '',
-                  'year': semesterData['year'] ?? '',
-                  'semester': semesterData['semester'] ?? '',
-                  'isActive': semesterData['isActive'] ?? true,
+                  'id': periodData['periodId'] as String? ?? '',
+                  'displayName':
+                      type.isNotEmpty
+                          ? '$semesterName — $type${isActive ? ' (Active)' : ''}'
+                          : semesterName,
+                  'isActive': isActive,
                 };
               })
               .where((s) => (s['id'] as String).isNotEmpty)
               .toList();
 
-      // Sort by year (newest first) and then by semester (1st semester first)
-      _semesters.sort((a, b) {
-        final yearA = a['year'] as String? ?? '';
-        final yearB = b['year'] as String? ?? '';
-        final semesterA = (a['semester'] as String? ?? '').toLowerCase();
-        final semesterB = (b['semester'] as String? ?? '').toLowerCase();
-
-        // First compare by year (newest first)
-        if (yearA != yearB) {
-          return yearB.compareTo(yearA); // Descending (newest first)
-        }
-
-        // Then compare by semester (1st semester comes before 2nd)
-        final isFirstA =
-            semesterA.contains('1st') ||
-            semesterA.contains('first') ||
-            semesterA == '1';
-        final isFirstB =
-            semesterB.contains('1st') ||
-            semesterB.contains('first') ||
-            semesterB == '1';
-
-        if (isFirstA && !isFirstB) {
-          return -1; // A is 1st, B is not - A comes first
-        }
-        if (!isFirstA && isFirstB) {
-          return 1; // B is 1st, A is not - B comes first
-        }
-
-        // Both are 1st or both are not 1st, compare normally
-        return semesterA.compareTo(semesterB);
-      });
-
-      // Set default to 1st semester (first in the list after sorting)
-      // If no 1st semester found, use the first semester in the list
+      // Auto-select the currently active period by default
       if (_semesters.isNotEmpty && _selectedSemesterId == null) {
-        // Try to find a 1st semester first
-        final firstSemester = _semesters.firstWhere((sem) {
-          final semester = (sem['semester'] as String? ?? '').toLowerCase();
-          return semester.contains('1st') ||
-              semester.contains('first') ||
-              semester == '1';
-        }, orElse: () => _semesters.first);
-        _selectedSemesterId = firstSemester['id'] as String;
+        final activePeriod = _semesters.firstWhere(
+          (s) => s['isActive'] == true,
+          orElse: () => _semesters.first,
+        );
+        _selectedSemesterId = activePeriod['id'] as String;
       }
 
       setState(() {});
     } catch (e) {
-      print('Error loading semesters for filter: $e');
+      debugPrint('Error loading periods for filter: $e');
     }
   }
 
@@ -306,7 +274,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           // Query items without assignedSemester or with null assignedSemester
           // Firestore doesn't support "where field is null" directly, so we need to:
           // 1. Query all items for the category and section
-          // 2. Filter out items that have assignedSemester.semesterId matching selected semester
+          // 2. Filter out items that have assignedSemester.periodId matching selected period
           Query<Map<String, dynamic>> query = _firestore
               .collection('instructors')
               .doc(user.uid)
@@ -320,12 +288,12 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
             final data = doc.data();
             final assignedSemester =
                 data['assignedSemester'] as Map<String, dynamic>?;
-            final semesterId = assignedSemester?['semesterId'] as String?;
+            final periodId = assignedSemester?['periodId'] as String?;
             final itemPeriod = data['period'] as String?;
 
-            // Include items that don't have a semester assigned (null or empty)
+            // Include items that don't have a period assigned (null or empty)
             // AND match the period filter (if specified)
-            if ((semesterId == null || semesterId.isEmpty) &&
+            if ((periodId == null || periodId.isEmpty) &&
                 (periods.isEmpty ||
                     (itemPeriod != null && periods.contains(itemPeriod)))) {
               items.add({
@@ -381,7 +349,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         assignmentsQuery = assignmentsQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -411,7 +379,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         activitiesQuery = activitiesQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -441,7 +409,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         quizzesQuery = quizzesQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -471,7 +439,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pitsQuery = pitsQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -558,7 +526,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         assignmentsQuery = assignmentsQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -588,7 +556,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         activitiesQuery = activitiesQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -618,7 +586,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         quizzesQuery = quizzesQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -648,7 +616,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pitsQuery = pitsQuery.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -730,7 +698,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         aQ = aQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -757,7 +725,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         actQ = actQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -784,7 +752,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         qQ = qQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -811,7 +779,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pQ = pQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -880,7 +848,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         aQ = aQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -907,7 +875,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         actQ = actQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -934,7 +902,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         qQ = qQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -961,7 +929,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pQ = pQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1030,7 +998,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         aQ1 = aQ1.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1055,7 +1023,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         aQ2 = aQ2.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1082,7 +1050,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         actQ1 = actQ1.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1107,7 +1075,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         actQ2 = actQ2.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1134,7 +1102,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         qQ1 = qQ1.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1159,7 +1127,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         qQ2 = qQ2.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1186,7 +1154,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pQ1 = pQ1.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1211,7 +1179,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pQ2 = pQ2.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1293,7 +1261,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         aQ = aQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1320,7 +1288,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         actQ = actQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1347,7 +1315,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         qQ = qQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1374,7 +1342,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pQ = pQ.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1449,7 +1417,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         assignmentsQuery2 = assignmentsQuery2.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1479,7 +1447,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         activitiesQuery3 = activitiesQuery3.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1509,7 +1477,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         quizzesQuery3 = quizzesQuery3.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1539,7 +1507,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pitsQuery3 = pitsQuery3.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1626,7 +1594,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         assignmentsQuery4 = assignmentsQuery4.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1656,7 +1624,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         activitiesQuery4 = activitiesQuery4.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1686,7 +1654,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         quizzesQuery4 = quizzesQuery4.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }
@@ -1716,7 +1684,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           .where('selectedClasses', arrayContains: currentSectionCode);
       if (_selectedSemesterId != null) {
         pitsQuery4 = pitsQuery4.where(
-          'assignedSemester.semesterId',
+          'assignedSemester.periodId',
           isEqualTo: _selectedSemesterId,
         );
       }

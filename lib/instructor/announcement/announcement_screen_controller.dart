@@ -663,54 +663,59 @@ class AnnouncementScreenController extends GetxController {
     return '${date.month}/${date.day}/${date.year}';
   }
 
-  /// Get instructor's assigned semester (preferably active one)
+  /// Get the currently active period that this instructor is assigned to.
+  ///
+  /// Queries the `periods` collection for the globally active period, then
+  /// verifies the instructor is assigned to it via their `assignedPeriods`
+  /// array. Returns clean period metadata to stamp on the created document,
+  /// or null if no active period assignment exists.
   Future<Map<String, dynamic>?> _getInstructorSemester(
     String instructorId,
   ) async {
     try {
+      // Step 1 – Find the globally active period
+      final activePeriodSnapshot =
+          await _firestore
+              .collection('periods')
+              .where('isActive', isEqualTo: true)
+              .limit(1)
+              .get();
+
+      if (activePeriodSnapshot.docs.isEmpty) return null;
+
+      final activePeriodDoc = activePeriodSnapshot.docs.first;
+      final activePeriodId = activePeriodDoc.id;
+      final activePeriodData = activePeriodDoc.data();
+
+      // Step 2 – Verify the instructor is assigned to this period
       final instructorDoc =
           await _firestore.collection('instructors').doc(instructorId).get();
 
-      if (!instructorDoc.exists) {
-        return null;
-      }
+      if (!instructorDoc.exists) return null;
 
-      final instructorData = instructorDoc.data();
-      final assignedSemesters =
-          (instructorData?['assignedSemesters'] as List<dynamic>?) ?? [];
+      final instructorData = instructorDoc.data() as Map<String, dynamic>;
+      final assignedPeriods =
+          (instructorData['assignedPeriods'] as List<dynamic>?) ?? [];
 
-      if (assignedSemesters.isEmpty) {
-        return null;
-      }
+      final isAssigned = assignedPeriods.any(
+        (p) =>
+            (p as Map<String, dynamic>)['periodId']?.toString() ==
+            activePeriodId,
+      );
 
-      // Prefer active semester, otherwise get the most recent one
-      Map<String, dynamic>? activeSemester;
-      Map<String, dynamic>? mostRecentSemester;
-      Timestamp? mostRecentTimestamp;
+      if (!isAssigned) return null;
 
-      for (var sem in assignedSemesters) {
-        final semesterData = sem as Map<String, dynamic>;
-        final isActive = semesterData['isActive'] ?? false;
-        final assignedAt = semesterData['assignedAt'];
-
-        if (isActive && activeSemester == null) {
-          activeSemester = semesterData;
-        }
-
-        // Track most recent by assignedAt timestamp
-        if (assignedAt is Timestamp) {
-          if (mostRecentTimestamp == null ||
-              assignedAt.compareTo(mostRecentTimestamp) > 0) {
-            mostRecentTimestamp = assignedAt;
-            mostRecentSemester = semesterData;
-          }
-        }
-      }
-
-      // Return active semester if found, otherwise most recent
-      return activeSemester ?? mostRecentSemester;
+      // Step 3 – Return period metadata to stamp on the created document
+      return {
+        'periodId': activePeriodId,
+        'semesterName': activePeriodData['semesterName'] ?? '',
+        'type': activePeriodData['type'] ?? '',
+        'isActive': true,
+      };
     } catch (e) {
-      print('Error getting instructor semester: $e');
+      debugPrint(
+        'AnnouncementController: Error getting instructor active period: $e',
+      );
       return null;
     }
   }

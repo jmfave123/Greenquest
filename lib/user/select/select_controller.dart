@@ -23,6 +23,7 @@ class SelectController extends GetxController {
   RxString selectedSectionCode = ''.obs;
   RxString studentName = ''.obs; // currently logged-in student name
   RxString searchQuery = ''.obs; // search query for instructors
+  RxString nstpComponent = ''.obs; // auto-populated from selected instructor
 
   StreamSubscription<DocumentSnapshot>? _instructorSubscription;
 
@@ -245,6 +246,7 @@ class SelectController extends GetxController {
         instructorAssignments.value = List<Map<String, dynamic>>.from(
           data['assignments'] ?? [],
         );
+        nstpComponent.value = data['nstpComponent']?.toString() ?? '';
         log('Initial load: ${instructorAssignments.length} assignments');
 
         // Sections will be loaded on-demand when departments are expanded
@@ -263,6 +265,11 @@ class SelectController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // Fetch the active period assigned to the selected instructor
+      final activePeriod = await _getInstructorActivePeriod(
+        selectedInstructorId.value,
+      );
+
       // Save user selection to Firestore (in users collection, not instructors)
       await _firestore.collection('users').doc(user.uid).update({
         'selectedInstructorId': selectedInstructorId.value,
@@ -271,6 +278,9 @@ class SelectController extends GetxController {
         'selectionComplete': true,
         'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        if (activePeriod != null) 'assignedSemester': activePeriod,
+        if (nstpComponent.value.isNotEmpty)
+          'nstpComponent': nstpComponent.value,
       });
 
       isSelectionComplete.value = true;
@@ -283,6 +293,9 @@ class SelectController extends GetxController {
         'selectionComplete': true,
         'enrollmentStatus': 'pending', // Set as pending for instructor approval
         'updatedAt': FieldValue.serverTimestamp(),
+        if (activePeriod != null) 'assignedSemester': activePeriod,
+        if (nstpComponent.value.isNotEmpty)
+          'nstpComponent': nstpComponent.value,
       });
 
       // NOTE: Students are now only created in instructors/{instructorId}/students
@@ -313,6 +326,11 @@ class SelectController extends GetxController {
       String studentPhone = userData['phoneNumber'] ?? '';
       String idNumber = userData['idNumber'] ?? '';
 
+      // Fetch the active period assigned to the selected instructor
+      final activePeriod = await _getInstructorActivePeriod(
+        selectedInstructorId.value,
+      );
+
       // Save selection and COR to user document
       await _firestore.collection('users').doc(user.uid).update({
         'selectedInstructorId': selectedInstructorId.value,
@@ -324,6 +342,9 @@ class SelectController extends GetxController {
         'corUrl': corUrl,
         'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        if (activePeriod != null) 'assignedSemester': activePeriod,
+        if (nstpComponent.value.isNotEmpty)
+          'nstpComponent': nstpComponent.value,
       });
 
       // Create student entry in instructor's students subcollection for approval
@@ -343,6 +364,9 @@ class SelectController extends GetxController {
             'enrollmentStatus': 'pending',
             'enrolledAt': FieldValue.serverTimestamp(),
             'isActive': false, // Will be set to true upon approval
+            if (activePeriod != null) 'assignedSemester': activePeriod,
+            if (nstpComponent.value.isNotEmpty)
+              'nstpComponent': nstpComponent.value,
           });
 
       isSelectionComplete.value = true;
@@ -364,6 +388,8 @@ class SelectController extends GetxController {
       await _firestore.collection('users').doc(user.uid).update({
         'selectedInstructorId': selectedInstructorId.value,
         'selectedInstructorName': selectedInstructorName.value,
+        if (nstpComponent.value.isNotEmpty)
+          'nstpComponent': nstpComponent.value,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -417,6 +443,64 @@ class SelectController extends GetxController {
     isSelectionComplete.value = false;
     selectedDepartmentId.value = '';
     selectedSectionCode.value = '';
+    nstpComponent.value = '';
+  }
+
+  /// Fetches the currently active period that the given instructor is assigned to.
+  ///
+  /// Steps:
+  ///   1. Query `periods` for the document with `isActive: true`.
+  ///   2. Verify the instructor's `assignedPeriods` array contains that period.
+  ///   3. Return `{ periodId, semesterName, type, isActive }` or null.
+  Future<Map<String, dynamic>?> _getInstructorActivePeriod(
+    String instructorId,
+  ) async {
+    try {
+      if (instructorId.isEmpty) return null;
+
+      // Step 1 – Find the globally active period
+      final activePeriodSnapshot =
+          await _firestore
+              .collection('periods')
+              .where('isActive', isEqualTo: true)
+              .limit(1)
+              .get();
+
+      if (activePeriodSnapshot.docs.isEmpty) return null;
+
+      final activePeriodDoc = activePeriodSnapshot.docs.first;
+      final activePeriodId = activePeriodDoc.id;
+      final activePeriodData = activePeriodDoc.data();
+
+      // Step 2 – Verify the instructor is assigned to this period
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(instructorId).get();
+
+      if (!instructorDoc.exists) return null;
+
+      final instructorData = instructorDoc.data() as Map<String, dynamic>;
+      final assignedPeriods =
+          (instructorData['assignedPeriods'] as List<dynamic>?) ?? [];
+
+      final isAssigned = assignedPeriods.any(
+        (p) =>
+            (p as Map<String, dynamic>)['periodId']?.toString() ==
+            activePeriodId,
+      );
+
+      if (!isAssigned) return null;
+
+      // Step 3 – Return clean period metadata
+      return {
+        'periodId': activePeriodId,
+        'semesterName': activePeriodData['semesterName'] ?? '',
+        'type': activePeriodData['type'] ?? '',
+        'isActive': true,
+      };
+    } catch (e) {
+      log('SelectController: Error getting instructor active period: $e');
+      return null;
+    }
   }
 
   // Method to manually enroll student if they completed selection but weren't enrolled

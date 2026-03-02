@@ -97,6 +97,8 @@ class TreePlantingController extends GetxController {
         'submittedAt': FieldValue.serverTimestamp(),
         'status': 'submitted',
         'feedback': null,
+        if (userData['assignedSemester'] != null)
+          'assignedSemester': userData['assignedSemester'],
       };
 
       // Save directly to submissions collection

@@ -317,8 +317,9 @@ class _WebPitListScreenState extends State<WebPitListScreen> {
 
       return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute $period';
     } catch (e) {
-      if (dateData is String && (dateData as String).isNotEmpty)
+      if (dateData is String && (dateData).isNotEmpty) {
         return dateData;
+      }
       return 'No due date';
     }
   }

@@ -1227,6 +1227,95 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                   color: Colors.black54,
                                                 ),
                                               ),
+                                              // ── Assigned-period chips ──
+                                              if (data['assignedPeriods'] !=
+                                                      null &&
+                                                  (data['assignedPeriods']
+                                                          as List)
+                                                      .isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                Wrap(
+                                                  spacing: 4,
+                                                  runSpacing: 4,
+                                                  children:
+                                                      (data['assignedPeriods'] as List).map<
+                                                        Widget
+                                                      >((period) {
+                                                        final p =
+                                                            period
+                                                                as Map<
+                                                                  String,
+                                                                  dynamic
+                                                                >;
+                                                        final semesterName =
+                                                            p['semesterName']
+                                                                ?.toString() ??
+                                                            '';
+                                                        final type =
+                                                            p['type']
+                                                                ?.toString() ??
+                                                            '';
+                                                        final label =
+                                                            type.isNotEmpty
+                                                                ? '$semesterName — $type'
+                                                                : semesterName;
+                                                        return Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 8,
+                                                                vertical: 4,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.blue
+                                                                .withOpacity(
+                                                                  0.08,
+                                                                ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
+                                                            border: Border.all(
+                                                              color: Colors.blue
+                                                                  .withOpacity(
+                                                                    0.3,
+                                                                  ),
+                                                              width: 1,
+                                                            ),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisSize:
+                                                                MainAxisSize
+                                                                    .min,
+                                                            children: [
+                                                              const Icon(
+                                                                Icons
+                                                                    .calendar_today_outlined,
+                                                                size: 11,
+                                                                color:
+                                                                    Colors.blue,
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 4,
+                                                              ),
+                                                              Text(
+                                                                label,
+                                                                style: const TextStyle(
+                                                                  fontSize: 11,
+                                                                  color:
+                                                                      Colors
+                                                                          .blue,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                      }).toList(),
+                                                ),
+                                              ],
+                                              // ── Department-section assignment chips ──
                                               if (data['assignments'] != null &&
                                                   (data['assignments'] as List)
                                                       .isNotEmpty) ...[
@@ -1277,6 +1366,69 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                           ),
                                                         );
                                                       }).toList(),
+                                                ),
+                                              ],
+                                              // ── NSTP Component badge ──
+                                              if ((data['nstpComponent']
+                                                          ?.toString() ??
+                                                      '')
+                                                  .isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.deepPurple
+                                                            .withOpacity(0.08),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: Colors
+                                                              .deepPurple
+                                                              .withOpacity(0.3),
+                                                        ),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          const Icon(
+                                                            Icons
+                                                                .account_tree_outlined,
+                                                            size: 11,
+                                                            color:
+                                                                Colors
+                                                                    .deepPurple,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
+                                                          Text(
+                                                            data['nstpComponent']
+                                                                .toString(),
+                                                            style: const TextStyle(
+                                                              fontSize: 11,
+                                                              color:
+                                                                  Colors
+                                                                      .deepPurple,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ],
                                               const SizedBox(height: 8),
@@ -1631,7 +1783,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                 ),
                                               ),
                                             const SizedBox(height: 8),
-                                            // Assign button (only for Approved instructors)
+                                            // Department/section Assign button (only for Approved instructors)
                                             if (status == 'Approved') ...[
                                               SizedBox(
                                                 width: 140,

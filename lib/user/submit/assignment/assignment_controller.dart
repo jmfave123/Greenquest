@@ -529,6 +529,8 @@ class AssignmentController extends GetxController {
         'grade': null,
         'feedback': null,
         'gradedAt': null,
+        if (userData['assignedSemester'] != null)
+          'assignedSemester': userData['assignedSemester'],
       };
 
       // Use routing service to automatically route submission to correct instructor
@@ -606,6 +608,8 @@ class AssignmentController extends GetxController {
         'grade': null,
         'feedback': null,
         'gradedAt': null,
+        if (userData['assignedSemester'] != null)
+          'assignedSemester': userData['assignedSemester'],
       };
 
       // Use routing service to automatically route submission to correct instructor

@@ -1346,54 +1346,66 @@ class CreateController extends GetxController {
     }
   }
 
-  /// Get instructor's assigned semester (preferably active one)
+  /// Get the currently active period that this instructor is assigned to.
+  ///
+  /// Strategy:
+  /// 1. Query the `periods` collection for the one document with `isActive: true`
+  ///    (the admin enforces at most one active period at a time).
+  /// 2. Check whether the instructor is assigned to that period via their
+  ///    `assignedPeriods` array.
+  /// 3. Return the period's metadata to be stamped onto the created item,
+  ///    or null if the instructor has no active period assignment.
   Future<Map<String, dynamic>?> _getInstructorSemester(
     String instructorId,
   ) async {
     try {
+      // Step 1 – Find the globally active period
+      final activePeriodSnapshot =
+          await _firestore
+              .collection('periods')
+              .where('isActive', isEqualTo: true)
+              .limit(1)
+              .get();
+
+      if (activePeriodSnapshot.docs.isEmpty) {
+        return null; // No active period set by admin
+      }
+
+      final activePeriodDoc = activePeriodSnapshot.docs.first;
+      final activePeriodId = activePeriodDoc.id;
+      final activePeriodData = activePeriodDoc.data();
+
+      // Step 2 – Check if this instructor is assigned to the active period
       final instructorDoc =
           await _firestore.collection('instructors').doc(instructorId).get();
 
-      if (!instructorDoc.exists) {
-        return null;
+      if (!instructorDoc.exists) return null;
+
+      final instructorData = instructorDoc.data() as Map<String, dynamic>;
+      final assignedPeriods =
+          (instructorData['assignedPeriods'] as List<dynamic>?) ?? [];
+
+      final isAssigned = assignedPeriods.any(
+        (p) =>
+            (p as Map<String, dynamic>)['periodId']?.toString() ==
+            activePeriodId,
+      );
+
+      if (!isAssigned) {
+        return null; // Instructor is not assigned to the active period
       }
 
-      final instructorData = instructorDoc.data();
-      final assignedSemesters =
-          (instructorData?['assignedSemesters'] as List<dynamic>?) ?? [];
-
-      if (assignedSemesters.isEmpty) {
-        return null;
-      }
-
-      // Prefer active semester, otherwise get the most recent one
-      Map<String, dynamic>? activeSemester;
-      Map<String, dynamic>? mostRecentSemester;
-      Timestamp? mostRecentTimestamp;
-
-      for (var sem in assignedSemesters) {
-        final semesterData = sem as Map<String, dynamic>;
-        final isActive = semesterData['isActive'] ?? false;
-        final assignedAt = semesterData['assignedAt'];
-
-        if (isActive && activeSemester == null) {
-          activeSemester = semesterData;
-        }
-
-        // Track most recent by assignedAt timestamp
-        if (assignedAt is Timestamp) {
-          if (mostRecentTimestamp == null ||
-              assignedAt.compareTo(mostRecentTimestamp) > 0) {
-            mostRecentTimestamp = assignedAt;
-            mostRecentSemester = semesterData;
-          }
-        }
-      }
-
-      // Return active semester if found, otherwise most recent
-      return activeSemester ?? mostRecentSemester;
+      // Step 3 – Return clean period metadata to stamp on the created item
+      return {
+        'periodId': activePeriodId,
+        'semesterName': activePeriodData['semesterName'] ?? '',
+        'type': activePeriodData['type'] ?? '',
+        'isActive': true,
+      };
     } catch (e) {
-      print('Error getting instructor semester: $e');
+      debugPrint(
+        'CreateController: Error getting instructor active period: $e',
+      );
       return null;
     }
   }

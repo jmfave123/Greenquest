@@ -475,6 +475,8 @@ class ActivityController extends GetxController {
         'status': 'submitted',
         'grade': null,
         'feedback': null,
+        if (userData['assignedSemester'] != null)
+          'assignedSemester': userData['assignedSemester'],
       };
 
       // Use routing service to automatically route submission to correct instructor

@@ -30,6 +30,61 @@ class ClassController extends GetxController {
     delete4DClass();
   }
 
+  /// Get the currently active period that this instructor is assigned to.
+  ///
+  /// Queries the `periods` collection for the globally active period, then
+  /// verifies the instructor is assigned to it via their `assignedPeriods`
+  /// array. Returns clean period metadata to stamp on the created class,
+  /// or null if no active period assignment exists.
+  Future<Map<String, dynamic>?> _getInstructorActivePeriod(
+    String instructorId,
+  ) async {
+    try {
+      // Step 1 – Find the globally active period
+      final activePeriodSnapshot =
+          await _firestore
+              .collection('periods')
+              .where('isActive', isEqualTo: true)
+              .limit(1)
+              .get();
+
+      if (activePeriodSnapshot.docs.isEmpty) return null;
+
+      final activePeriodDoc = activePeriodSnapshot.docs.first;
+      final activePeriodId = activePeriodDoc.id;
+      final activePeriodData = activePeriodDoc.data();
+
+      // Step 2 – Verify the instructor is assigned to this period
+      final instructorDoc =
+          await _firestore.collection('instructors').doc(instructorId).get();
+
+      if (!instructorDoc.exists) return null;
+
+      final instructorData = instructorDoc.data() as Map<String, dynamic>;
+      final assignedPeriods =
+          (instructorData['assignedPeriods'] as List<dynamic>?) ?? [];
+
+      final isAssigned = assignedPeriods.any(
+        (p) =>
+            (p as Map<String, dynamic>)['periodId']?.toString() ==
+            activePeriodId,
+      );
+
+      if (!isAssigned) return null;
+
+      // Step 3 – Return period metadata to stamp on the created document
+      return {
+        'periodId': activePeriodId,
+        'semesterName': activePeriodData['semesterName'] ?? '',
+        'type': activePeriodData['type'] ?? '',
+        'isActive': true,
+      };
+    } catch (e) {
+      debugPrint('ClassController: Error getting instructor active period: $e');
+      return null;
+    }
+  }
+
   /// Check if a class with the same section already exists
   Future<bool> checkSectionDuplicate(String? sectionId) async {
     try {
@@ -90,6 +145,9 @@ class ClassController extends GetxController {
       final schedulesData =
           schedules.map((schedule) => schedule.toMap()).toList();
 
+      // Fetch the currently active period this instructor is assigned to
+      final activePeriod = await _getInstructorActivePeriod(user.uid);
+
       final classData = {
         'section': section,
         'course': course,
@@ -97,6 +155,8 @@ class ClassController extends GetxController {
         'schedules': schedulesData, // Store as array
         'sectionId': sectionId,
         'createdAt': FieldValue.serverTimestamp(),
+        // Stamp active period so the class is tied to the correct semester
+        if (activePeriod != null) 'assignedSemester': activePeriod,
       };
 
       // Add custom image URL if provided

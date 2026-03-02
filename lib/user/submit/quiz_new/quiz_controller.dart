@@ -279,6 +279,8 @@ class QuizController extends GetxController {
         'grade': null,
         'feedback': null,
         'gradedAt': null,
+        if (userData['assignedSemester'] != null)
+          'assignedSemester': userData['assignedSemester'],
       };
 
       // Use routing service to automatically route submission to correct instructor

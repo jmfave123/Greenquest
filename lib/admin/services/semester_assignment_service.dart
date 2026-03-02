@@ -372,4 +372,198 @@ class SemesterAssignmentService {
       rethrow;
     }
   }
+
+  /// Update which semesters a single instructor is assigned to.
+  ///
+  /// Performs a bidirectional sync:
+  /// - `semesters/{semesterId}/instructors/{instructorId}` subcollection
+  /// - `instructors/{instructorId}.assignedSemesters` array
+  ///
+  /// Parameters:
+  ///   - [instructorId]: The Firestore document ID of the instructor
+  ///   - [newSemesterIds]: The complete list of semester IDs the instructor
+  ///     should be assigned to after this operation
+  ///   - [allSemesters]: All available semesters (used to build semester metadata)
+  Future<void> updateInstructorSemesters({
+    required String instructorId,
+    required List<String> newSemesterIds,
+    required List<Map<String, dynamic>> allSemesters,
+  }) async {
+    try {
+      final instructorRef = _firestore
+          .collection('instructors')
+          .doc(instructorId);
+
+      final instructorDoc = await instructorRef.get();
+      if (!instructorDoc.exists) {
+        throw Exception('Instructor not found: $instructorId');
+      }
+
+      final instructorData = instructorDoc.data() as Map<String, dynamic>;
+      final currentAssigned =
+          (instructorData['assignedSemesters'] as List<dynamic>?) ?? [];
+      final currentIds =
+          currentAssigned
+              .map(
+                (s) =>
+                    (s as Map<String, dynamic>)['semesterId']?.toString() ?? '',
+              )
+              .where((id) => id.isNotEmpty)
+              .toSet();
+
+      final toAdd =
+          newSemesterIds.where((id) => !currentIds.contains(id)).toList();
+      final toRemove =
+          currentIds.where((id) => !newSemesterIds.contains(id)).toList();
+
+      // Add instructor to newly selected semester subcollections
+      for (final semesterId in toAdd) {
+        await _firestore
+            .collection('semesters')
+            .doc(semesterId)
+            .collection('instructors')
+            .doc(instructorId)
+            .set({'assignedAt': FieldValue.serverTimestamp()});
+      }
+
+      // Remove instructor from deselected semester subcollections
+      for (final semesterId in toRemove) {
+        await _firestore
+            .collection('semesters')
+            .doc(semesterId)
+            .collection('instructors')
+            .doc(instructorId)
+            .delete();
+      }
+
+      // Build the updated assignedSemesters array, preserving existing metadata
+      final updatedSemesters =
+          newSemesterIds.map<Map<String, dynamic>>((id) {
+            // Preserve existing entry if present (keeps original assignedAt, etc.)
+            final existing = currentAssigned.firstWhereOrNull(
+              (s) => (s as Map<String, dynamic>)['semesterId'] == id,
+            );
+            if (existing != null) {
+              return Map<String, dynamic>.from(
+                existing as Map<String, dynamic>,
+              );
+            }
+
+            // Build metadata from allSemesters list for newly added entries
+            final semesterMeta = allSemesters.firstWhereOrNull(
+              (s) => s['id'] == id,
+            );
+            return {
+              'semesterId': id,
+              'displayName': semesterMeta?['displayName'] ?? '',
+              'year': semesterMeta?['year'] ?? '',
+              'semester': semesterMeta?['semester'] ?? '',
+            };
+          }).toList();
+
+      await instructorRef.update({
+        'assignedSemesters': updatedSemesters,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      Get.snackbar(
+        'Success',
+        'Semester assignments updated successfully',
+        backgroundColor: const Color(0xFF34A853),
+        colorText: Colors.white,
+      );
+    } catch (e, stackTrace) {
+      debugPrint(
+        'SemesterAssignmentService: Error updating instructor semesters: $e\n$stackTrace',
+      );
+      Get.snackbar(
+        'Error',
+        'Failed to update semester assignments. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      rethrow;
+    }
+  }
+
+  /// Update which periods (from the `periods` collection) a single instructor
+  /// is assigned to.
+  ///
+  /// The `periods` collection is the source of truth shown in the admin
+  /// Firestore console (fields: semesterId, semesterName, type, isActive).
+  ///
+  /// Sync targets:
+  /// - `instructors/{instructorId}.assignedPeriods` array — stores period
+  ///   metadata for quick reads without extra queries
+  ///
+  /// Parameters:
+  ///   - [instructorId]: Firestore document ID of the instructor
+  ///   - [newPeriodIds]: Complete desired set of period document IDs
+  ///   - [allPeriods]: All loaded periods (used to hydrate metadata)
+  Future<void> updateInstructorPeriods({
+    required String instructorId,
+    required List<String> newPeriodIds,
+    required List<Map<String, dynamic>> allPeriods,
+  }) async {
+    try {
+      final instructorRef = _firestore
+          .collection('instructors')
+          .doc(instructorId);
+
+      final instructorDoc = await instructorRef.get();
+      if (!instructorDoc.exists) {
+        throw Exception('Instructor not found: $instructorId');
+      }
+
+      final instructorData = instructorDoc.data() as Map<String, dynamic>;
+      final currentAssigned =
+          (instructorData['assignedPeriods'] as List<dynamic>?) ?? [];
+
+      // Build the updated assignedPeriods array, preserving existing entries
+      final updatedPeriods =
+          newPeriodIds.map<Map<String, dynamic>>((id) {
+            // Keep existing entry so we don't lose any extra fields
+            final existing = currentAssigned.firstWhereOrNull(
+              (p) => (p as Map<String, dynamic>)['periodId'] == id,
+            );
+            if (existing != null) {
+              return Map<String, dynamic>.from(
+                existing as Map<String, dynamic>,
+              );
+            }
+
+            // Hydrate from the allPeriods list for newly selected entries
+            final meta = allPeriods.firstWhereOrNull((p) => p['id'] == id);
+            return {
+              'periodId': id,
+              'semesterName': meta?['semesterName'] ?? '',
+              'type': meta?['type'] ?? '',
+              'isActive': meta?['isActive'] ?? false,
+            };
+          }).toList();
+
+      await instructorRef.update({
+        'assignedPeriods': updatedPeriods,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      Get.snackbar(
+        'Success',
+        'Period assignments updated successfully',
+        backgroundColor: const Color(0xFF34A853),
+        colorText: Colors.white,
+      );
+    } catch (e, stackTrace) {
+      debugPrint(
+        'SemesterAssignmentService: Error updating instructor periods: $e\n$stackTrace',
+      );
+      Get.snackbar(
+        'Error',
+        'Failed to update period assignments. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      rethrow;
+    }
+  }
 }

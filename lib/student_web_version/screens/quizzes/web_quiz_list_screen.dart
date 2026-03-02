@@ -339,7 +339,7 @@ extension on QuizController {
 
       return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:$minute $period';
     } catch (e) {
-      if (dueDate is String && (dueDate as String).isNotEmpty) return dueDate;
+      if (dueDate is String && (dueDate).isNotEmpty) return dueDate;
       return 'No due date';
     }
   }
