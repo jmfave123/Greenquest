@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import '../../shared/models/period_model.dart';
 
 class PeriodManagementDialog extends StatefulWidget {
@@ -38,77 +37,58 @@ class _PeriodManagementDialogState extends State<PeriodManagementDialog> {
   }
 
   Future<void> _addPeriod() async {
-    final nameController = TextEditingController();
-    DateTimeRange? selectedDateRange;
+    final semesterNameController = TextEditingController();
+    final typeController = TextEditingController();
 
     final result = await showDialog<bool>(
       context: context,
       builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setState) => AlertDialog(
-                  title: const Text('Add New Period'),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Period Name',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ListTile(
-                          title: Text(
-                            selectedDateRange == null
-                                ? 'Select Date Range'
-                                : '${DateFormat('MMM d, y').format(selectedDateRange!.start)} - ${DateFormat('MMM d, y').format(selectedDateRange!.end)}',
-                          ),
-                          trailing: const Icon(Icons.calendar_today),
-                          onTap: () async {
-                            final picked = await showDateRangePicker(
-                              context: context,
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime(DateTime.now().year + 5),
-                            );
-                            if (picked != null) {
-                              setState(() => selectedDateRange = picked);
-                            }
-                          },
-                        ),
-                      ],
+          (context) => AlertDialog(
+            title: const Text('Add New Period'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: semesterNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Semester Name',
+                      hintText: 'e.g. 1st Semester 2025-2026',
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: typeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Type (optional)',
+                      hintText: 'e.g. Regular, Summer',
+                      border: OutlineInputBorder(),
                     ),
-                    ElevatedButton(
-                      onPressed:
-                          nameController.text.trim().isNotEmpty &&
-                                  selectedDateRange != null
-                              ? () => Navigator.pop(context, true)
-                              : null,
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Save'),
+              ),
+            ],
           ),
     );
 
-    if (result == true &&
-        nameController.text.trim().isNotEmpty &&
-        selectedDateRange != null) {
+    if (result == true && semesterNameController.text.trim().isNotEmpty) {
       try {
         await _firestore.collection('periods').add({
-          'name': nameController.text.trim(),
-          'startDate': selectedDateRange!.start,
-          'endDate': selectedDateRange!.end,
-          'createdAt': FieldValue.serverTimestamp(),
+          'semesterName': semesterNameController.text.trim(),
+          'type': typeController.text.trim(),
           'isActive': true,
+          'createdAt': FieldValue.serverTimestamp(),
         });
 
         await _loadPeriods();
@@ -191,9 +171,11 @@ class _PeriodManagementDialogState extends State<PeriodManagementDialog> {
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 4),
                             child: ListTile(
-                              title: Text(period.name),
+                              title: Text(period.semesterName),
                               subtitle: Text(
-                                '${DateFormat('MMM d, y').format(period.startDate)} - ${DateFormat('MMM d, y').format(period.endDate)}',
+                                period.type.isNotEmpty
+                                    ? period.type
+                                    : 'No type',
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,

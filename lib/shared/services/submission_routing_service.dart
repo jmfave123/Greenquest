@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:developer' as dev;
 import 'in_app_notification_service.dart';
+import '../models/section_model.dart';
 
 /// Service responsible for automatically routing student submissions
 /// to the correct instructor's activity section
@@ -362,15 +363,15 @@ class SubmissionRoutingService {
           final sectionsQuery =
               await _firestore
                   .collection('sections')
-                  .where('name', isEqualTo: activityClass)
+                  .where('sectionCode', isEqualTo: activityClass)
                   .limit(1)
                   .get();
 
           if (sectionsQuery.docs.isNotEmpty) {
-            final sectionData = sectionsQuery.docs.first.data();
+            final section = Section.fromDoc(sectionsQuery.docs.first);
             return {
-              'sectionId': sectionsQuery.docs.first.id,
-              'sectionName': sectionData['name'],
+              'sectionId': section.id,
+              'sectionName': section.sectionCode,
             };
           }
 
@@ -434,15 +435,12 @@ class SubmissionRoutingService {
       final sectionsQuery =
           await _firestore
               .collection('sections')
-              .where('name', isEqualTo: studentClass)
+              .where('sectionCode', isEqualTo: studentClass)
               .limit(1)
               .get();
       if (sectionsQuery.docs.isNotEmpty) {
-        final sectionData = sectionsQuery.docs.first.data();
-        return {
-          'sectionId': sectionsQuery.docs.first.id,
-          'sectionName': sectionData['name'],
-        };
+        final section = Section.fromDoc(sectionsQuery.docs.first);
+        return {'sectionId': section.id, 'sectionName': section.sectionCode};
       }
 
       // Fallback basic info

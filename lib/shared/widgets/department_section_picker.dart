@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../models/instructor_assignment_model.dart';
 
 class DepartmentSectionPicker extends StatefulWidget {
-  final RxList instructorAssignments;
+  final RxList<InstructorAssignment> instructorAssignments;
   final RxString selectedDepartmentId;
   final RxString selectedSectionCode;
   final Function(String departmentId, String sectionCode) onSectionSelected;
@@ -25,14 +26,14 @@ class DepartmentSectionPicker extends StatefulWidget {
 class _DepartmentSectionPickerState extends State<DepartmentSectionPicker> {
   final Map<String, bool> _expandedDepartments = {};
 
-  Map<String, List<Map<String, dynamic>>> _groupAssignments() {
-    final Map<String, List<Map<String, dynamic>>> grouped = {};
+  Map<String, List<InstructorAssignment>> _groupAssignments() {
+    final Map<String, List<InstructorAssignment>> grouped = {};
     for (var assignment in widget.instructorAssignments) {
-      final deptId = assignment['departmentId'] ?? 'other';
-      if (!grouped.containsKey(deptId)) {
-        grouped[deptId] = [];
-      }
-      grouped[deptId]!.add(Map<String, dynamic>.from(assignment));
+      final deptId =
+          assignment.departmentId.isNotEmpty
+              ? assignment.departmentId
+              : 'other';
+      grouped.putIfAbsent(deptId, () => []).add(assignment);
     }
     return grouped;
   }
@@ -50,9 +51,8 @@ class _DepartmentSectionPickerState extends State<DepartmentSectionPicker> {
             grouped.entries.map((entry) {
               final departmentId = entry.key;
               final sections = entry.value;
-              final departmentName =
-                  sections.first['departmentName'] ?? 'Unknown Department';
-              final departmentCode = sections.first['departmentCode'] ?? '';
+              final departmentName = sections.first.departmentName;
+              final departmentCode = sections.first.departmentCode;
               final isExpanded = _expandedDepartments[departmentId] ?? false;
 
               return widget.isWeb
@@ -79,7 +79,7 @@ class _DepartmentSectionPickerState extends State<DepartmentSectionPicker> {
     String departmentId,
     String departmentName,
     String departmentCode,
-    List<Map<String, dynamic>> sections,
+    List<InstructorAssignment> sections,
     bool isExpanded,
   ) {
     return Card(
@@ -100,8 +100,8 @@ class _DepartmentSectionPickerState extends State<DepartmentSectionPicker> {
         children:
             sections.map((section) {
               return _buildSectionTile(
-                section['departmentId'] ?? '',
-                section['sectionCode'] ?? '',
+                section.departmentId,
+                section.sectionCode,
               );
             }).toList(),
       ),
@@ -112,7 +112,7 @@ class _DepartmentSectionPickerState extends State<DepartmentSectionPicker> {
     String departmentId,
     String departmentName,
     String departmentCode,
-    List<Map<String, dynamic>> sections,
+    List<InstructorAssignment> sections,
     bool isExpanded,
   ) {
     return Container(
@@ -183,8 +183,8 @@ class _DepartmentSectionPickerState extends State<DepartmentSectionPicker> {
               children:
                   sections.map((section) {
                     return _buildSectionTile(
-                      section['departmentId'] ?? '',
-                      section['sectionCode'] ?? '',
+                      section.departmentId,
+                      section.sectionCode,
                     );
                   }).toList(),
             ),

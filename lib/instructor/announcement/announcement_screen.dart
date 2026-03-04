@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'dart:convert';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
@@ -334,9 +333,9 @@ class InstructorAnnouncementScreen extends StatelessWidget {
                                             );
                                           }),
                                           const SizedBox(height: 15),
-                                          // Image upload section
+                                          // Multi-image upload section
                                           const Text(
-                                            'Image (Optional)',
+                                            'Images (Optional)',
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
@@ -344,121 +343,138 @@ class InstructorAnnouncementScreen extends StatelessWidget {
                                           ),
                                           const SizedBox(height: 8),
                                           Obx(() {
-                                            final previewUrl =
-                                                controller.previewImageUrl;
-                                            if (previewUrl != null &&
-                                                previewUrl.isNotEmpty) {
-                                              // Show selected/existing image preview
-                                              return Container(
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                  border: Border.all(
-                                                    color: Colors.grey[300]!,
-                                                  ),
-                                                ),
-                                                child: Stack(
-                                                  children: [
-                                                    ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      child: Center(
-                                                        child:
-                                                            previewUrl
-                                                                    .startsWith(
-                                                                      'data:',
-                                                                    )
-                                                                ? Image.memory(
-                                                                  base64Decode(
-                                                                    previewUrl
-                                                                        .split(
-                                                                          ',',
-                                                                        )[1],
+                                            final hasImages =
+                                                controller
+                                                    .existingImageUrls
+                                                    .isNotEmpty ||
+                                                controller
+                                                    .selectedImageFiles
+                                                    .isNotEmpty;
+                                            return Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                if (hasImages)
+                                                  Wrap(
+                                                    spacing: 8,
+                                                    runSpacing: 8,
+                                                    children: [
+                                                      // Persisted URLs (edit mode)
+                                                      ...List.generate(
+                                                        controller
+                                                            .existingImageUrls
+                                                            .length,
+                                                        (
+                                                          i,
+                                                        ) => _buildImageThumbnail(
+                                                          child: Image.network(
+                                                            controller
+                                                                .existingImageUrls[i],
+                                                            width: 110,
+                                                            height: 110,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder:
+                                                                (
+                                                                  _,
+                                                                  __,
+                                                                  ___,
+                                                                ) => Container(
+                                                                  width: 110,
+                                                                  height: 110,
+                                                                  color:
+                                                                      Colors
+                                                                          .grey[200],
+                                                                  child: const Icon(
+                                                                    Icons
+                                                                        .broken_image,
                                                                   ),
-                                                                  height: 250,
-                                                                  fit:
-                                                                      BoxFit
-                                                                          .contain,
-                                                                )
-                                                                : Image.network(
-                                                                  previewUrl,
-                                                                  height: 250,
-                                                                  fit:
-                                                                      BoxFit
-                                                                          .contain,
-                                                                  errorBuilder: (
-                                                                    context,
-                                                                    error,
-                                                                    stackTrace,
-                                                                  ) {
-                                                                    return Container(
+                                                                ),
+                                                          ),
+                                                          onRemove:
+                                                              () => controller
+                                                                  .removeExistingUrl(
+                                                                    i,
+                                                                  ),
+                                                        ),
+                                                      ),
+                                                      // Newly selected files
+                                                      ...List.generate(
+                                                        controller
+                                                            .selectedImageFiles
+                                                            .length,
+                                                        (i) {
+                                                          final bytes =
+                                                              controller
+                                                                  .selectedImageFiles[i]
+                                                                  .bytes;
+                                                          return _buildImageThumbnail(
+                                                            child:
+                                                                bytes != null
+                                                                    ? Image.memory(
+                                                                      bytes,
+                                                                      width:
+                                                                          110,
                                                                       height:
-                                                                          250,
+                                                                          110,
+                                                                      fit:
+                                                                          BoxFit
+                                                                              .cover,
+                                                                    )
+                                                                    : Container(
+                                                                      width:
+                                                                          110,
+                                                                      height:
+                                                                          110,
                                                                       color:
                                                                           Colors
                                                                               .grey[200],
-                                                                      child: const Center(
-                                                                        child: Icon(
-                                                                          Icons
-                                                                              .broken_image,
-                                                                          size:
-                                                                              48,
-                                                                        ),
+                                                                      child: const Icon(
+                                                                        Icons
+                                                                            .image,
                                                                       ),
-                                                                    );
-                                                                  },
-                                                                ),
+                                                                    ),
+                                                            onRemove:
+                                                                () => controller
+                                                                    .removeSelectedFile(
+                                                                      i,
+                                                                    ),
+                                                          );
+                                                        },
                                                       ),
+                                                    ],
+                                                  ),
+                                                if (hasImages)
+                                                  const SizedBox(height: 8),
+                                                if (controller.canAddMoreImages)
+                                                  OutlinedButton.icon(
+                                                    onPressed:
+                                                        controller.pickImages,
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .add_photo_alternate_outlined,
                                                     ),
-                                                    Positioned(
-                                                      top: 8,
-                                                      right: 8,
-                                                      child: IconButton(
-                                                        icon: const Icon(
-                                                          Icons.close,
-                                                          color: Colors.white,
+                                                    label: const Text(
+                                                      'Add Image',
+                                                    ),
+                                                    style: OutlinedButton.styleFrom(
+                                                      foregroundColor:
+                                                          const Color(
+                                                            0xFF34A853,
+                                                          ),
+                                                      side: const BorderSide(
+                                                        color: Color(
+                                                          0xFF34A853,
                                                         ),
-                                                        style:
-                                                            IconButton.styleFrom(
-                                                              backgroundColor:
-                                                                  Colors
-                                                                      .black54,
-                                                            ),
-                                                        onPressed:
-                                                            controller
-                                                                .removeImage,
                                                       ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 12,
+                                                          ),
                                                     ),
-                                                  ],
-                                                ),
-                                              );
-                                            } else {
-                                              // Show upload button
-                                              return OutlinedButton.icon(
-                                                onPressed: controller.pickImage,
-                                                icon: const Icon(
-                                                  Icons.image_outlined,
-                                                ),
-                                                label: const Text(
-                                                  'Select Image',
-                                                ),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: const Color(
-                                                    0xFF34A853,
                                                   ),
-                                                  side: const BorderSide(
-                                                    color: Color(0xFF34A853),
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                        vertical: 12,
-                                                      ),
-                                                ),
-                                              );
-                                            }
+                                              ],
+                                            );
                                           }),
                                           const SizedBox(height: 15),
                                           Row(
@@ -904,6 +920,41 @@ class InstructorAnnouncementScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a 110×110 image thumbnail with a remove (×) button overlay.
+  static Widget _buildImageThumbnail({
+    required Widget child,
+    required VoidCallback onRemove,
+  }) {
+    return SizedBox(
+      width: 110,
+      height: 110,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(width: 110, height: 110, child: child),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(3),
+                child: const Icon(Icons.close, color: Colors.white, size: 14),
+              ),
             ),
           ),
         ],

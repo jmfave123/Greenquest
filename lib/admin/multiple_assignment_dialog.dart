@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:greenquest/shared/models/assigned_period_model.dart';
+import 'package:greenquest/shared/models/department_model.dart';
+import 'package:greenquest/shared/models/instructor_assignment_model.dart';
+import 'package:greenquest/shared/models/nstp_component_model.dart';
+import 'package:greenquest/shared/models/period_model.dart';
+import 'package:greenquest/shared/models/section_model.dart';
 
 class MultipleAssignmentDialog extends StatefulWidget {
   final String instructorId;
   final String instructorName;
-  final List<Map<String, dynamic>>? existingAssignments;
+  final List<InstructorAssignment>? existingAssignments;
 
   const MultipleAssignmentDialog({
     super.key,
@@ -21,13 +27,12 @@ class MultipleAssignmentDialog extends StatefulWidget {
 
 class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  List<Map<String, dynamic>> selectedAssignments = [];
-  List<Map<String, dynamic>> _initialAssignments =
-      []; // Track initial assignments on dialog open
+  List<InstructorAssignment> selectedAssignments = [];
+  List<InstructorAssignment> _initialAssignments = [];
   String? selectedDepartmentId;
   String? selectedSectionId;
-  List<Map<String, dynamic>> departments = [];
-  List<Map<String, dynamic>> sections = [];
+  List<Department> departments = [];
+  List<Section> sections = [];
 
   // NSTP Component
   String? _selectedNstpComponent;
@@ -38,21 +43,15 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
   // Semester Periods
   Set<String> _selectedPeriodIds = {};
   Set<String> _initialPeriodIds = {};
-  List<Map<String, dynamic>> _cachedPeriods = [];
+  List<Period> _cachedPeriods = [];
 
   @override
   void initState() {
     super.initState();
-    selectedAssignments = List<Map<String, dynamic>>.from(
+    selectedAssignments = List<InstructorAssignment>.from(
       widget.existingAssignments ?? [],
     );
-    // Store initial assignments to compare later
-    _initialAssignments = List<Map<String, dynamic>>.from(selectedAssignments);
-
-    // Debug: Print existing assignments
-    print('Existing assignments: ${widget.existingAssignments}');
-    print('Selected assignments: $selectedAssignments');
-    print('Initial assignments count: ${_initialAssignments.length}');
+    _initialAssignments = List<InstructorAssignment>.from(selectedAssignments);
 
     // Always load assignments from Firestore to ensure we have the latest data
     _loadAssignmentsFromFirestore();
@@ -100,51 +99,33 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
           setState(() {
             selectedAssignments =
                 assignments
-                    .map((assignment) => Map<String, dynamic>.from(assignment))
+                    .whereType<Map<String, dynamic>>()
+                    .map(InstructorAssignment.fromMap)
                     .toList();
-            // Update initial assignments to match Firestore data
-            _initialAssignments = List<Map<String, dynamic>>.from(
+            _initialAssignments = List<InstructorAssignment>.from(
               selectedAssignments,
             );
           });
-          print('Loaded assignments from Firestore: $selectedAssignments');
-          print(
-            'Updated initial assignments count: ${_initialAssignments.length}',
-          );
         } else {
-          print('No assignments found in Firestore');
-          // Reset initial assignments if Firestore has none
-          _initialAssignments = [];
+          setState(() {
+            _initialAssignments = [];
+          });
         }
       }
     } catch (e) {
-      print('Error loading assignments from Firestore: $e');
+      // TODO: replace with proper logger
     }
   }
 
   Future<void> _loadSections(String departmentId) async {
-    print('Loading sections for department: $departmentId');
     final snapshot =
         await _firestore
             .collection('sections')
             .where('departmentId', isEqualTo: departmentId)
             .get();
 
-    print(
-      'Found ${snapshot.docs.length} sections for department $departmentId',
-    );
     setState(() {
-      sections =
-          snapshot.docs.map((doc) {
-            final data = doc.data();
-            print('Section: ${doc.id} - ${data['sectionCode']}');
-            return {
-              'id': doc.id,
-              'sectionCode': data['sectionCode'],
-              'year': data['year'],
-              'sectionLetter': data['sectionLetter'],
-            };
-          }).toList();
+      sections = snapshot.docs.map(Section.fromDoc).toList();
       selectedSectionId = null;
     });
   }
@@ -207,51 +188,34 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
       // No duplicate found
       return null;
     } catch (e) {
-      print('Error checking section duplicate: $e');
+      // TODO: replace with proper logger
       return null;
     }
   }
 
   Future<void> _addAssignment() async {
-    print('============ ADD ASSIGNMENT ============');
-    print('Selected Department ID: $selectedDepartmentId');
-    print('Selected Section ID: $selectedSectionId');
-
     if (selectedDepartmentId != null && selectedSectionId != null) {
       final department = departments.firstWhere(
-        (d) => d['id'] == selectedDepartmentId,
+        (d) => d.id == selectedDepartmentId,
       );
-      final section = sections.firstWhere((s) => s['id'] == selectedSectionId);
+      final section = sections.firstWhere((s) => s.id == selectedSectionId);
 
-      print('Department: ${department['name']} (${department['code']})');
-      print('Section: ${section['sectionCode']}');
-
-      final assignment = {
-        'departmentId': selectedDepartmentId,
-        'sectionId': selectedSectionId,
-        'departmentName': department['name'],
-        'sectionName':
-            section['sectionCode'], // Fixed: use section code instead of department name
-        'departmentCode': department['code'],
-        'sectionCode': section['sectionCode'],
-      };
-
-      // Check if assignment already exists in current instructor's list
-      print('Checking for duplicates in current instructor...');
-      print('Current assignments:');
-      for (var i = 0; i < selectedAssignments.length; i++) {
-        var a = selectedAssignments[i];
-        print('  [$i] Dept: ${a['departmentId']}, Section: ${a['sectionId']}');
-      }
+      final assignment = InstructorAssignment(
+        departmentId: selectedDepartmentId!,
+        sectionId: selectedSectionId!,
+        departmentName: department.displayName,
+        sectionName: section.sectionCode,
+        departmentCode: department.code,
+        sectionCode: section.sectionCode,
+      );
 
       final existsInCurrentList = selectedAssignments.any(
         (a) =>
-            a['departmentId'] == selectedDepartmentId &&
-            a['sectionId'] == selectedSectionId,
+            a.departmentId == selectedDepartmentId &&
+            a.sectionId == selectedSectionId,
       );
 
       if (existsInCurrentList) {
-        print('✗ Assignment already exists in current list - blocked');
         Get.snackbar(
           'Warning',
           'This assignment already exists in your list',
@@ -259,31 +223,27 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
           backgroundColor: Colors.orange,
           colorText: Colors.white,
         );
-        print('========================================');
         return;
       }
 
       // Check if section is already assigned to another instructor
-      print('Checking if section is assigned to another instructor...');
-      final sectionCodeString = section['sectionCode']?.toString() ?? '';
+      final sectionCodeString = section.sectionCode;
       final duplicateCheck = await _checkSectionDuplicate(
         selectedSectionId,
         sectionCodeString,
       );
 
       if (duplicateCheck != null) {
-        print('✗ Section already assigned to another instructor - blocked');
-        print('  Assigned to: ${duplicateCheck['instructorName']}');
         Get.snackbar(
           'Cannot Assign',
           'Section ${duplicateCheck['sectionCode']} is already assigned to ${duplicateCheck['instructorName']}. Each section can only be assigned to one instructor.',
+          // duplicate info comes from the internal map returned by _checkSectionDuplicate
           snackPosition: SnackPosition.TOP,
           backgroundColor: Colors.red,
           colorText: Colors.white,
           duration: const Duration(seconds: 4),
           icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
         );
-        print('========================================');
         return;
       }
 
@@ -294,8 +254,6 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         selectedSectionId = null;
         sections = [];
       });
-      print('✓ Assignment added! New count: ${selectedAssignments.length}');
-      print('New selectedAssignments: $selectedAssignments');
 
       // Show success message
       Get.snackbar(
@@ -306,12 +264,7 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         colorText: Colors.white,
         duration: const Duration(seconds: 2),
       );
-    } else {
-      print('✗ Cannot add: Department or Section not selected');
-      print('  Department ID: $selectedDepartmentId');
-      print('  Section ID: $selectedSectionId');
     }
-    print('========================================');
   }
 
   void _removeAssignment(int index) {
@@ -320,34 +273,24 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
     });
   }
 
-  // Helper method to check if two assignment lists are identical
+  // Helper: returns true when both lists contain the same assignments in the same order.
   bool _areListsIdentical(
-    List<Map<String, dynamic>> list1,
-    List<Map<String, dynamic>> list2,
+    List<InstructorAssignment> list1,
+    List<InstructorAssignment> list2,
   ) {
     if (list1.length != list2.length) return false;
-
     for (var i = 0; i < list1.length; i++) {
-      final a1 = list1[i];
-      final a2 = list2[i];
-
-      if (a1['departmentId'] != a2['departmentId'] ||
-          a1['sectionId'] != a2['sectionId'] ||
-          a1['departmentCode'] != a2['departmentCode'] ||
-          a1['sectionCode'] != a2['sectionCode']) {
+      if (list1[i].departmentId != list2[i].departmentId ||
+          list1[i].sectionId != list2[i].sectionId ||
+          list1[i].departmentCode != list2[i].departmentCode ||
+          list1[i].sectionCode != list2[i].sectionCode) {
         return false;
       }
     }
-
     return true;
   }
 
   Future<void> _saveAssignments() async {
-    print('==================== SAVE ASSIGNMENTS ====================');
-    print('Saving assignments: $selectedAssignments');
-    print('Number of assignments: ${selectedAssignments.length}');
-    print('Instructor ID: ${widget.instructorId}');
-
     try {
       // Check if instructor is pending - prevent assignment
       final instructorDoc =
@@ -362,7 +305,6 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
             instructorData['status']?.toString() ?? 'Pending';
 
         if (instructorStatus == 'Pending') {
-          print('✗ Cannot assign pending instructor');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -382,7 +324,6 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
       // 1. No assignments in list at all, OR
       // 2. Dropdowns are empty AND no new assignments were added (same as initial state)
       if (selectedAssignments.isEmpty) {
-        print('✗ BLOCKED: Cannot save - no assignments in list');
         if (mounted) {
           Get.snackbar(
             'Cannot Save',
@@ -411,12 +352,6 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
 
       if (!hasNewAssignments &&
           (selectedDepartmentId == null || selectedSectionId == null)) {
-        print('✗ BLOCKED: Dropdowns are empty and no new assignments added');
-        print('  selectedDepartmentId: $selectedDepartmentId');
-        print('  selectedSectionId: $selectedSectionId');
-        print('  Initial assignments: ${_initialAssignments.length}');
-        print('  Current assignments: ${selectedAssignments.length}');
-
         if (mounted) {
           Get.snackbar(
             'Cannot Save',
@@ -430,37 +365,9 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         return; // Stop - do not save
       }
 
-      // Validate assignments before saving - must have valid department and section
-      for (var i = 0; i < selectedAssignments.length; i++) {
-        var assignment = selectedAssignments[i];
-        print('Validating assignment $i: $assignment');
-
-        // Check for null or empty department and section
-        final departmentId = assignment['departmentId'];
-        final sectionId = assignment['sectionId'];
-        final departmentName = assignment['departmentName'];
-        final sectionName = assignment['sectionName'];
-        final departmentCode = assignment['departmentCode'];
-        final sectionCode = assignment['sectionCode'];
-
-        if (departmentId == null ||
-            departmentId.toString().isEmpty ||
-            sectionId == null ||
-            sectionId.toString().isEmpty ||
-            departmentName == null ||
-            departmentName.toString().isEmpty ||
-            sectionName == null ||
-            sectionName.toString().isEmpty ||
-            departmentCode == null ||
-            departmentCode.toString().isEmpty ||
-            sectionCode == null ||
-            sectionCode.toString().isEmpty) {
-          print('VALIDATION FAILED for assignment $i');
-          print('  - Department ID: $departmentId');
-          print('  - Section ID: $sectionId');
-          print('  - Department Name: $departmentName');
-          print('  - Section Name: $sectionName');
-
+      // Validate assignments before saving — use the model's isValid guard.
+      for (final assignment in selectedAssignments) {
+        if (!assignment.isValid) {
           if (mounted) {
             Get.snackbar(
               'Cannot Save',
@@ -475,81 +382,53 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         }
       }
 
-      // Final check: Ensure list is not empty before saving
-      if (selectedAssignments.isEmpty) {
-        print('✗ BLOCKED: Cannot save - assignments list is empty');
-        if (mounted) {
-          Get.snackbar(
-            'Cannot Save',
-            'No assignments to save. Please add at least one department and section assignment.',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-            duration: const Duration(seconds: 4),
-          );
-        }
-        return; // Stop - do not save
-      }
-
       // Validate that no section is assigned to another instructor
-      print('Validating assignments against other instructors...');
-      for (var assignment in selectedAssignments) {
-        final sectionId = assignment['sectionId']?.toString();
-        final sectionCode = assignment['sectionCode']?.toString();
+      for (final assignment in selectedAssignments) {
+        final duplicateCheck = await _checkSectionDuplicate(
+          assignment.sectionId,
+          assignment.sectionCode,
+        );
 
-        if (sectionId != null && sectionCode != null) {
-          final duplicateCheck = await _checkSectionDuplicate(
-            sectionId,
-            sectionCode,
-          );
-
-          if (duplicateCheck != null) {
-            print(
-              '✗ VALIDATION FAILED: Section $sectionCode already assigned to ${duplicateCheck['instructorName']}',
+        if (duplicateCheck != null) {
+          if (mounted) {
+            Get.snackbar(
+              'Cannot Save',
+              'Section ${duplicateCheck['sectionCode']} is already assigned to ${duplicateCheck['instructorName']}. Each section can only be assigned to one instructor. Please remove this assignment and try again.',
+              snackPosition: SnackPosition.TOP,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 5),
+              icon: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+              ),
             );
-            if (mounted) {
-              Get.snackbar(
-                'Cannot Save',
-                'Section $sectionCode is already assigned to ${duplicateCheck['instructorName']}. Each section can only be assigned to one instructor. Please remove this assignment and try again.',
-                snackPosition: SnackPosition.TOP,
-                backgroundColor: Colors.red,
-                colorText: Colors.white,
-                duration: const Duration(seconds: 5),
-                icon: const Icon(
-                  Icons.warning_amber_rounded,
-                  color: Colors.white,
-                ),
-              );
-            }
-            return; // Stop - do not save
           }
+          return;
         }
       }
-      print('✓ All assignments validated - no duplicates found');
 
-      print('Validation passed. Updating Firestore...');
-      print('Saving ${selectedAssignments.length} assignment(s)');
-
-      // Build assignedPeriods list from selected IDs + cached metadata
+      // Build assignedPeriods list from selected IDs + cached Period models.
+      // AssignedPeriod.toMap() writes exactly {periodId, semesterName, type, isActive}.
       final updatedPeriods =
-          _selectedPeriodIds.map<Map<String, dynamic>>((id) {
-            final meta = _cachedPeriods.firstWhere(
-              (p) => p['id'] == id,
-              orElse: () => <String, dynamic>{'periodId': id},
+          _selectedPeriodIds.map((id) {
+            final period = _cachedPeriods.firstWhere(
+              (p) => p.id == id,
+              orElse: () => Period(id: id, semesterName: ''),
             );
-            return {
-              'periodId': id,
-              'semesterName': meta['semesterName']?.toString() ?? '',
-              'type': meta['type']?.toString() ?? '',
-              'isActive': meta['isActive'] as bool? ?? false,
-            };
+            return AssignedPeriod(
+              periodId: id,
+              semesterName: period.semesterName,
+              type: period.type,
+              isActive: period.isActive,
+            ).toMap();
           }).toList();
 
       await _firestore
           .collection('instructors')
           .doc(widget.instructorId)
           .update({
-            'assignments': selectedAssignments,
+            'assignments': selectedAssignments.map((a) => a.toMap()).toList(),
             if (_selectedNstpComponent != null)
               'nstpComponent': _selectedNstpComponent,
             if (_selectedNstpComponentId != null)
@@ -557,9 +436,6 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
             'assignedPeriods': updatedPeriods,
             'updatedAt': FieldValue.serverTimestamp(),
           });
-
-      print('✓ Assignments saved successfully to Firestore');
-      print('=========================================================');
 
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -574,8 +450,6 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
         );
       }
     } catch (e) {
-      print('✗ ERROR saving assignments: $e');
-      print('=========================================================');
       if (mounted) {
         Get.snackbar(
           'Error',
@@ -751,7 +625,7 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  '${assignment['departmentCode']}-${assignment['sectionCode']}',
+                                                  assignment.label,
                                                   style: const TextStyle(
                                                     fontSize: 14,
                                                     fontWeight: FontWeight.w500,
@@ -759,8 +633,12 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                                                   ),
                                                 ),
                                                 Text(
-                                                  assignment['departmentName'] ??
-                                                      'Unknown Department',
+                                                  assignment
+                                                          .departmentName
+                                                          .isNotEmpty
+                                                      ? assignment
+                                                          .departmentName
+                                                      : 'Unknown Department',
                                                   style: const TextStyle(
                                                     fontSize: 12,
                                                     color: Colors.grey,
@@ -843,23 +721,9 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                             builder: (context, snapshot) {
                               if (snapshot.hasData) {
                                 departments =
-                                    snapshot.data!.docs.map((doc) {
-                                      final data =
-                                          doc.data() as Map<String, dynamic>;
-                                      return {
-                                        'id': doc.id,
-                                        'name': data['name'],
-                                        'code': data['code'],
-                                      };
-                                    }).toList();
-                                print(
-                                  'Loaded ${departments.length} departments',
-                                );
-                                for (var dept in departments) {
-                                  print(
-                                    'Department: ${dept['code']} - ${dept['name']}',
-                                  );
-                                }
+                                    snapshot.data!.docs
+                                        .map(Department.fromDoc)
+                                        .toList();
                               }
 
                               return Container(
@@ -888,10 +752,8 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                                   items:
                                       departments.map((dept) {
                                         return DropdownMenuItem<String>(
-                                          value: dept['id'],
-                                          child: Text(
-                                            '${dept['name']} (${dept['code']})',
-                                          ),
+                                          value: dept.id,
+                                          child: Text(dept.label),
                                         );
                                       }).toList(),
                                   underline: const SizedBox(),
@@ -929,8 +791,8 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                               items:
                                   sections.map((section) {
                                     return DropdownMenuItem<String>(
-                                      value: section['id'],
-                                      child: Text('${section['sectionCode']}'),
+                                      value: section.id,
+                                      child: Text(section.sectionCode),
                                     );
                                   }).toList(),
                               underline: const SizedBox(),
@@ -1037,17 +899,16 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                           );
                         }
                         final components =
-                            snapshot.data!.docs.where((d) {
-                              final data = d.data() as Map<String, dynamic>;
-                              return data['isActive'] == true;
-                            }).toList();
+                            snapshot.data!.docs
+                                .map(NstpComponent.fromDoc)
+                                .where((c) => c.isActive)
+                                .toList();
                         return Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children:
-                              components.map((d) {
-                                final data = d.data() as Map<String, dynamic>;
-                                final name = data['name'] as String;
+                              components.map((component) {
+                                final name = component.name;
                                 final isSelected =
                                     _selectedNstpComponent == name;
                                 return ChoiceChip(
@@ -1058,7 +919,7 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                                         _selectedNstpComponent =
                                             isSelected ? null : name;
                                         _selectedNstpComponentId =
-                                            isSelected ? null : d.id;
+                                            isSelected ? null : component.id;
                                       }),
 
                                   selectedColor: const Color(
@@ -1165,30 +1026,15 @@ class _MultipleAssignmentDialogState extends State<MultipleAssignmentDialog> {
                             style: TextStyle(color: Colors.grey, fontSize: 13),
                           );
                         }
-                        // Cache periods for use in _saveAssignments
+                        // Cache typed Period models for use in _saveAssignments
                         _cachedPeriods =
-                            snapshot.data!.docs.map<Map<String, dynamic>>((d) {
-                              final data = d.data() as Map<String, dynamic>;
-                              return <String, dynamic>{
-                                'id': d.id,
-                                'semesterName':
-                                    data['semesterName']?.toString() ?? '',
-                                'type': data['type']?.toString() ?? '',
-                                'isActive': data['isActive'] as bool? ?? false,
-                              };
-                            }).toList();
+                            snapshot.data!.docs.map(Period.fromDoc).toList();
                         return Column(
                           children:
                               _cachedPeriods.map((period) {
-                                final id = period['id'] as String;
-                                final semesterName =
-                                    period['semesterName'] as String;
-                                final type = period['type'] as String;
-                                final isActive = period['isActive'] as bool;
-                                final label =
-                                    type.isNotEmpty
-                                        ? '$semesterName — $type'
-                                        : semesterName;
+                                final id = period.id;
+                                final label = period.label;
+                                final isActive = period.isActive;
                                 final isChecked = _selectedPeriodIds.contains(
                                   id,
                                 );

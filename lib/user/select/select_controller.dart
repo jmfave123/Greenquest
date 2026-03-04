@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../shared/models/instructor_assignment_model.dart';
+import '../../shared/models/assigned_period_model.dart';
 
 class SelectController extends GetxController {
   final _firestore = FirebaseFirestore.instance;
@@ -17,7 +19,8 @@ class SelectController extends GetxController {
   RxString selectedInstructorId = ''.obs;
   RxString selectedInstructorName = ''.obs;
   RxString selectedInstructorProfileImage = ''.obs;
-  RxList instructorAssignments = [].obs;
+  RxList<InstructorAssignment> instructorAssignments =
+      <InstructorAssignment>[].obs;
   RxBool isSelectionComplete = false.obs;
   RxString selectedDepartmentId = ''.obs;
   RxString selectedSectionCode = ''.obs;
@@ -215,19 +218,13 @@ class SelectController extends GetxController {
             if (instructorDoc.exists) {
               Map<String, dynamic> data =
                   instructorDoc.data() as Map<String, dynamic>;
-              List<Map<String, dynamic>> newAssignments =
-                  List<Map<String, dynamic>>.from(data['assignments'] ?? []);
-              log(
-                'New assignments from Firestore: ${newAssignments.length} items',
-              );
-              for (var assignment in newAssignments) {
-                log(
-                  '  - ${assignment['departmentCode']}-${assignment['sectionCode']}',
-                );
-              }
+              final newAssignments =
+                  (data['assignments'] as List? ?? [])
+                      .whereType<Map<String, dynamic>>()
+                      .map(InstructorAssignment.fromMap)
+                      .toList();
 
               instructorAssignments.value = newAssignments;
-              log('Updated instructorAssignments observable');
 
               // Sections will be loaded on-demand when departments are expanded
             } else {
@@ -243,9 +240,11 @@ class SelectController extends GetxController {
       if (instructorDoc.exists) {
         Map<String, dynamic> data =
             instructorDoc.data() as Map<String, dynamic>;
-        instructorAssignments.value = List<Map<String, dynamic>>.from(
-          data['assignments'] ?? [],
-        );
+        instructorAssignments.value =
+            (data['assignments'] as List? ?? [])
+                .whereType<Map<String, dynamic>>()
+                .map(InstructorAssignment.fromMap)
+                .toList();
         nstpComponent.value = data['nstpComponent']?.toString() ?? '';
         log('Initial load: ${instructorAssignments.length} assignments');
 
@@ -274,9 +273,9 @@ class SelectController extends GetxController {
       await _firestore.collection('users').doc(user.uid).update({
         'selectedInstructorId': selectedInstructorId.value,
         'selectedInstructorName': selectedInstructorName.value,
-        'instructorAssignments': instructorAssignments.toList(),
+        'instructorAssignments':
+            instructorAssignments.map((a) => a.toMap()).toList(),
         'selectionComplete': true,
-        'completedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         if (activePeriod != null) 'assignedSemester': activePeriod,
         if (nstpComponent.value.isNotEmpty)
@@ -336,7 +335,8 @@ class SelectController extends GetxController {
         'selectedInstructorId': selectedInstructorId.value,
         'selectedInstructorName': selectedInstructorName.value,
         'selectedSectionCode': selectedSectionCode.value,
-        'instructorAssignments': instructorAssignments.toList(),
+        'instructorAssignments':
+            instructorAssignments.map((a) => a.toMap()).toList(),
         'selectionComplete': true,
         'enrollmentStatus': 'pending',
         'corUrl': corUrl,
@@ -482,11 +482,10 @@ class SelectController extends GetxController {
       final assignedPeriods =
           (instructorData['assignedPeriods'] as List<dynamic>?) ?? [];
 
-      final isAssigned = assignedPeriods.any(
-        (p) =>
-            (p as Map<String, dynamic>)['periodId']?.toString() ==
-            activePeriodId,
-      );
+      final isAssigned = assignedPeriods
+          .whereType<Map<String, dynamic>>()
+          .map(AssignedPeriod.fromMap)
+          .any((p) => p.periodId == activePeriodId);
 
       if (!isAssigned) return null;
 
@@ -529,9 +528,11 @@ class SelectController extends GetxController {
         selectedSectionCode.value = sectionCode;
 
         // Get instructor assignments from user data
-        instructorAssignments.value = List<Map<String, dynamic>>.from(
-          userData['instructorAssignments'] ?? [],
-        );
+        instructorAssignments.value =
+            (userData['instructorAssignments'] as List? ?? [])
+                .whereType<Map<String, dynamic>>()
+                .map(InstructorAssignment.fromMap)
+                .toList();
 
         // Enroll the student
         await _enrollStudentInInstructorClasses();

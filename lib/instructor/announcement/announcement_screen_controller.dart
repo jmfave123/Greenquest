@@ -3,10 +3,10 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:convert';
 import '../../../shared/services/file_upload_service.dart';
 import '../../../shared/services/instructor_class_service.dart';
 import '../../../shared/services/in_app_notification_service.dart';
+import 'announcement_image_limiter.dart';
 
 class AnnouncementScreenController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -32,16 +32,21 @@ class AnnouncementScreenController extends GetxController {
 
   // Image upload
   final FileUploadService _fileUploadService = FileUploadService();
-  final RxString announcementImageUrl =
-      ''.obs; // For existing images from Firestore
-  final RxString originalImageUrl =
-      ''.obs; // Store original image URL when editing (for restore)
-  final Rx<PlatformFile?> selectedImageFile = Rx<PlatformFile?>(
-    null,
-  ); // For newly selected file
+
+  /// Newly picked files not yet uploaded.
+  final RxList<PlatformFile> selectedImageFiles = <PlatformFile>[].obs;
+
+  /// URLs already persisted in Firestore (populated when editing).
+  final RxList<String> existingImageUrls = <String>[].obs;
   final RxBool isUploadingImage = false.obs;
-  final RxBool imageRemovedByUser =
-      false.obs; // Track if user clicked X to remove image
+
+  /// Total number of images (existing + newly selected).
+  int get totalImageCount =>
+      existingImageUrls.length + selectedImageFiles.length;
+
+  /// Whether more images can be added according to [AnnouncementImageLimiter].
+  bool get canAddMoreImages =>
+      AnnouncementImageLimiter.canAddMore(totalImageCount);
 
   // Section selection
   final RxList<String> availableSections = <String>[].obs;
@@ -150,8 +155,7 @@ class AnnouncementScreenController extends GetxController {
               'pinned': data['pinned'] ?? false,
               'urgent': data['urgent'] ?? false,
               'createdAt': data['createdAt'],
-              'imageUrl':
-                  data['imageUrl'] ?? '', // Include image URL for editing
+              'imageUrls': _extractImageUrls(data),
               'selectedClasses':
                   data['selectedClasses'] ?? [], // Include selected classes
             };
@@ -183,34 +187,32 @@ class AnnouncementScreenController extends GetxController {
     contentController.clear();
     pinToTop.value = false;
     urgent.value = false;
-    announcementImageUrl.value = '';
-    originalImageUrl.value = '';
-    selectedImageFile.value = null;
-    imageRemovedByUser.value = false; // Reset removal flag
+    selectedImageFiles.value = [];
+    existingImageUrls.value = [];
     // Reset section selection to all selected
     selectedClasses.updateAll((key, value) => true);
   }
 
-  // Pick image for announcement (without uploading)
-  Future<void> pickImage() async {
+  /// Pick one or more images to attach to the announcement.
+  /// Respects the [AnnouncementImageLimiter] cap and silently truncates
+  /// excess selections rather than showing a limit message in the UI.
+  Future<void> pickImages() async {
+    if (!canAddMoreImages) return;
     try {
-      // Pick image file
       final files = await _fileUploadService.pickFiles(
         type: FileType.image,
-        allowMultiple: false,
+        allowMultiple: true,
       );
 
       if (files != null && files.isNotEmpty) {
-        selectedImageFile.value = files.first;
-        imageRemovedByUser.value =
-            false; // Reset removal flag when new image is selected
-        // Don't clear existing URL - keep it in case user wants to restore
-        // The preview will show the new selected file instead
+        final allowed = AnnouncementImageLimiter.remaining(totalImageCount);
+        final toAdd = files.take(allowed).toList();
+        selectedImageFiles.addAll(toAdd);
       }
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to pick image: $e',
+        'Failed to pick images: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -218,38 +220,18 @@ class AnnouncementScreenController extends GetxController {
     }
   }
 
-  // Remove announcement image (explicitly called by user)
-  // This hides the preview but doesn't delete from database until save
-  void removeImage() {
-    selectedImageFile.value = null;
-    announcementImageUrl.value = ''; // Clear current image preview
-    imageRemovedByUser.value = true; // Mark that user wants to remove it
-    // Keep originalImageUrl so we know there was an image (for save logic)
+  /// Remove a newly selected (not yet uploaded) file by its list index.
+  void removeSelectedFile(int index) {
+    if (index >= 0 && index < selectedImageFiles.length) {
+      selectedImageFiles.removeAt(index);
+    }
   }
 
-  // Get preview image URL (for display)
-  String? get previewImageUrl {
-    // If user explicitly removed the image, don't show it
-    if (imageRemovedByUser.value) {
-      return null;
+  /// Remove an already-persisted image URL by its list index (edit mode).
+  void removeExistingUrl(int index) {
+    if (index >= 0 && index < existingImageUrls.length) {
+      existingImageUrls.removeAt(index);
     }
-    // Priority 1: Show newly selected file (if any)
-    if (selectedImageFile.value != null &&
-        selectedImageFile.value!.bytes != null) {
-      // Convert bytes to data URL for preview
-      final bytes = selectedImageFile.value!.bytes!;
-      final base64 = base64Encode(bytes);
-      return 'data:image/${selectedImageFile.value!.extension ?? 'jpg'};base64,$base64';
-    }
-    // Priority 2: Show existing image URL (from Firestore or original)
-    if (announcementImageUrl.value.isNotEmpty) {
-      return announcementImageUrl.value;
-    }
-    // Priority 3: If editing and we have original, show it
-    if (isEditMode.value && originalImageUrl.value.isNotEmpty) {
-      return originalImageUrl.value;
-    }
-    return null;
   }
 
   // Show edit announcement form
@@ -261,17 +243,11 @@ class AnnouncementScreenController extends GetxController {
     pinToTop.value = announcement['pinned'];
     urgent.value = announcement['urgent'];
 
-    // Handle image - ensure it displays when editing
-    final existingImageUrl = announcement['imageUrl']?.toString().trim() ?? '';
-    // Set both values to ensure the image displays
-    announcementImageUrl.value = existingImageUrl;
-    originalImageUrl.value =
-        existingImageUrl; // Store original for potential restore
-    selectedImageFile.value = null; // Clear any selected file when editing
-    imageRemovedByUser.value = false; // Reset removal flag when editing starts
-
-    // Force update to ensure UI reacts to image URL change
-    announcementImageUrl.refresh();
+    // Populate existing image URLs (supports both legacy single and new multi format)
+    existingImageUrls.value = List<String>.from(
+      announcement['imageUrls'] as List? ?? [],
+    );
+    selectedImageFiles.value = [];
 
     // Load selected sections if available
     if (announcement['selectedClasses'] != null) {
@@ -334,74 +310,56 @@ class AnnouncementScreenController extends GetxController {
       }
 
       if (isEditMode.value) {
-        // Upload image if a new file is selected
-        String? finalImageUrl =
-            announcementImageUrl.value.isNotEmpty
-                ? announcementImageUrl
-                    .value // Preserve existing image URL
-                : null;
-
-        if (selectedImageFile.value != null) {
+        // Upload any newly selected images
+        final List<String> newImageUrls = [];
+        if (selectedImageFiles.isNotEmpty) {
           try {
             isUploadingImage.value = true;
-            final response = await _fileUploadService.uploadFile(
-              file: selectedImageFile.value!,
-              folder: 'greenquest/announcements',
-            );
-
-            if (response != null) {
-              finalImageUrl = response.url; // Use new uploaded image
-            } else {
-              throw Exception('Failed to upload image');
+            for (final file in List<PlatformFile>.from(selectedImageFiles)) {
+              final response = await _fileUploadService.uploadFile(
+                file: file,
+                folder: 'greenquest/announcements',
+              );
+              if (response != null) {
+                newImageUrls.add(response.url);
+              } else {
+                throw Exception('Failed to upload one or more images');
+              }
             }
           } catch (e) {
             Get.snackbar(
               'Error',
-              'Failed to upload image: $e',
+              'Failed to upload images: $e',
               snackPosition: SnackPosition.BOTTOM,
               backgroundColor: Colors.red,
               colorText: Colors.white,
             );
             isUploadingImage.value = false;
-            return; // Don't update announcement if image upload fails
+            return;
           } finally {
             isUploadingImage.value = false;
           }
         }
 
+        final List<String> allImageUrls = [
+          ...existingImageUrls,
+          ...newImageUrls,
+        ];
+
         // Get selected sections
         final selectedSections = getSelectedSections();
 
         // Update existing announcement
-        final updateData = {
+        final updateData = <String, dynamic>{
           'title': titleController.text.trim(),
           'content': contentController.text.trim(),
           'pinned': pinToTop.value,
           'urgent': urgent.value,
-          'selectedClasses': selectedSections, // Update selected sections
+          'selectedClasses': selectedSections,
           'updatedAt': FieldValue.serverTimestamp(),
+          'imageUrls':
+              allImageUrls.isEmpty ? FieldValue.delete() : allImageUrls,
         };
-
-        // Handle image update
-        if (selectedImageFile.value != null) {
-          // New image was uploaded - update with new URL
-          updateData['imageUrl'] = finalImageUrl!;
-          imageRemovedByUser.value =
-              false; // Reset removal flag since we have new image
-        } else if (imageRemovedByUser.value &&
-            originalImageUrl.value.isNotEmpty) {
-          // User explicitly removed the image (clicked X) - delete from Firestore
-          updateData['imageUrl'] = FieldValue.delete();
-        } else if (selectedImageFile.value == null &&
-            announcementImageUrl.value.isNotEmpty) {
-          // No new file selected, but existing image URL is preserved - keep it
-          updateData['imageUrl'] = announcementImageUrl.value;
-          imageRemovedByUser.value = false; // Reset removal flag
-        } else if (selectedImageFile.value == null &&
-            announcementImageUrl.value.isEmpty &&
-            originalImageUrl.value.isEmpty) {
-          // No image was ever set, don't update the field
-        }
 
         await _firestore
             .collection('instructors')
@@ -446,35 +404,32 @@ class AnnouncementScreenController extends GetxController {
           // Continue with existing values if fetch fails
         }
 
-        // Upload image if a new file is selected
-        String? finalImageUrl =
-            announcementImageUrl.value.isNotEmpty
-                ? announcementImageUrl.value
-                : null;
-
-        if (selectedImageFile.value != null) {
+        // Upload all newly selected images
+        final List<String> newImageUrls = [];
+        if (selectedImageFiles.isNotEmpty) {
           try {
             isUploadingImage.value = true;
-            final response = await _fileUploadService.uploadFile(
-              file: selectedImageFile.value!,
-              folder: 'greenquest/announcements',
-            );
-
-            if (response != null) {
-              finalImageUrl = response.url;
-            } else {
-              throw Exception('Failed to upload image');
+            for (final file in List<PlatformFile>.from(selectedImageFiles)) {
+              final response = await _fileUploadService.uploadFile(
+                file: file,
+                folder: 'greenquest/announcements',
+              );
+              if (response != null) {
+                newImageUrls.add(response.url);
+              } else {
+                throw Exception('Failed to upload one or more images');
+              }
             }
           } catch (e) {
             Get.snackbar(
               'Error',
-              'Failed to upload image: $e',
+              'Failed to upload images: $e',
               snackPosition: SnackPosition.BOTTOM,
               backgroundColor: Colors.red,
               colorText: Colors.white,
             );
             isUploadingImage.value = false;
-            return; // Don't create announcement if image upload fails
+            return;
           } finally {
             isUploadingImage.value = false;
           }
@@ -484,7 +439,7 @@ class AnnouncementScreenController extends GetxController {
         final selectedSections = getSelectedSections();
 
         // Create new announcement
-        final announcementData = {
+        final announcementData = <String, dynamic>{
           'title': titleController.text.trim(),
           'content': contentController.text.trim(),
           'pinned': pinToTop.value,
@@ -494,10 +449,8 @@ class AnnouncementScreenController extends GetxController {
           'instructorId': user.uid,
           'instructorName': finalInstructorName,
           'instructorProfileUrl': finalInstructorProfileUrl,
-          'selectedClasses': selectedSections, // Store selected sections
-          // Add image URL if available
-          if (finalImageUrl!.isNotEmpty) 'imageUrl': finalImageUrl,
-          // Add assigned semester data
+          'selectedClasses': selectedSections,
+          if (newImageUrls.isNotEmpty) 'imageUrls': newImageUrls,
           if (semester != null) 'assignedSemester': semester,
         };
 
@@ -521,7 +474,7 @@ class AnnouncementScreenController extends GetxController {
             'announcementId': docRef.id,
             'urgent': urgent.value,
             'pinned': pinToTop.value,
-            if (finalImageUrl.isNotEmpty) 'imageUrl': finalImageUrl,
+            if (newImageUrls.isNotEmpty) 'imageUrls': newImageUrls,
           },
         );
 
@@ -661,6 +614,17 @@ class AnnouncementScreenController extends GetxController {
     }
 
     return '${date.month}/${date.day}/${date.year}';
+  }
+
+  /// Extracts image URLs from a Firestore document, supporting both the new
+  /// multi-image format (`imageUrls` list) and the legacy single-image format
+  /// (`imageUrl` string) for backward compatibility.
+  List<String> _extractImageUrls(Map<String, dynamic> data) {
+    if (data['imageUrls'] != null) {
+      return List<String>.from(data['imageUrls'] as List);
+    }
+    final legacy = data['imageUrl']?.toString().trim() ?? '';
+    return legacy.isNotEmpty ? [legacy] : [];
   }
 
   /// Get the currently active period that this instructor is assigned to.

@@ -8,6 +8,8 @@ import '../shared/widgets/safe_asset_image.dart';
 import 'multiple_assignment_dialog.dart';
 import '../shared/widgets/skeleton_loading.dart';
 import 'widgets/reapplication_request_dialog.dart';
+import '../shared/models/instructor_assignment_model.dart';
+import '../shared/models/assigned_period_model.dart';
 
 class ManageInstructorsScreen extends StatefulWidget {
   const ManageInstructorsScreen({super.key});
@@ -340,7 +342,7 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
   void _showAssignmentDialog(
     String instructorId,
     String instructorName,
-    List<Map<String, dynamic>>? existingAssignments,
+    List<InstructorAssignment>? existingAssignments,
     String? instructorStatus,
   ) {
     // Prevent assigning pending instructors
@@ -1228,133 +1230,146 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                 ),
                                               ),
                                               // ── Assigned-period chips ──
-                                              if (data['assignedPeriods'] !=
-                                                      null &&
-                                                  (data['assignedPeriods']
-                                                          as List)
-                                                      .isNotEmpty) ...[
+                                              if (() {
+                                                final raw =
+                                                    data['assignedPeriods'];
+                                                return raw is List &&
+                                                    raw.isNotEmpty;
+                                              }()) ...[
                                                 const SizedBox(height: 4),
                                                 Wrap(
                                                   spacing: 4,
                                                   runSpacing: 4,
                                                   children:
-                                                      (data['assignedPeriods'] as List).map<
-                                                        Widget
-                                                      >((period) {
-                                                        final p =
-                                                            period
-                                                                as Map<
-                                                                  String,
-                                                                  dynamic
-                                                                >;
-                                                        final semesterName =
-                                                            p['semesterName']
-                                                                ?.toString() ??
-                                                            '';
-                                                        final type =
-                                                            p['type']
-                                                                ?.toString() ??
-                                                            '';
-                                                        final label =
-                                                            type.isNotEmpty
-                                                                ? '$semesterName — $type'
-                                                                : semesterName;
-                                                        return Container(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 8,
-                                                                vertical: 4,
-                                                              ),
-                                                          decoration: BoxDecoration(
-                                                            color: Colors.blue
-                                                                .withOpacity(
-                                                                  0.08,
-                                                                ),
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  12,
-                                                                ),
-                                                            border: Border.all(
-                                                              color: Colors.blue
-                                                                  .withOpacity(
-                                                                    0.3,
+                                                      (data['assignedPeriods']
+                                                              as List)
+                                                          .whereType<
+                                                            Map<String, dynamic>
+                                                          >()
+                                                          .map(
+                                                            AssignedPeriod
+                                                                .fromMap,
+                                                          )
+                                                          .map<Widget>((
+                                                            period,
+                                                          ) {
+                                                            final label =
+                                                                period.label;
+                                                            return Container(
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        8,
+                                                                    vertical: 4,
                                                                   ),
-                                                              width: 1,
-                                                            ),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              const Icon(
-                                                                Icons
-                                                                    .calendar_today_outlined,
-                                                                size: 11,
-                                                                color:
-                                                                    Colors.blue,
-                                                              ),
-                                                              const SizedBox(
-                                                                width: 4,
-                                                              ),
-                                                              Text(
-                                                                label,
-                                                                style: const TextStyle(
-                                                                  fontSize: 11,
-                                                                  color:
-                                                                      Colors
-                                                                          .blue,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w500,
+                                                              decoration: BoxDecoration(
+                                                                color: Colors
+                                                                    .blue
+                                                                    .withOpacity(
+                                                                      0.08,
+                                                                    ),
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
+                                                                border: Border.all(
+                                                                  color: Colors
+                                                                      .blue
+                                                                      .withOpacity(
+                                                                        0.3,
+                                                                      ),
+                                                                  width: 1,
                                                                 ),
                                                               ),
-                                                            ],
-                                                          ),
-                                                        );
-                                                      }).toList(),
+                                                              child: Row(
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                children: [
+                                                                  const Icon(
+                                                                    Icons
+                                                                        .calendar_today_outlined,
+                                                                    size: 11,
+                                                                    color:
+                                                                        Colors
+                                                                            .blue,
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width: 4,
+                                                                  ),
+                                                                  Text(
+                                                                    label,
+                                                                    style: const TextStyle(
+                                                                      fontSize:
+                                                                          11,
+                                                                      color:
+                                                                          Colors
+                                                                              .blue,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w500,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            );
+                                                          })
+                                                          .toList(),
                                                 ),
                                               ],
                                               // ── Department-section assignment chips ──
-                                              if (data['assignments'] != null &&
-                                                  (data['assignments'] as List)
-                                                      .isNotEmpty) ...[
+                                              if (() {
+                                                final raw = data['assignments'];
+                                                return raw is List &&
+                                                    raw.isNotEmpty;
+                                              }()) ...[
                                                 const SizedBox(height: 4),
                                                 Wrap(
                                                   spacing: 4,
                                                   runSpacing: 4,
                                                   children:
-                                                      (data['assignments'] as List).map<
-                                                        Widget
-                                                      >((assignment) {
-                                                        return Container(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 8,
-                                                                vertical: 4,
-                                                              ),
-                                                          decoration: BoxDecoration(
-                                                            color: const Color(
-                                                              0xFF34A853,
-                                                            ).withOpacity(0.1),
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  12,
+                                                      (data['assignments']
+                                                              as List)
+                                                          .whereType<
+                                                            Map<String, dynamic>
+                                                          >()
+                                                          .map(
+                                                            InstructorAssignment
+                                                                .fromMap,
+                                                          )
+                                                          .map<Widget>((
+                                                            assignment,
+                                                          ) {
+                                                            return Container(
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        8,
+                                                                    vertical: 4,
+                                                                  ),
+                                                              decoration: BoxDecoration(
+                                                                color: const Color(
+                                                                  0xFF34A853,
+                                                                ).withOpacity(
+                                                                  0.1,
                                                                 ),
-                                                            border: Border.all(
-                                                              color:
-                                                                  const Color(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      12,
+                                                                    ),
+                                                                border: Border.all(
+                                                                  color: const Color(
                                                                     0xFF34A853,
                                                                   ).withOpacity(
                                                                     0.3,
                                                                   ),
-                                                              width: 1,
-                                                            ),
-                                                          ),
-                                                          child: Text(
-                                                            '${assignment['departmentCode']}-${assignment['sectionCode']}',
-                                                            style:
-                                                                const TextStyle(
+                                                                  width: 1,
+                                                                ),
+                                                              ),
+                                                              child: Text(
+                                                                assignment
+                                                                    .label,
+                                                                style: const TextStyle(
                                                                   fontSize: 11,
                                                                   color: Color(
                                                                     0xFF34A853,
@@ -1363,9 +1378,10 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                                       FontWeight
                                                                           .w500,
                                                                 ),
-                                                          ),
-                                                        );
-                                                      }).toList(),
+                                                              ),
+                                                            );
+                                                          })
+                                                          .toList(),
                                                 ),
                                               ],
                                               // ── NSTP Component badge ──
@@ -1795,14 +1811,21 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
                                                             'Unknown',
                                                         data['assignments'] !=
                                                                 null
-                                                            ? List<
-                                                              Map<
-                                                                String,
-                                                                dynamic
-                                                              >
-                                                            >.from(
-                                                              data['assignments'],
-                                                            )
+                                                            ? (data['assignments']
+                                                                    as List<
+                                                                      dynamic
+                                                                    >)
+                                                                .whereType<
+                                                                  Map<
+                                                                    String,
+                                                                    dynamic
+                                                                  >
+                                                                >()
+                                                                .map(
+                                                                  InstructorAssignment
+                                                                      .fromMap,
+                                                                )
+                                                                .toList()
                                                             : null,
                                                         status,
                                                       ),

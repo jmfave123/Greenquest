@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/instructor_assignment_model.dart';
 
 class InstructorClassService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,46 +12,31 @@ class InstructorClassService {
     try {
       // 1. Get current instructor ID
       final user = _auth.currentUser;
-      if (user == null) {
-        print('❌ No user logged in');
-        return [];
-      }
-
-      print('🔍 Fetching section codes for instructor: ${user.uid}');
+      if (user == null) return [];
 
       // 2. Get instructor document and read assignments array
       final instructorDoc =
           await _firestore.collection('instructors').doc(user.uid).get();
 
-      if (!instructorDoc.exists) {
-        print('❌ Instructor document not found');
-        return [];
-      }
+      if (!instructorDoc.exists) return [];
 
-      final instructorData = instructorDoc.data()!;
-      final assignments = List<Map<String, dynamic>>.from(
-        instructorData['assignments'] ?? [],
-      );
+      final assignments =
+          (instructorDoc.data()!['assignments'] as List? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .map(InstructorAssignment.fromMap)
+              .toList();
 
-      print('📊 Found ${assignments.length} assignments in array');
+      // 3. Extract sectionCodes from typed assignments
+      final uniqueSectionCodes =
+          assignments
+              .map((a) => a.sectionCode)
+              .where((code) => code.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
 
-      // 3. Extract sectionCodes from assignments array
-      final sectionCodes = <String>[];
-      for (var assignment in assignments) {
-        final sectionCode = assignment['sectionCode'] as String?;
-        if (sectionCode != null && sectionCode.isNotEmpty) {
-          sectionCodes.add(sectionCode);
-          print('  ✅ Found section: $sectionCode');
-        }
-      }
-
-      // 4. Remove duplicates and sort
-      final uniqueSectionCodes = sectionCodes.toSet().toList()..sort();
-
-      print('🎯 Final unique sections: $uniqueSectionCodes');
       return uniqueSectionCodes;
     } catch (e) {
-      print('❌ Error fetching instructor section codes: $e');
       return [];
     }
   }
@@ -61,8 +47,6 @@ class InstructorClassService {
     try {
       final user = _auth.currentUser;
       if (user == null) return [];
-
-      print('🔍 Fetching all section codes for instructor: ${user.uid}');
 
       final sectionCodes = <String>[];
 
@@ -129,10 +113,8 @@ class InstructorClassService {
       // Remove duplicates and sort
       final uniqueSectionCodes = sectionCodes.toSet().toList()..sort();
 
-      print('🎯 Final unique sections from all content: $uniqueSectionCodes');
       return uniqueSectionCodes;
     } catch (e) {
-      print('❌ Error fetching all instructor section codes: $e');
       return [];
     }
   }

@@ -501,6 +501,11 @@ class SubmissionsController extends GetxController {
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final activityType = data['activityType'] ?? 'activity';
+
+        // Tree-planting submissions belong exclusively to the Trees tab.
+        // Exclude them here so they never appear in classwork counts or lists.
+        if (activityType == 'tree_planting') continue;
+
         final type = activityType; // 'assignment', 'activity', 'quiz', or 'pit'
 
         print(
@@ -572,7 +577,6 @@ class SubmissionsController extends GetxController {
       final querySnapshot = await query.get();
       return querySnapshot.docs.length;
     } catch (e) {
-      print('Error getting submission count for $itemType $itemId: $e');
       return 0;
     }
   }
