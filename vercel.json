@@ -3,14 +3,10 @@
   "buildCommand": "bash build.sh",
   "devCommand": "npx --yes serve build/web -l $PORT",
   "outputDirectory": "build/web",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/build/web/$1"
+      "source": "/((?!api/).*)",
+      "destination": "/$1"
     }
   ],
   "build": {
