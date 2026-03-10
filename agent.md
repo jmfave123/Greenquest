@@ -129,6 +129,8 @@ logger.info('User authenticated: ${user.id}');
 - Use immutable state objects
 - Follow unidirectional data flow
 
+### MOST OF ALL FOLLOW THE OOP PRINCIPLES
+
 ### 4.4 File Organization
 ```
 lib/

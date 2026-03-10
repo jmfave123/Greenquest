@@ -10,7 +10,7 @@ import '../../../shared/services/notify_service.dart';
 import '../../../shared/services/in_app_notification_service.dart';
 import '../../instructor_dashboard_controller.dart';
 import '../../planted_trees/nstp_form_widget.dart';
-import '../../planted_trees/nstp_pdf_export_service.dart';
+import '../../services/nstp_pdf_export_service.dart';
 import '../class_detail_constants.dart';
 
 /// Trees Tab Widget - Shows planted trees for the class

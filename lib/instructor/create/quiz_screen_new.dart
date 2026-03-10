@@ -364,20 +364,13 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
     List<String> attachmentUrls = [];
     if (_fileController.selectedFiles.isNotEmpty) {
       try {
-        // Show loading indicator
-        Get.dialog(
-          const Center(child: CircularProgressIndicator()),
-          barrierDismissible: false,
-        );
+        _createController.isLoading.value = true;
 
         // Upload files
         final uploadSuccess = await _fileController.uploadFiles(
           folder: 'greenquest/quizzes',
           tags: {'type': 'quiz', 'period': widget.period ?? 'current'},
         );
-
-        // Close loading dialog
-        Get.back();
 
         if (uploadSuccess) {
           // Get uploaded file URLs
@@ -386,6 +379,7 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
                   .map((file) => file['url'] as String)
                   .toList();
         } else {
+          _createController.isLoading.value = false;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Failed to upload files. Please try again.'),
@@ -395,8 +389,7 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
           return;
         }
       } catch (e) {
-        // Close loading dialog
-        Get.back();
+        _createController.isLoading.value = false;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error uploading files: $e'),

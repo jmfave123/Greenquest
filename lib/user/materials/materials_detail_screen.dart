@@ -243,7 +243,6 @@ class MaterialsDetailScreen extends StatelessWidget {
         context: context,
       );
     } catch (e) {
-      print('❌ Error downloading file: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to download file: $e'),
@@ -284,20 +283,6 @@ class MaterialsDetailScreen extends StatelessWidget {
       return Icons.archive;
     } else {
       return Icons.attach_file;
-    }
-  }
-
-  /// Extract file name from URL
-  static String _getFileName(String fileUrl) {
-    try {
-      final uri = Uri.parse(fileUrl);
-      final pathSegments = uri.pathSegments;
-      if (pathSegments.isNotEmpty) {
-        return pathSegments.last;
-      }
-      return 'Download';
-    } catch (e) {
-      return 'Download';
     }
   }
 

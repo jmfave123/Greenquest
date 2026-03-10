@@ -1,0 +1,11 @@
+# Flutter build output - exclude from Vercel watcher
+build/
+.dart_tool/
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+android/
+ios/
+linux/
+macos/
+windows/

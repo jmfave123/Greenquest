@@ -43,17 +43,6 @@ class NstpFormWidget extends StatelessWidget {
     }
   }
 
-  String get _semester {
-    final ts =
-        data['submittedAt'] as Timestamp? ?? data['plantDate'] as Timestamp?;
-    if (ts == null) return '';
-    final month = ts.toDate().month;
-    // Aug–Dec → 1st Semester, Jan–May → 2nd Semester
-    if (month >= 8 && month <= 12) return '1st Semester';
-    if (month >= 1 && month <= 5) return '2nd Semester';
-    return '';
-  }
-
   bool? _checklist(String key) => data[key] as bool?;
 
   static const _imageExtensions = {

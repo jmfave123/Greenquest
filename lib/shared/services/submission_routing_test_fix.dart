@@ -35,28 +35,6 @@ class SubmissionRoutingTestFix {
   /// Test the list casting fix
   static void testListCasting() {
     print('🧪 Testing List Casting Fix...');
-
-    // Simulate Firestore data
-    final firestoreData = {
-      'selectedClasses': [
-        'BSIT-A',
-        'BSIT-B',
-        'CS-A',
-      ], // This would be List<dynamic> from Firestore
-    };
-
-    // Test the casting logic
-    final selectedClasses =
-        (firestoreData['selectedClasses'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList() ??
-        <String>[];
-
-    print('Original data: ${firestoreData['selectedClasses']}');
-    print('Casted result: $selectedClasses');
-    print('Type: ${selectedClasses.runtimeType}');
-    print('Is List<String>: ${selectedClasses is List<String>}');
-    print('Result: ${'✅'}');
   }
 
   /// Helper method to extract course code (copied from service)

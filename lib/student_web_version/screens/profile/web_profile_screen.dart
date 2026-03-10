@@ -355,7 +355,6 @@ class WebProfileScreen extends StatelessWidget {
   }
 
   Widget _buildAccountStats(WebProfileController controller) {
-    final userData = controller.userData;
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(

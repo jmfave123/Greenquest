@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/sms_provider/sms_chef_client.dart';
+import '../core/sms_provider/semaphore_client.dart';
 import '../shared/services/online_status_service.dart';
 
 class PhoneOtpVerificationScreen extends StatefulWidget {
@@ -17,7 +17,7 @@ class _PhoneOtpVerificationScreenState
     extends State<PhoneOtpVerificationScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final SmsChefClient _smsClient = SmsChefClient();
+  final SemaphoreClient _smsClient = SemaphoreClient();
 
   final TextEditingController _otpController = TextEditingController();
   final FocusNode _otpFocusNode = FocusNode();
@@ -137,7 +137,7 @@ class _PhoneOtpVerificationScreenState
     });
 
     try {
-      final result = await _smsClient.sendOtp(_phoneNumber);
+      final result = await _smsClient.sendOtp();
 
       if (result['success'] == true) {
         setState(() {
@@ -215,14 +215,8 @@ class _PhoneOtpVerificationScreenState
       final result = await _smsClient.verifyOtp(otp);
 
       if (result['success'] == true) {
-        // Update Firestore with phone verification status (same as login flow updates)
-        await _firestore.collection('instructors').doc(user.uid).update({
-          'isPhoneVerified': true,
-          'phoneVerifiedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        // Set user as online after successful verification (same as login flow)
+        // Firestore isPhoneVerified update is handled server-side in verify-otp.js
+        // Set user as online after successful verification
         await OnlineStatusService().setOnline();
 
         // Show success message (same style as login)

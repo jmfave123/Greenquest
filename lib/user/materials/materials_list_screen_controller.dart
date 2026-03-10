@@ -21,26 +21,6 @@ class MaterialsListScreenController extends GetxController {
     loadCurrentInstructorMaterials();
   }
 
-  /// Get user's section code from their profile
-  Future<String?> _getUserSectionCode() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return null;
-
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        final sectionCode = userData['selectedSectionCode']?.toString();
-        print('📚 User section code: $sectionCode');
-        return sectionCode;
-      }
-      return null;
-    } catch (e) {
-      print('❌ Error getting user section code: $e');
-      return null;
-    }
-  }
-
   /// Load materials for the current logged-in instructor
   Future<void> loadCurrentInstructorMaterials() async {
     try {
@@ -565,46 +545,6 @@ class MaterialsListScreenController extends GetxController {
     print('🎯 Loading materials for instructor: $instructorUid');
     currentInstructorUid.value = instructorUid;
     await loadMaterialsByInstructorUid(instructorUid);
-  }
-
-  /// Get selected instructor from user's document
-  Future<Map<String, dynamic>?> _getSelectedInstructor(String userId) async {
-    try {
-      print('🔍 Getting selected instructor for user: $userId');
-
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
-        final selectedInstructorId =
-            userData['selectedInstructorId']?.toString();
-        final selectedInstructorName =
-            userData['selectedInstructorName']?.toString();
-        final selectionComplete = userData['selectionComplete'] ?? false;
-
-        print(
-          '📋 User data: selectedInstructorId=$selectedInstructorId, selectedInstructorName=$selectedInstructorName, selectionComplete=$selectionComplete',
-        );
-
-        if (selectionComplete &&
-            selectedInstructorId != null &&
-            selectedInstructorId.isNotEmpty) {
-          return {
-            'instructorId': selectedInstructorId,
-            'instructorName': selectedInstructorName ?? 'Unknown Instructor',
-          };
-        } else {
-          print('⚠️ User has not completed instructor selection');
-          return null;
-        }
-      } else {
-        print('❌ User document not found');
-        return null;
-      }
-    } catch (e) {
-      print('❌ Error getting selected instructor: $e');
-      return null;
-    }
   }
 
   /// Load instructor name by UID

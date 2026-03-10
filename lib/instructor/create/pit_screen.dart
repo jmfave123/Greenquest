@@ -477,20 +477,13 @@ class _PITScreenState extends State<PITScreen> {
     List<String> attachmentUrls = [];
     if (_fileController.selectedFiles.isNotEmpty) {
       try {
-        // Show loading indicator
-        Get.dialog(
-          const Center(child: CircularProgressIndicator()),
-          barrierDismissible: false,
-        );
+        _createController.isLoading.value = true;
 
         // Upload files
         final uploadSuccess = await _fileController.uploadFiles(
           folder: 'greenquest/pits',
           tags: {'type': 'pit', 'period': widget.period ?? 'current'},
         );
-
-        // Close loading dialog
-        Get.back();
 
         if (uploadSuccess) {
           // Get uploaded file URLs
@@ -499,6 +492,7 @@ class _PITScreenState extends State<PITScreen> {
                   .map((file) => file['url'] as String)
                   .toList();
         } else {
+          _createController.isLoading.value = false;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Failed to upload files. Please try again.'),
@@ -508,8 +502,7 @@ class _PITScreenState extends State<PITScreen> {
           return;
         }
       } catch (e) {
-        // Close loading dialog
-        Get.back();
+        _createController.isLoading.value = false;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error uploading files: $e'),

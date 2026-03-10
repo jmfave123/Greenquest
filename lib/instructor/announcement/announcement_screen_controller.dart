@@ -6,7 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../../shared/services/file_upload_service.dart';
 import '../../../shared/services/instructor_class_service.dart';
 import '../../../shared/services/in_app_notification_service.dart';
-import 'announcement_image_limiter.dart';
+import '../helpers/announcement_image_limiter.dart';
 
 class AnnouncementScreenController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
