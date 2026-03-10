@@ -30,6 +30,10 @@ EOF
 
 echo ".env file created"
 
+# Install API dependencies
+echo "Installing API dependencies..."
+cd api && npm install --production && cd ..
+
 # Install dependencies  
 echo "Getting dependencies..."
 flutter pub get
