@@ -154,6 +154,25 @@ class SemaphoreClient {
     }
   }
 
+  /// Notify the server that email has been verified in Firebase Auth.
+  /// The server checks `emailVerified` via Admin SDK and updates Firestore.
+  Future<void> callVerifyEmail(String idToken) async {
+    try {
+      await http
+          .post(
+            Uri.parse('$_baseUrl/api/verify-email'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: jsonEncode({}),
+          )
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      // Best-effort — Flutter Auth token already confirms verification
+    }
+  }
+
   String _getFriendlyError(String error) {
     if (error.contains('SocketException') ||
         error.contains('Failed host lookup')) {
