@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
@@ -189,6 +194,32 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
     });
   }
 
+  /// Sends an approval / rejection email to the instructor via the
+  /// `/api/notify-instructor` serverless function.
+  Future<void> _notifyInstructor(String instructorId, String action) async {
+    try {
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+      if (idToken == null) return;
+
+      final baseUrl =
+          kDebugMode
+              ? (dotenv.env['VERCEL_BASE_URL_LOCAL'] ?? 'http://localhost:3000')
+              : (dotenv.env['VERCEL_BASE_URL'] ??
+                  'https://greenquest-seven.vercel.app');
+
+      await http.post(
+        Uri.parse('$baseUrl/api/notify-instructor'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: jsonEncode({'instructorId': instructorId, 'action': action}),
+      );
+    } catch (_) {
+      // Email notification is non-critical; don't surface errors to the user.
+    }
+  }
+
   Future<void> _approveInstructor(String instructorId) async {
     try {
       await _firestore.collection('instructors').doc(instructorId).update({
@@ -198,6 +229,9 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
         'verifiedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // Send approval email notification (fire-and-forget)
+      _notifyInstructor(instructorId, 'approved');
 
       Get.snackbar(
         'Success',
@@ -322,6 +356,9 @@ class _ManageInstructorsScreenState extends State<ManageInstructorsScreen>
         'rejectedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // Send rejection email notification (fire-and-forget)
+      _notifyInstructor(instructorId, 'rejected');
 
       Get.snackbar(
         'Success',

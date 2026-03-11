@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,10 +15,98 @@ class InstructorPendingApprovalController extends GetxController {
   final RxString instructorEmail = ''.obs;
   final RxString accountStatus = 'Pending'.obs;
 
+  Timer? _pollTimer;
+  StreamSubscription? _statusSubscription;
+
   @override
   void onInit() {
     super.onInit();
     loadInstructorData();
+    _startRealtimeListener();
+  }
+
+  @override
+  void onClose() {
+    _pollTimer?.cancel();
+    _statusSubscription?.cancel();
+    super.onClose();
+  }
+
+  /// Real-time Firestore listener — reacts instantly when admin changes status
+  void _startRealtimeListener() {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    _statusSubscription = _firestore
+        .collection('instructors')
+        .where('email', isEqualTo: user.email)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) async {
+          if (snapshot.docs.isEmpty) return;
+          final data = snapshot.docs.first.data();
+          final status = data['status']?.toString() ?? 'Pending';
+          final isPhoneVerified = data['isPhoneVerified'] ?? false;
+
+          accountStatus.value = status;
+
+          if (status == 'Approved') {
+            _statusSubscription?.cancel();
+            _pollTimer?.cancel();
+            Get.snackbar(
+              'Account Approved!',
+              'Your account has been approved. Redirecting...',
+              snackPosition: SnackPosition.TOP,
+              backgroundColor: const Color(0xFF34A853),
+              colorText: Colors.white,
+            );
+            await Future.delayed(const Duration(seconds: 1));
+            if (!isPhoneVerified) {
+              Get.offAllNamed('/instructor-phone-otp-verification');
+            } else {
+              Get.offAllNamed('/instructor-dashboard');
+            }
+          }
+        });
+  }
+
+  /// Silent background poll — fallback in case stream is unavailable
+  Future<void> _autoPollStatus() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final instructorQuery =
+          await _firestore
+              .collection('instructors')
+              .where('email', isEqualTo: user.email)
+              .limit(1)
+              .get();
+
+      if (instructorQuery.docs.isEmpty) return;
+      final data = instructorQuery.docs.first.data();
+      final status = data['status']?.toString() ?? 'Pending';
+      final isPhoneVerified = data['isPhoneVerified'] ?? false;
+      accountStatus.value = status;
+
+      if (status == 'Approved') {
+        _pollTimer?.cancel();
+        _statusSubscription?.cancel();
+        Get.snackbar(
+          'Account Approved!',
+          'Your account has been approved. Redirecting...',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: const Color(0xFF34A853),
+          colorText: Colors.white,
+        );
+        await Future.delayed(const Duration(seconds: 1));
+        if (!isPhoneVerified) {
+          Get.offAllNamed('/instructor-phone-otp-verification');
+        } else {
+          Get.offAllNamed('/instructor-dashboard');
+        }
+      }
+    } catch (_) {}
   }
 
   /// Load instructor data from Firestore
