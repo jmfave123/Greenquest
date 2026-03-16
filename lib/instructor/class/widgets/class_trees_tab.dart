@@ -5,11 +5,12 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/utils/app_logger.dart';
+import '../../../shared/services/tree_submission_export_service.dart';
+import '../../../shared/widgets/nstp_export_preview_dialog.dart';
 import '../../../shared/widgets/custom_dialogs.dart';
 import '../../../shared/services/notify_service.dart';
 import '../../../shared/services/in_app_notification_service.dart';
 import '../../instructor_dashboard_controller.dart';
-import '../../planted_trees/nstp_form_widget.dart';
 import '../../services/nstp_pdf_export_service.dart';
 import '../class_detail_constants.dart';
 
@@ -286,7 +287,7 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
             _buildActionButtons(tree),
           ],
 
-          // NSTP Form button — always visible on student submissions
+          // Preview & Export button — always visible on student submissions
           if (isStudentSubmission) ...[
             const SizedBox(height: 10),
             Align(
@@ -294,12 +295,12 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
               child: OutlinedButton.icon(
                 onPressed: () async => _showNstpFormDialog(tree),
                 icon: const Icon(
-                  Icons.description_outlined,
+                  Icons.preview,
                   size: 16,
                   color: Color(0xFF1A237E),
                 ),
                 label: const Text(
-                  'NSTP Form',
+                  'Preview & Export',
                   style: TextStyle(
                     color: Color(0xFF1A237E),
                     fontWeight: FontWeight.bold,
@@ -643,149 +644,37 @@ class _ClassTreesTabState extends State<ClassTreesTab> {
     );
   }
 
-  /// Opens the NSTP monitoring form dialog.
-  /// If [tree] is missing nstpComponent or treeNames (old submissions),
-  /// falls back to fetching them live from the users collection.
+  /// Opens a preview-first NSTP monitoring form dialog for export.
   Future<void> _showNstpFormDialog(Map<String, dynamic> tree) async {
-    final studentId = tree['studentId'] as String? ?? '';
+    try {
+      final formData = await TreeSubmissionExportService.buildNstpExportData(
+        firestore: FirebaseFirestore.instance,
+        submission: tree,
+      );
 
-    // Show a brief loading indicator while resolving missing fields.
-    String nstpComponent = (tree['nstpComponent'] as String? ?? '').trim();
-    List<String> treeNames =
-        (tree['treeNames'] is List)
-            ? List<String>.from(tree['treeNames'] as List)
-            : <String>[];
+      if (!mounted) return;
 
-    // Fallback: fetch from users collection if fields are missing.
-    if ((nstpComponent.isEmpty || treeNames.isEmpty) && studentId.isNotEmpty) {
-      try {
-        final userDoc =
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(studentId)
-                .get();
-
-        if (userDoc.exists) {
-          final userData = userDoc.data()!;
-          if (nstpComponent.isEmpty) {
-            nstpComponent = (userData['nstpComponent'] as String? ?? '').trim();
-          }
-          if (treeNames.isEmpty && userData['treeNames'] is List) {
-            treeNames = List<String>.from(userData['treeNames'] as List);
-          }
-        }
-      } catch (e) {
-        _logger.warning('Could not fetch user fallback data: $e');
-      }
+      await NstpExportPreviewDialog.show(
+        context: context,
+        formData: formData,
+        onExport: () async {
+          await NstpPdfExportService.exportToPdf(formData);
+        },
+      );
+    } catch (e, stackTrace) {
+      _logger.error(
+        'Failed to preview/export NSTP form',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      if (!mounted) return;
+      Get.snackbar(
+        'Export Failed',
+        'Unable to preview or export NSTP form. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
-
-    final formData = <String, dynamic>{
-      'studentName': tree['studentName'] ?? '',
-      'sectionName': tree['sectionName'] ?? '',
-      'nstpComponent': nstpComponent,
-      'quantity': tree['quantity'] ?? 0,
-      'treeNames': treeNames,
-      'location': tree['location'] ?? '',
-      'submittedAt': tree['submittedAt'],
-      'files': tree['files'] ?? <dynamic>[],
-    };
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder:
-          (dialogContext) => Dialog(
-            backgroundColor: Colors.white,
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 16,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title bar
-                  Container(
-                    color: const Color(0xFF1A237E),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'NSTP Monitoring Form',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                        // Export PDF button
-                        TextButton.icon(
-                          onPressed: () async {
-                            try {
-                              await NstpPdfExportService.exportToPdf(formData);
-                            } catch (e) {
-                              if (dialogContext.mounted) {
-                                ScaffoldMessenger.of(
-                                  dialogContext,
-                                ).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Failed to export PDF.'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.picture_as_pdf,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          label: const Text(
-                            'Export PDF',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.15),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => Navigator.of(dialogContext).pop(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Scrollable form
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: NstpFormWidget(data: formData),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
   }
 
   Widget _buildActionButtons(Map<String, dynamic> tree) {

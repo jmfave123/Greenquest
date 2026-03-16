@@ -106,7 +106,7 @@ module.exports = async (req, res) => {
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, error: 'Unauthorized.' });
     }
-
+ 
     const idToken = authHeader.split('Bearer ')[1];
     const db = getDb();
     const decodedToken = await admin.auth().verifyIdToken(idToken);
@@ -152,9 +152,9 @@ module.exports = async (req, res) => {
     const result = await sendEmail({ toEmail, toName, action });
 
     if (!result.success) {
-      console.error('[notify-instructor] Resend error:', result.error);
+      console.error('[notify-instructor] Resend error:', result.error); 
       return res.status(502).json({ success: false, error: result.error });
-    }
+    }  
 
     return res.status(200).json({ success: true, message: `Notification email sent to ${toEmail}.` });
   } catch (err) {

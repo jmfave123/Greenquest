@@ -1,11 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:greenquest/core/utils/app_logger.dart';
 
+import '../../shared/services/file_upload_service.dart';
+import '../../student_web_version/helpers/tree_submission_edit_helper.dart';
+
 class TreePlantingController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FileUploadService _fileUploadService = FileUploadService();
 
   // Observable variables
   final RxBool isSubmitting = false.obs;
@@ -17,6 +22,7 @@ class TreePlantingController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _fileUploadService.initialize();
     loadMyTreeSubmissions();
   }
 
@@ -195,5 +201,118 @@ class TreePlantingController extends GetxController {
       default:
         return 'Pending Review';
     }
+  }
+
+  /// Update an existing tree planting submission owned by current user.
+  ///
+  /// Rejected submissions are moved back to submitted status after edits.
+  Future<bool> updateTreeSubmission({
+    required String submissionId,
+    required int quantity,
+    required DateTime plantDate,
+    required String location,
+    required List<String> treeNames,
+    List<Map<String, dynamic>> retainedFiles = const <Map<String, dynamic>>[],
+    List<PlatformFile> newFiles = const <PlatformFile>[],
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+
+      final submissionRef = _firestore
+          .collection('submissions')
+          .doc(submissionId);
+      final snapshot = await submissionRef.get();
+
+      if (!snapshot.exists) {
+        throw Exception('Submission not found');
+      }
+
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final ownerId = (data['studentId'] ?? '').toString();
+      final activityType = (data['activityType'] ?? '').toString();
+      final currentStatus = (data['status'] ?? 'submitted').toString();
+
+      if (ownerId != user.uid) {
+        throw Exception('You can only edit your own submission');
+      }
+
+      if (activityType != 'tree_planting') {
+        throw Exception('Invalid activity type for tree submission update');
+      }
+
+      if (currentStatus == 'approved') {
+        throw Exception('Approved submissions can no longer be edited');
+      }
+
+      final attachmentValidation =
+          TreeSubmissionEditHelper.validateAttachmentCount(
+            retainedCount: retainedFiles.length,
+            newCount: newFiles.length,
+          );
+      if (attachmentValidation != null) {
+        throw Exception(attachmentValidation);
+      }
+
+      final sanitizedRetainedFiles =
+          retainedFiles.map((file) {
+            return {
+              'name': (file['name'] ?? '').toString(),
+              'url': (file['url'] ?? '').toString(),
+              'publicId': (file['publicId'] ?? '').toString(),
+              'size': _asInt(file['size']),
+              'type': (file['type'] ?? '').toString(),
+            };
+          }).toList();
+
+      final uploadedNewFiles =
+          newFiles.isEmpty
+              ? <Map<String, dynamic>>[]
+              : await _fileUploadService.uploadMultipleFiles(
+                files: newFiles,
+                folder: 'greenquest/tree_planting',
+              );
+
+      final mergedFiles = <Map<String, dynamic>>[
+        ...sanitizedRetainedFiles,
+        ...uploadedNewFiles,
+      ];
+
+      final updateData = <String, dynamic>{
+        'quantity': quantity,
+        'plantDate': Timestamp.fromDate(plantDate),
+        'location': location,
+        'treeNames': treeNames,
+        'files': mergedFiles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (currentStatus == 'rejected') {
+        updateData['status'] = 'submitted';
+        updateData['feedback'] = null;
+        updateData['gradedAt'] = FieldValue.delete();
+        updateData['gradedBy'] = FieldValue.delete();
+      }
+
+      await submissionRef.update(updateData);
+
+      await loadMyTreeSubmissions();
+      return true;
+    } catch (e) {
+      AppLogger('Error updating tree submission');
+      return false;
+    }
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

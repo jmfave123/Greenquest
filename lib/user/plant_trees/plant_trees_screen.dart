@@ -4,6 +4,10 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:greenquest/shared/login/custom_drawer.dart';
 import 'package:greenquest/shared/controllers/file_submission_controller.dart';
+import 'package:greenquest/shared/helpers/tree_submission_preview_export_flow_helper.dart';
+import 'package:greenquest/shared/helpers/tree_submission_edit_flow_helper.dart';
+import 'package:greenquest/instructor/services/nstp_pdf_export_service.dart';
+import 'package:greenquest/student_web_version/helpers/tree_submission_edit_helper.dart';
 import 'tree_planting_controller.dart';
 
 class PlantTreesScreen extends StatefulWidget {
@@ -15,6 +19,7 @@ class PlantTreesScreen extends StatefulWidget {
 
 class _PlantTreesScreenState extends State<PlantTreesScreen> {
   int selectedDrawerIndex = 5;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TreePlantingController _controller = Get.put(TreePlantingController());
   final FileSubmissionController _fileController = Get.put(
     FileSubmissionController(),
@@ -27,6 +32,8 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
     (_) => TextEditingController(),
   );
   DateTime _selectedDate = DateTime.now();
+  final Set<String> _exportingSubmissionIds = <String>{};
+  final Set<String> _editingSubmissionIds = <String>{};
 
   @override
   void initState() {
@@ -189,6 +196,99 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
         colorText: Colors.white,
       );
     }
+  }
+
+  Future<void> _previewSubmissionBeforeExport(
+    Map<String, dynamic> submission,
+  ) async {
+    final result = await TreeSubmissionPreviewExportFlowHelper.run(
+      context: context,
+      firestore: _firestore,
+      submission: submission,
+      onExport: (formData) async {
+        await NstpPdfExportService.exportToPdf(formData);
+      },
+      onPreviewStart: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _exportingSubmissionIds.add(submissionId));
+        }
+      },
+      onPreviewEnd: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _exportingSubmissionIds.remove(submissionId));
+        }
+      },
+    );
+
+    if (result.status == TreeSubmissionPreviewExportFlowStatus.previewFailed) {
+      Get.snackbar(
+        'Preview Failed',
+        'Unable to preview this submission. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> _editSubmission(Map<String, dynamic> submission) async {
+    final result = await TreeSubmissionEditFlowHelper.run(
+      context: context,
+      submission: submission,
+      onUpdate: (editData, submissionId) {
+        return _controller.updateTreeSubmission(
+          submissionId: submissionId,
+          quantity: editData.quantity,
+          plantDate: editData.plantDate,
+          location: editData.location,
+          treeNames: editData.treeNames,
+          retainedFiles: editData.retainedFiles,
+          newFiles: editData.newFiles,
+        );
+      },
+      onUpdateStart: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _editingSubmissionIds.add(submissionId));
+        }
+      },
+      onUpdateEnd: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _editingSubmissionIds.remove(submissionId));
+        }
+      },
+    );
+
+    if (result.status == TreeSubmissionEditFlowStatus.cancelled) {
+      return;
+    }
+
+    if (result.status == TreeSubmissionEditFlowStatus.notEditable) {
+      Get.snackbar(
+        'Edit Disabled',
+        'Approved submissions can no longer be edited.',
+        backgroundColor: const Color(0xFFFBBC04),
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (result.status == TreeSubmissionEditFlowStatus.updateFailed) {
+      Get.snackbar(
+        'Edit Failed',
+        'Unable to update this submission. Please try again.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    Get.snackbar(
+      'Success',
+      result.originalStatus == 'rejected'
+          ? 'Submission updated and resubmitted for review.'
+          : 'Submission updated successfully.',
+      backgroundColor: const Color(0xFF34A853),
+      colorText: Colors.white,
+    );
   }
 
   @override
@@ -670,7 +770,17 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
                 itemCount: _controller.myTreeSubmissions.length,
                 itemBuilder: (context, index) {
                   final submission = _controller.myTreeSubmissions[index];
+                  final submissionId = (submission['id'] ?? '').toString();
+                  final isExporting = _exportingSubmissionIds.contains(
+                    submissionId,
+                  );
+                  final isEditing = _editingSubmissionIds.contains(
+                    submissionId,
+                  );
                   final status = submission['status'] ?? 'submitted';
+                  final canEdit = TreeSubmissionEditHelper.isEditableStatus(
+                    status.toString(),
+                  );
                   final quantity = submission['quantity'] ?? 0;
                   final location = submission['location'] ?? 'Unknown';
 
@@ -830,6 +940,59 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
                             ),
                           ),
                         ],
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            if (canEdit)
+                              TextButton.icon(
+                                onPressed:
+                                    isEditing
+                                        ? null
+                                        : () => _editSubmission(submission),
+                                icon:
+                                    isEditing
+                                        ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                        : const Icon(Icons.edit, size: 16),
+                                label: Text(isEditing ? 'Saving...' : 'Edit'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.black87,
+                                ),
+                              ),
+                            TextButton.icon(
+                              onPressed:
+                                  isExporting
+                                      ? null
+                                      : () => _previewSubmissionBeforeExport(
+                                        submission,
+                                      ),
+                              icon:
+                                  isExporting
+                                      ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                      : const Icon(Icons.preview, size: 16),
+                              label: Text(
+                                isExporting
+                                    ? 'Preparing...'
+                                    : 'Preview & Export',
+                              ),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF34A853),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   );

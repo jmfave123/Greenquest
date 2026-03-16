@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../../user/plant_trees/tree_planting_controller.dart';
 import '../../../shared/controllers/file_submission_controller.dart';
+import '../../../shared/helpers/tree_submission_edit_flow_helper.dart';
+import '../../../shared/helpers/tree_submission_preview_export_flow_helper.dart';
+import '../../../instructor/services/nstp_pdf_export_service.dart';
+import '../../helpers/tree_submission_edit_helper.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -24,6 +29,8 @@ class WebPlantTreesScreen extends StatefulWidget {
 
 class _WebPlantTreesScreenState extends State<WebPlantTreesScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   late final TreePlantingController _treeController;
   late final FileSubmissionController _fileController;
@@ -36,6 +43,8 @@ class _WebPlantTreesScreenState extends State<WebPlantTreesScreen> {
   );
 
   DateTime _selectedDate = DateTime.now();
+  final Set<String> _exportingSubmissionIds = <String>{};
+  final Set<String> _editingSubmissionIds = <String>{};
 
   // -------------------------------------------------------------------------
   // Lifecycle
@@ -199,6 +208,144 @@ class _WebPlantTreesScreenState extends State<WebPlantTreesScreen> {
         colorText: Colors.white,
       );
     }
+  }
+
+  Future<void> _previewSubmissionBeforeExport(
+    Map<String, dynamic> submission,
+  ) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      Get.snackbar(
+        'Preview Failed',
+        'Please sign in again to preview your submission.',
+        backgroundColor: WebTheme.errorRed,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    final result = await TreeSubmissionPreviewExportFlowHelper.run(
+      context: context,
+      firestore: _firestore,
+      submission: submission,
+      currentUserId: currentUser.uid,
+      enforceOwnership: true,
+      onExport: (formData) async {
+        await NstpPdfExportService.exportToPdf(formData);
+      },
+      onPreviewStart: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _exportingSubmissionIds.add(submissionId));
+        }
+      },
+      onPreviewEnd: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _exportingSubmissionIds.remove(submissionId));
+        }
+      },
+    );
+
+    if (result.status == TreeSubmissionPreviewExportFlowStatus.accessDenied) {
+      Get.snackbar(
+        'Access Denied',
+        'You can only preview and export your own tree submissions.',
+        backgroundColor: WebTheme.errorRed,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (result.status == TreeSubmissionPreviewExportFlowStatus.previewFailed) {
+      Get.snackbar(
+        'Preview Failed',
+        'Unable to preview this submission. Please try again.',
+        backgroundColor: WebTheme.errorRed,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> _editSubmission(Map<String, dynamic> submission) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      Get.snackbar(
+        'Edit Failed',
+        'Please sign in again to edit your submission.',
+        backgroundColor: WebTheme.errorRed,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    final result = await TreeSubmissionEditFlowHelper.run(
+      context: context,
+      submission: submission,
+      currentUserId: currentUser.uid,
+      enforceOwnership: true,
+      onUpdate: (editData, submissionId) {
+        return _treeController.updateTreeSubmission(
+          submissionId: submissionId,
+          quantity: editData.quantity,
+          plantDate: editData.plantDate,
+          location: editData.location,
+          treeNames: editData.treeNames,
+          retainedFiles: editData.retainedFiles,
+          newFiles: editData.newFiles,
+        );
+      },
+      onUpdateStart: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _editingSubmissionIds.add(submissionId));
+        }
+      },
+      onUpdateEnd: (submissionId) async {
+        if (submissionId.isNotEmpty && mounted) {
+          setState(() => _editingSubmissionIds.remove(submissionId));
+        }
+      },
+    );
+
+    if (result.status == TreeSubmissionEditFlowStatus.cancelled) {
+      return;
+    }
+
+    if (result.status == TreeSubmissionEditFlowStatus.accessDenied) {
+      Get.snackbar(
+        'Access Denied',
+        'You can only edit your own tree submissions.',
+        backgroundColor: WebTheme.errorRed,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (result.status == TreeSubmissionEditFlowStatus.notEditable) {
+      Get.snackbar(
+        'Edit Disabled',
+        'Approved submissions can no longer be edited.',
+        backgroundColor: WebTheme.warningOrange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (result.status == TreeSubmissionEditFlowStatus.updateFailed) {
+      Get.snackbar(
+        'Edit Failed',
+        'Unable to update this submission. Please try again.',
+        backgroundColor: WebTheme.errorRed,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    Get.snackbar(
+      'Success',
+      result.originalStatus == 'rejected'
+          ? 'Submission updated and resubmitted for review.'
+          : 'Submission updated successfully.',
+      backgroundColor: WebTheme.primaryGreen,
+      colorText: Colors.white,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -540,10 +687,14 @@ class _WebPlantTreesScreenState extends State<WebPlantTreesScreen> {
   }
 
   Widget _buildSubmissionCard(Map<String, dynamic> submission) {
+    final submissionId = (submission['id'] ?? '').toString();
+    final isExporting = _exportingSubmissionIds.contains(submissionId);
+    final isEditing = _editingSubmissionIds.contains(submissionId);
     final status = (submission['status'] as String?) ?? 'submitted';
     final quantity = (submission['quantity'] as int?) ?? 0;
     final location = (submission['location'] as String?) ?? 'Unknown';
     final feedback = submission['feedback'] as String?;
+    final canEdit = TreeSubmissionEditHelper.isEditableStatus(status);
 
     // Resolve planting date — may be Firestore Timestamp or a legacy String
     String formattedDate = 'Unknown';
@@ -640,6 +791,48 @@ class _WebPlantTreesScreenState extends State<WebPlantTreesScreen> {
               ),
             ),
           ],
+
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (canEdit)
+                TextButton.icon(
+                  onPressed:
+                      isEditing ? null : () => _editSubmission(submission),
+                  icon:
+                      isEditing
+                          ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.edit, size: 16),
+                  label: Text(isEditing ? 'Saving...' : 'Edit'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: WebTheme.textPrimary,
+                  ),
+                ),
+              TextButton.icon(
+                onPressed:
+                    isExporting
+                        ? null
+                        : () => _previewSubmissionBeforeExport(submission),
+                icon:
+                    isExporting
+                        ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.preview, size: 16),
+                label: Text(isExporting ? 'Preparing...' : 'Preview & Export'),
+                style: TextButton.styleFrom(
+                  foregroundColor: WebTheme.primaryGreen,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
