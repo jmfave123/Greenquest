@@ -156,14 +156,18 @@ function buildReminderCopy({ itemType, title, window }) {
 }
 
 async function isAuthorizedRequest(req, db) {
+  const cronSecret = process.env.CRON_SECRET;
+  const directCronHeader = req.headers['x-cron-secret'];
+  if (cronSecret && directCronHeader && directCronHeader === cronSecret) {
+    return { authorized: true, mode: 'cron-header' };
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { authorized: false, error: 'Unauthorized.' };
   }
 
   const bearerValue = authHeader.split('Bearer ')[1];
-
-  const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && bearerValue === cronSecret) {
     return { authorized: true, mode: 'cron' };
   }
