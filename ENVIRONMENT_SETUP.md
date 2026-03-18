@@ -33,6 +33,7 @@ cp .env.example .env
 2. Create an account or log in
 3. Create a new app or select existing
 4. Copy your App ID from Settings > Keys & IDs
+5. Copy your REST API Key from Settings > Keys & IDs (server-side only)
 
 ### 3. Fill in Your .env File
 
@@ -47,6 +48,16 @@ CLOUDINARY_API_SECRET=your_actual_api_secret
 # OneSignal Configuration
 ONESIGNAL_APP_ID=your_actual_app_id
 ```
+
+### 3.1 Add Server-Only OneSignal Key in Vercel
+
+Set this in your Vercel Project Environment Variables (do not put this in Flutter `.env`):
+
+```env
+ONESIGNAL_REST_API_KEY=your_actual_onesignal_rest_api_key
+```
+
+This key is now used only by serverless API routes (for example `api/send-notification`) so it is never embedded in the client build.
 
 ### 4. Verify Setup
 
@@ -109,6 +120,7 @@ if (oneSignalAppId != null && oneSignalAppId.isNotEmpty) {
 - Use production credentials in development
 - Hardcode secrets in source code
 - Store credentials in comments
+- Put server-only secrets (e.g., `ONESIGNAL_REST_API_KEY`) in Flutter `.env`
 
 ## Troubleshooting
 

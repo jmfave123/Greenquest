@@ -61,7 +61,7 @@ class TreeSubmissionEditFlowHelper {
 
       final isOwner = TreeSubmissionExportService.isOwnedByUser(
         submission: submission,
-        userId: currentUserId!.trim(),
+        userId: currentUserId.trim(),
       );
       if (!isOwner) {
         return TreeSubmissionEditFlowResult(

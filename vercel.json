@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "crons": [
+    {
+      "path": "/api/send-due-reminders",
+      "schedule": "*/10 * * * *"
+    }
+  ],
   "buildCommand": "bash build.sh",
   "devCommand": "npx --yes serve build/web -l $PORT",
   "outputDirectory": "build/web",
