@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/message_model.dart';
 import '../utils/file_type_utils.dart';
 import 'notify_service.dart';
@@ -7,6 +8,12 @@ import 'notify_service.dart';
 class MessageService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   /// Send a text message
   static Future<void> sendMessage({
@@ -41,7 +48,7 @@ class MessageService {
         );
       }
     } catch (e) {
-      print('Error sending message: $e');
+      _log('Error sending message: $e');
       rethrow;
     }
   }
@@ -98,7 +105,7 @@ class MessageService {
         );
       }
     } catch (e) {
-      print('Error sending file message: $e');
+      _log('Error sending file message: $e');
       rethrow;
     }
   }
@@ -258,7 +265,7 @@ class MessageService {
                     'Student';
               }
             } catch (e) {
-              print('Error fetching student name: $e');
+              _log('Error fetching student name: $e');
             }
 
             conversationData[senderId] = {
@@ -293,7 +300,7 @@ class MessageService {
                       'Student';
                 }
               } catch (e) {
-                print('Error fetching student name: $e');
+                _log('Error fetching student name: $e');
               }
 
               conversationData[senderId] = {
@@ -334,7 +341,7 @@ class MessageService {
                   '';
             }
           } catch (e) {
-            print('Error fetching profile image for student $studentId: $e');
+            _log('Error fetching profile image for student $studentId: $e');
           }
 
           // Calculate unread count (only messages from student that are unread)
@@ -473,7 +480,7 @@ class MessageService {
 
       await batch.commit();
     } catch (e) {
-      print('Error marking messages as read: $e');
+      _log('Error marking messages as read: $e');
     }
   }
 
@@ -557,7 +564,7 @@ class MessageService {
     try {
       await _firestore.collection('messages').doc(messageId).delete();
     } catch (e) {
-      print('Error deleting message: $e');
+      _log('Error deleting message: $e');
       rethrow;
     }
   }
@@ -571,7 +578,7 @@ class MessageService {
         'fileAttachment': null, // Remove file attachment when unsent
       });
     } catch (e) {
-      print('Error unsending message: $e');
+      _log('Error unsending message: $e');
       rethrow;
     }
   }
@@ -588,7 +595,7 @@ class MessageService {
       // Get student's Player ID
       final playerId = await OneSignalHelper.getPlayerIdForUser(receiverId);
       if (playerId == null || playerId.isEmpty) {
-        print(
+        _log(
           '⚠️ No Player ID found for user $receiverId, skipping push notification',
         );
         return;
@@ -608,7 +615,7 @@ class MessageService {
               'Instructor';
         }
       } catch (e) {
-        print('Error fetching instructor name: $e');
+        _log('Error fetching instructor name: $e');
       }
 
       // Format notification content based on message type
@@ -640,9 +647,9 @@ class MessageService {
         content: notificationContent,
       );
 
-      print('✅ Push notification sent to student $receiverId');
+      _log('✅ Push notification sent to student $receiverId');
     } catch (e) {
-      print('❌ Error sending push notification: $e');
+      _log('❌ Error sending push notification: $e');
       // Don't throw - message was already sent successfully
     }
   }

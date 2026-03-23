@@ -8,6 +8,7 @@ import '../../../shared/config/cloudinary_config.dart';
 import '../../../shared/utils/auth_error_utils.dart';
 import '../../../shared/widgets/forgot_password_dialog.dart';
 import '../../../user/auth/auth_controller.dart';
+import '../../../shared/services/student_data_service.dart';
 
 class WebProfileController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -66,62 +67,22 @@ class WebProfileController extends GetxController {
     super.onClose();
   }
 
-  Future<void> fetchProfileData() async {
+  Future<void> fetchProfileData({bool forceRefresh = false}) async {
     try {
       isLoading.value = true;
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      final doc = await _firestore.collection('users').doc(user.uid).get();
-      if (doc.exists) {
-        userData.value = doc.data()!;
+      
+      final data = await StudentDataService.getStudentData(forceRefresh: forceRefresh);
+      if (data != null) {
+        userData.value = data;
         _populateControllers();
-        // Fetch total points from submissions
-        await _calculateTotalPoints();
+        
+        // Fetch total points from submissions using the cache service
+        totalPoints.value = await StudentDataService.getTotalPoints(forceRefresh: forceRefresh);
       }
     } catch (e) {
       print('Error fetching profile data: $e');
     } finally {
       isLoading.value = false;
-    }
-  }
-
-  /// Calculate total points for the logged-in student from all submissions
-  Future<void> _calculateTotalPoints() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      // Get the student's instructor ID
-      final instructorId = userData['selectedInstructorId'] as String?;
-      if (instructorId == null || instructorId.isEmpty) {
-        totalPoints.value = 0;
-        return;
-      }
-
-      int points = 0;
-
-      // Get all submissions for this student from the unified collection
-      final allSubmissions =
-          await _firestore
-              .collection('submissions')
-              .where('studentId', isEqualTo: user.uid)
-              .where('instructorId', isEqualTo: instructorId)
-              .get();
-
-      // Sum up all grades
-      for (var doc in allSubmissions.docs) {
-        final data = doc.data();
-        final grade = data['grade'];
-        if (grade != null && grade is num) {
-          points += grade.toInt();
-        }
-      }
-
-      totalPoints.value = points;
-    } catch (e) {
-      print('Error calculating total points: $e');
-      totalPoints.value = 0;
     }
   }
 
@@ -154,7 +115,7 @@ class WebProfileController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await _firestore.collection('users').doc(user.uid).update(data);
+      await StudentDataService.updateStudentProfile(data);
 
       userData.addAll(data);
       isEditing.value = false;
@@ -202,8 +163,8 @@ class WebProfileController extends GetxController {
 
       final imageUrl = response.secureUrl;
 
-      // Update Firestore
-      await _firestore.collection('users').doc(_auth.currentUser?.uid).update({
+      // Update Firestore through service so cache is synced
+      await StudentDataService.updateStudentProfile({
         'profileImage': imageUrl,
       });
 

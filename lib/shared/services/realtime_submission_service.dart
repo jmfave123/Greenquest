@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -9,6 +10,12 @@ import 'package:get/get.dart';
 class RealtimeSubmissionService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Stream subscriptions for different submission types
   static StreamSubscription<QuerySnapshot>? _assignmentSubscription;
@@ -37,7 +44,7 @@ class RealtimeSubmissionService {
     onSubmissionUpdate = onSubmissionUpdateCallback;
     onSubmissionGraded = onSubmissionGradedCallback;
 
-    print(
+    _log(
       '🔄 Initializing real-time listeners for instructor: $currentInstructorId',
     );
 
@@ -52,7 +59,7 @@ class RealtimeSubmissionService {
             _handleSubmissionUpdate(snapshot, 'assignment', sectionId);
           },
           onError: (error) {
-            print('❌ Assignment submissions listener error: $error');
+            _log('❌ Assignment submissions listener error: $error');
           },
         );
 
@@ -67,7 +74,7 @@ class RealtimeSubmissionService {
             _handleSubmissionUpdate(snapshot, 'activity', sectionId);
           },
           onError: (error) {
-            print('❌ Activity submissions listener error: $error');
+            _log('❌ Activity submissions listener error: $error');
           },
         );
 
@@ -82,7 +89,7 @@ class RealtimeSubmissionService {
             _handleSubmissionUpdate(snapshot, 'quiz', sectionId);
           },
           onError: (error) {
-            print('❌ Quiz submissions listener error: $error');
+            _log('❌ Quiz submissions listener error: $error');
           },
         );
 
@@ -97,7 +104,7 @@ class RealtimeSubmissionService {
             _handleSubmissionUpdate(snapshot, 'pit', sectionId);
           },
           onError: (error) {
-            print('❌ PIT submissions listener error: $error');
+            _log('❌ PIT submissions listener error: $error');
           },
         );
   }
@@ -108,7 +115,7 @@ class RealtimeSubmissionService {
     String submissionType,
     String? sectionId,
   ) {
-    print(
+    _log(
       '🔄 Real-time update received for $submissionType: ${snapshot.docs.length} documents',
     );
 
@@ -127,32 +134,32 @@ class RealtimeSubmissionService {
             submissionSectionName == sectionId;
 
         if (!sectionMatch) {
-          print(
+          _log(
             '  - ❌ Submission filtered out: ${submission['studentName']} (section: $submissionSectionId/$submissionSectionName, target: $sectionId)',
           );
           continue; // Skip this submission
         }
 
-        print('  - ✅ Submission matches section: ${submission['studentName']}');
+        _log('  - ✅ Submission matches section: ${submission['studentName']}');
       }
 
       // Check if this is a new submission or an update
       final docChanges = snapshot.docChanges;
       for (var change in docChanges) {
         if (change.type == DocumentChangeType.added) {
-          print(
+          _log(
             '📥 New $submissionType submission: ${submission['studentName']}',
           );
           _notifyNewSubmission(submission);
         } else if (change.type == DocumentChangeType.modified) {
-          print(
+          _log(
             '📝 Updated $submissionType submission: ${submission['studentName']}',
           );
           _notifySubmissionUpdate(submission);
 
           // Check if submission was graded
           if (submission['status'] == 'graded' && submission['grade'] != null) {
-            print(
+            _log(
               '✅ Graded $submissionType submission: ${submission['studentName']}',
             );
             _notifySubmissionGraded(submission);
@@ -239,7 +246,7 @@ class RealtimeSubmissionService {
     onSubmissionUpdate = null;
     onSubmissionGraded = null;
 
-    print('🧹 RealtimeSubmissionService disposed');
+    _log('🧹 RealtimeSubmissionService disposed');
   }
 
   /// Check if there are active subscriptions

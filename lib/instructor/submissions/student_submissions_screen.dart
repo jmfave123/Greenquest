@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,6 +34,12 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
   InstructorNavigationItem _selectedItem =
       InstructorNavigationItem.classManagement;
 
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   late SubmissionsController submissionsController;
   final InstructorController instructorController = Get.put(
     InstructorController(),
@@ -50,7 +57,7 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
       // Set up a delayed fallback to try direct loading if no submissions found
       Future.delayed(const Duration(seconds: 2), () {
         if (submissionsController.submissions.isEmpty) {
-          print(
+          _log(
             '🔄 No submissions found with standard method, trying direct loading...',
           );
           _loadSubmissionsDirectly();
@@ -65,10 +72,10 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
         activityData['type']?.toString().toLowerCase() ?? 'activity';
     final sectionId = widget.sectionId;
 
-    print('🔍 Loading submissions for:');
-    print('  - Activity ID: ${activityData['id']}');
-    print('  - Activity Type: $itemType');
-    print('  - Section ID: $sectionId');
+    _log('🔍 Loading submissions for:');
+    _log('  - Activity ID: ${activityData['id']}');
+    _log('  - Activity Type: $itemType');
+    _log('  - Section ID: $sectionId');
 
     // First try the standard loading method
     if (itemType == 'assignment') {
@@ -107,12 +114,12 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
-        print('❌ No user authenticated for direct load');
+        _log('❌ No user authenticated for direct load');
         return;
       }
 
-      print('🔧 Direct load: $itemType with ID: $activityId');
-      print('🔧 Section: $sectionId');
+      _log('🔧 Direct load: $itemType with ID: $activityId');
+      _log('🔧 Section: $sectionId');
 
       // Use unified submissions collection
       Query query = FirebaseFirestore.instance
@@ -123,7 +130,7 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
 
       // If section is provided, query directly by sectionName
       if (sectionId != null && sectionId.isNotEmpty) {
-        print('  - Querying directly by sectionName: $sectionId');
+        _log('  - Querying directly by sectionName: $sectionId');
         query = query.where('sectionName', isEqualTo: sectionId);
       }
 
@@ -132,18 +139,18 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
         querySnapshot =
             await query.orderBy('submittedAt', descending: true).get();
       } catch (e) {
-        print('  - OrderBy failed, trying without it: $e');
+        _log('  - OrderBy failed, trying without it: $e');
         querySnapshot = await query.get();
       }
 
-      print('🔧 Direct query returned ${querySnapshot.docs.length} documents');
+      _log('🔧 Direct query returned ${querySnapshot.docs.length} documents');
 
       List<Map<String, dynamic>> directSubmissions = [];
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        print('🔧 Found direct submission: ${doc.id}');
-        print('  - Student: ${data['studentName']}');
-        print('  - Section: ${data['sectionName']}');
+        _log('🔧 Found direct submission: ${doc.id}');
+        _log('  - Student: ${data['studentName']}');
+        _log('  - Section: ${data['sectionName']}');
         directSubmissions.add({'id': doc.id, 'type': itemType, ...data});
       }
 
@@ -156,7 +163,7 @@ class _StudentSubmissionsScreenState extends State<StudentSubmissionsScreen> {
       submissionsController.submissions.assignAll(directSubmissions);
       submissionsController.updateStats();
     } catch (e) {
-      print('❌ Error in direct load: $e');
+      _log('❌ Error in direct load: $e');
     }
   }
 

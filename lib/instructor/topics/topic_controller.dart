@@ -1,11 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'topic_model.dart';
 
 class TopicController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Observable list of topics
   final RxList<Topic> topics = <Topic>[].obs;
@@ -23,11 +30,11 @@ class TopicController extends GetxController {
       isLoading.value = true;
       final user = _auth.currentUser;
       if (user == null) {
-        print('❌ No authenticated user');
+        _log('❌ No authenticated user');
         return;
       }
 
-      print('🔍 Loading topics for instructor: ${user.uid}');
+      _log('🔍 Loading topics for instructor: ${user.uid}');
 
       final querySnapshot =
           await _firestore
@@ -38,12 +45,12 @@ class TopicController extends GetxController {
       topics.value =
           querySnapshot.docs.map((doc) => Topic.fromFirestore(doc)).toList();
 
-      print('✅ Loaded ${topics.length} topics for instructor');
+      _log('✅ Loaded ${topics.length} topics for instructor');
       for (var topic in topics) {
-        print('   - ${topic.topic}');
+        _log('   - ${topic.topic}');
       }
     } catch (e) {
-      print('❌ Error loading topics: $e');
+      _log('❌ Error loading topics: $e');
       topics.value = [];
     } finally {
       isLoading.value = false;
@@ -55,7 +62,7 @@ class TopicController extends GetxController {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('❌ No authenticated user');
+        _log('❌ No authenticated user');
         return null;
       }
 
@@ -74,10 +81,10 @@ class TopicController extends GetxController {
       // Add to local list
       topics.add(newTopic);
 
-      print('✅ Topic created: ${newTopic.topic}');
+      _log('✅ Topic created: ${newTopic.topic}');
       return newTopic;
     } catch (e) {
-      print('❌ Error creating topic: $e');
+      _log('❌ Error creating topic: $e');
       return null;
     }
   }

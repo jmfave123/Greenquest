@@ -14,6 +14,12 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,7 +52,7 @@ class _SplashScreenState extends State<SplashScreen> {
             await authController.checkAndSyncEmailVerification();
           } catch (e) {
             // If sync fails, that's okay - it will sync on next login
-            print('Could not sync email verification on splash: $e');
+            _log('Could not sync email verification on splash: $e');
           }
 
           // Check if user has completed selection and approval status
@@ -57,20 +63,18 @@ class _SplashScreenState extends State<SplashScreen> {
             refreshedUser.uid,
           );
 
-          print(
-            '🔍 Splash screen - Selection complete: $hasCompletedSelection',
-          );
-          print('🔍 Splash screen - Enrollment status: $enrollmentStatus');
+          _log('🔍 Splash screen - Selection complete: $hasCompletedSelection');
+          _log('🔍 Splash screen - Enrollment status: $enrollmentStatus');
 
           if (hasCompletedSelection && enrollmentStatus == 'approved') {
             // User has completed selection and is approved, go directly to home
-            print('✅ Splash screen - User approved, navigating to home');
+            _log('✅ Splash screen - User approved, navigating to home');
             Get.offAllNamed('/home');
           } else if (hasCompletedSelection &&
               (enrollmentStatus == 'pending' ||
                   enrollmentStatus == 'rejected')) {
             // User has completed selection but needs approval or was rejected
-            print(
+            _log(
               '⏳ Splash screen - User pending/rejected, navigating to pending approval',
             );
             if (kIsWeb) {
@@ -80,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
             }
           } else {
             // User hasn't completed selection, go to instructor selection
-            print(
+            _log(
               '📝 Splash screen - User needs to complete selection, navigating to instructor selection',
             );
             Get.offAllNamed('/select-instructor');
@@ -95,7 +99,7 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     } catch (e) {
       // If there's any error, navigate to login
-      print('Auth check error: $e');
+      _log('Auth check error: $e');
       Get.offAllNamed('/login_app');
     }
   }
@@ -121,7 +125,7 @@ class _SplashScreenState extends State<SplashScreen> {
       }
       return false;
     } catch (e) {
-      print('Error checking selection status: $e');
+      _log('Error checking selection status: $e');
       return false;
     }
   }
@@ -137,13 +141,13 @@ class _SplashScreenState extends State<SplashScreen> {
       if (userDoc.exists) {
         final data = userDoc.data() as Map<String, dynamic>;
         final status = data['enrollmentStatus'] ?? 'none';
-        print('🔍 Splash screen - User enrollment status: $status');
+        _log('🔍 Splash screen - User enrollment status: $status');
         return status;
       }
-      print('⚠️ Splash screen - User document does not exist');
+      _log('⚠️ Splash screen - User document does not exist');
       return 'none';
     } catch (e) {
-      print('❌ Splash screen - Error checking enrollment status: $e');
+      _log('❌ Splash screen - Error checking enrollment status: $e');
       return 'none';
     }
   }

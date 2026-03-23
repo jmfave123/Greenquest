@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../shared/services/tree_progress_service.dart';
+import '../../shared/services/student_data_service.dart';
 
 class HomeScreenController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -116,9 +117,8 @@ class HomeScreenController extends GetxController {
         return;
       }
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final data = userDoc.data() as Map<String, dynamic>;
+      final data = await StudentDataService.getStudentData();
+      if (data != null) {
 
         enrollmentStatus.value = data['enrollmentStatus'] ?? 'none';
         instructorName.value = data['selectedInstructorName'] ?? '';
@@ -164,9 +164,8 @@ class HomeScreenController extends GetxController {
       if (user == null) return;
 
       // Get current user data to find instructor and section
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final instructorId = userData['selectedInstructorId'] ?? '';
         final sectionCode = userData['selectedSectionCode'] ?? '';
 
@@ -180,8 +179,8 @@ class HomeScreenController extends GetxController {
         }
       }
 
-      // Reset user selection
-      await _firestore.collection('users').doc(user.uid).update({
+      // Reset user selection using cache sync
+      await StudentDataService.updateStudentProfile({
         'selectedInstructorId': '',
         'selectedInstructorName': '',
         'selectedSectionCode': '',

@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../shared/services/submission_routing_service.dart';
@@ -12,6 +13,12 @@ import '../../shared/services/in_app_notification_service.dart';
 class SubmissionsController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Instructor data
   var instructorName = ''.obs;
@@ -149,16 +156,16 @@ class SubmissionsController extends GetxController {
     errorMessage.value = '';
 
     try {
-      print('🔍 Loading assignment submissions:');
-      print('  - Assignment ID: $assignmentId');
-      print('  - Section ID: $sectionId');
+      _log('🔍 Loading assignment submissions:');
+      _log('  - Assignment ID: $assignmentId');
+      _log('  - Section ID: $sectionId');
 
       final user = _auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      print('  - User ID: ${user.uid}');
+      _log('  - User ID: ${user.uid}');
 
       // Build query - query directly by sectionName when sectionId is provided (like class_report_controller)
       Query query = _firestore
@@ -169,15 +176,15 @@ class SubmissionsController extends GetxController {
 
       // If a specific section is provided, query directly by sectionName in Firestore
       if (sectionId != null && sectionId.isNotEmpty) {
-        print('  - Querying directly by sectionName: $sectionId');
+        _log('  - Querying directly by sectionName: $sectionId');
         query = query.where('sectionName', isEqualTo: sectionId);
       } else {
         // If no specific section, get instructor's assigned sections first
         final instructorSections = await _getInstructorSections(user.uid);
-        print('  - Instructor sections: $instructorSections');
+        _log('  - Instructor sections: $instructorSections');
 
         if (instructorSections.isEmpty) {
-          print('❌ No sections found for instructor: ${user.uid}');
+          _log('❌ No sections found for instructor: ${user.uid}');
           submissions.assignAll([]);
           updateStats();
           isLoading.value = false;
@@ -187,24 +194,24 @@ class SubmissionsController extends GetxController {
 
       QuerySnapshot querySnapshot;
       try {
-        print('  - Executing query with orderBy...');
+        _log('  - Executing query with orderBy...');
         querySnapshot =
             await query.orderBy('submittedAt', descending: true).get();
       } catch (e) {
-        print('  - OrderBy failed, trying without it: $e');
+        _log('  - OrderBy failed, trying without it: $e');
         querySnapshot = await query.get();
       }
 
-      print('  - Query returned ${querySnapshot.docs.length} documents');
+      _log('  - Query returned ${querySnapshot.docs.length} documents');
 
       List<Map<String, dynamic>> loadedSubmissions = [];
 
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        print('  - Found submission: ${doc.id}');
-        print('    - Student: ${data['studentName']}');
-        print('    - Status: ${data['status']}');
-        print('    - Section: ${data['sectionName']}');
+        _log('  - Found submission: ${doc.id}');
+        _log('    - Student: ${data['studentName']}');
+        _log('    - Status: ${data['status']}');
+        _log('    - Section: ${data['sectionName']}');
         loadedSubmissions.add({'id': doc.id, 'type': 'assignment', ...data});
       }
 
@@ -220,7 +227,7 @@ class SubmissionsController extends GetxController {
         }
       }
 
-      print('  - Total loaded submissions: ${loadedSubmissions.length}');
+      _log('  - Total loaded submissions: ${loadedSubmissions.length}');
 
       // Load enrolled students if section is specified
       if (sectionId != null && sectionId.isNotEmpty) {
@@ -232,7 +239,7 @@ class SubmissionsController extends GetxController {
       updateStats();
       isLoading.value = false;
     } catch (e) {
-      print('❌ Error loading assignment submissions: $e');
+      _log('❌ Error loading assignment submissions: $e');
       errorMessage.value = 'Failed to load submissions: $e';
       isLoading.value = false;
     }
@@ -245,16 +252,16 @@ class SubmissionsController extends GetxController {
     errorMessage.value = '';
 
     try {
-      print('🔍 Loading quiz submissions:');
-      print('  - Quiz ID: $quizId');
-      print('  - Section ID: $sectionId');
+      _log('🔍 Loading quiz submissions:');
+      _log('  - Quiz ID: $quizId');
+      _log('  - Section ID: $sectionId');
 
       final user = _auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      print('  - User ID: ${user.uid}');
+      _log('  - User ID: ${user.uid}');
 
       // Build query - query directly by sectionName when sectionId is provided (like class_report_controller)
       Query query = _firestore
@@ -265,15 +272,15 @@ class SubmissionsController extends GetxController {
 
       // If a specific section is provided, query directly by sectionName in Firestore
       if (sectionId != null && sectionId.isNotEmpty) {
-        print('  - Querying directly by sectionName: $sectionId');
+        _log('  - Querying directly by sectionName: $sectionId');
         query = query.where('sectionName', isEqualTo: sectionId);
       } else {
         // If no specific section, get instructor's assigned sections first
         final instructorSections = await _getInstructorSections(user.uid);
-        print('  - Instructor sections: $instructorSections');
+        _log('  - Instructor sections: $instructorSections');
 
         if (instructorSections.isEmpty) {
-          print('❌ No sections found for instructor: ${user.uid}');
+          _log('❌ No sections found for instructor: ${user.uid}');
           submissions.assignAll([]);
           updateStats();
           isLoading.value = false;
@@ -283,24 +290,24 @@ class SubmissionsController extends GetxController {
 
       QuerySnapshot querySnapshot;
       try {
-        print('  - Executing query with orderBy...');
+        _log('  - Executing query with orderBy...');
         querySnapshot =
             await query.orderBy('submittedAt', descending: true).get();
       } catch (e) {
-        print('  - OrderBy failed, trying without it: $e');
+        _log('  - OrderBy failed, trying without it: $e');
         querySnapshot = await query.get();
       }
 
-      print('  - Query returned ${querySnapshot.docs.length} documents');
+      _log('  - Query returned ${querySnapshot.docs.length} documents');
 
       List<Map<String, dynamic>> loadedSubmissions = [];
 
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        print('  - Found submission: ${doc.id}');
-        print('    - Student: ${data['studentName']}');
-        print('    - Status: ${data['status']}');
-        print('    - Section: ${data['sectionName']}');
+        _log('  - Found submission: ${doc.id}');
+        _log('    - Student: ${data['studentName']}');
+        _log('    - Status: ${data['status']}');
+        _log('    - Section: ${data['sectionName']}');
         loadedSubmissions.add({'id': doc.id, 'type': 'quiz', ...data});
       }
 
@@ -316,14 +323,14 @@ class SubmissionsController extends GetxController {
         }
       }
 
-      print('  - Total loaded submissions: ${loadedSubmissions.length}');
+      _log('  - Total loaded submissions: ${loadedSubmissions.length}');
 
       // Update observables directly - async operations are done, build phase is complete
       submissions.assignAll(loadedSubmissions);
       updateStats();
       isLoading.value = false;
     } catch (e) {
-      print('❌ Error loading quiz submissions: $e');
+      _log('❌ Error loading quiz submissions: $e');
       errorMessage.value = 'Failed to load quiz submissions: $e';
       isLoading.value = false;
     }
@@ -339,16 +346,16 @@ class SubmissionsController extends GetxController {
     errorMessage.value = '';
 
     try {
-      print('🔍 Loading activity submissions:');
-      print('  - Activity ID: $activityId');
-      print('  - Section ID: $sectionId');
+      _log('🔍 Loading activity submissions:');
+      _log('  - Activity ID: $activityId');
+      _log('  - Section ID: $sectionId');
 
       final user = _auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      print('  - User ID: ${user.uid}');
+      _log('  - User ID: ${user.uid}');
 
       // Build query - query directly by sectionName when sectionId is provided (like class_report_controller)
       Query query = _firestore
@@ -359,15 +366,15 @@ class SubmissionsController extends GetxController {
 
       // If a specific section is provided, query directly by sectionName in Firestore
       if (sectionId != null && sectionId.isNotEmpty) {
-        print('  - Querying directly by sectionName: $sectionId');
+        _log('  - Querying directly by sectionName: $sectionId');
         query = query.where('sectionName', isEqualTo: sectionId);
       } else {
         // If no specific section, get instructor's assigned sections first
         final instructorSections = await _getInstructorSections(user.uid);
-        print('  - Instructor sections: $instructorSections');
+        _log('  - Instructor sections: $instructorSections');
 
         if (instructorSections.isEmpty) {
-          print('❌ No sections found for instructor: ${user.uid}');
+          _log('❌ No sections found for instructor: ${user.uid}');
           submissions.assignAll([]);
           updateStats();
           isLoading.value = false;
@@ -377,24 +384,24 @@ class SubmissionsController extends GetxController {
 
       QuerySnapshot querySnapshot;
       try {
-        print('  - Executing query with orderBy...');
+        _log('  - Executing query with orderBy...');
         querySnapshot =
             await query.orderBy('submittedAt', descending: true).get();
       } catch (e) {
-        print('  - OrderBy failed, trying without it: $e');
+        _log('  - OrderBy failed, trying without it: $e');
         querySnapshot = await query.get();
       }
 
-      print('  - Query returned ${querySnapshot.docs.length} documents');
+      _log('  - Query returned ${querySnapshot.docs.length} documents');
 
       List<Map<String, dynamic>> loadedSubmissions = [];
 
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        print('  - Found submission: ${doc.id}');
-        print('    - Student: ${data['studentName']}');
-        print('    - Status: ${data['status']}');
-        print('    - Section: ${data['sectionName']}');
+        _log('  - Found submission: ${doc.id}');
+        _log('    - Student: ${data['studentName']}');
+        _log('    - Status: ${data['status']}');
+        _log('    - Section: ${data['sectionName']}');
         loadedSubmissions.add({'id': doc.id, 'type': 'activity', ...data});
       }
 
@@ -410,7 +417,7 @@ class SubmissionsController extends GetxController {
         }
       }
 
-      print('  - Total loaded submissions: ${loadedSubmissions.length}');
+      _log('  - Total loaded submissions: ${loadedSubmissions.length}');
 
       // Load enrolled students if section is specified
       if (sectionId != null && sectionId.isNotEmpty) {
@@ -422,7 +429,7 @@ class SubmissionsController extends GetxController {
       updateStats();
       isLoading.value = false;
     } catch (e) {
-      print('❌ Error loading activity submissions: $e');
+      _log('❌ Error loading activity submissions: $e');
       errorMessage.value = 'Failed to load submissions: $e';
       isLoading.value = false;
     }
@@ -444,9 +451,9 @@ class SubmissionsController extends GetxController {
         throw Exception('No instructor ID provided');
       }
 
-      print('🔍 Loading submissions for instructor: $currentInstructorId');
-      print('🔍 Section filter: $sectionId');
-      print('🔍 Section filter type: ${sectionId.runtimeType}');
+      _log('🔍 Loading submissions for instructor: $currentInstructorId');
+      _log('🔍 Section filter: $sectionId');
+      _log('🔍 Section filter type: ${sectionId.runtimeType}');
 
       // Track current section for real-time filtering
       _currentSectionId = sectionId;
@@ -461,7 +468,7 @@ class SubmissionsController extends GetxController {
       // If a specific section is provided, query directly by sectionName in Firestore
       // This matches the working pattern from class_report_controller
       if (sectionId != null && sectionId.isNotEmpty) {
-        print('  - Querying directly by sectionName: $sectionId');
+        _log('  - Querying directly by sectionName: $sectionId');
         allSubmissionsQuery = allSubmissionsQuery.where(
           'sectionName',
           isEqualTo: sectionId,
@@ -472,31 +479,31 @@ class SubmissionsController extends GetxController {
           currentInstructorId,
         );
         if (instructorSections.isEmpty) {
-          print('No sections found for instructor: $currentInstructorId');
+          _log('No sections found for instructor: $currentInstructorId');
           submissions.assignAll([]);
           updateStats();
           isLoading.value = false;
           return;
         }
-        print('📚 Instructor sections: $instructorSections');
+        _log('📚 Instructor sections: $instructorSections');
         // For all sections, we still need to filter by instructor sections
         // But we'll do it after fetching since Firestore doesn't support array-contains-any easily
       }
 
       QuerySnapshot querySnapshot;
       try {
-        print('  - Executing query with orderBy...');
+        _log('  - Executing query with orderBy...');
         querySnapshot =
             await allSubmissionsQuery
                 .orderBy('submittedAt', descending: true)
                 .get();
       } catch (e) {
-        print('  - OrderBy failed, trying without it: $e');
+        _log('  - OrderBy failed, trying without it: $e');
         // If orderBy fails (e.g., no index), try without it
         querySnapshot = await allSubmissionsQuery.get();
       }
 
-      print('📝 Found ${querySnapshot.docs.length} submissions from query');
+      _log('📝 Found ${querySnapshot.docs.length} submissions from query');
 
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -508,7 +515,7 @@ class SubmissionsController extends GetxController {
 
         final type = activityType; // 'assignment', 'activity', 'quiz', or 'pit'
 
-        print(
+        _log(
           '📝 ${type.toUpperCase()} submission: ${data['studentName']} - sectionId: ${data['sectionId']} - sectionName: ${data['sectionName']}',
         );
         allSubmissions.add({'id': doc.id, 'type': type, ...data});
@@ -537,17 +544,17 @@ class SubmissionsController extends GetxController {
           if (aDate == null || bDate == null) return 0;
           return bDate.compareTo(aDate);
         } catch (e) {
-          print('❌ Error sorting submissions by date: $e');
+          _log('❌ Error sorting submissions by date: $e');
           return 0;
         }
       });
 
-      print('✅ Total submissions loaded: ${allSubmissions.length}');
+      _log('✅ Total submissions loaded: ${allSubmissions.length}');
       submissions.assignAll(allSubmissions);
       updateStats();
       isLoading.value = false;
     } catch (e) {
-      print('❌ Error loading instructor submissions: $e');
+      _log('❌ Error loading instructor submissions: $e');
       errorMessage.value = 'Failed to load submissions: $e';
       isLoading.value = false;
     }
@@ -622,7 +629,7 @@ class SubmissionsController extends GetxController {
 
       return {'total': total, 'submitted': submitted, 'graded': graded};
     } catch (e) {
-      print('Error getting submission stats for $itemType $itemId: $e');
+      _log('Error getting submission stats for $itemType $itemId: $e');
       return {'total': 0, 'submitted': 0, 'graded': 0};
     }
   }
@@ -674,31 +681,25 @@ class SubmissionsController extends GetxController {
               .where('selectedSectionCode', isEqualTo: sectionId)
               .get();
 
+      // OPTIMIZATION: Fetch all users in one query to avoid N+1 problem
+      final allUsersSnapshot = await _firestore
+          .collection('users')
+          .where('selectedInstructorId', isEqualTo: user.uid)
+          .get();
+          
+      final Map<String, String> c_idNumbers = {};
+      for (var uDoc in allUsersSnapshot.docs) {
+        final uData = uDoc.data();
+        c_idNumbers[uDoc.id] = uData['idNumber'] ?? uData['studentIdNumber'] ?? 'N/A';
+      }
+
       for (var doc in approvedStudentsSnapshot.docs) {
         final data = doc.data();
         final studentId = data['studentId'] ?? doc.id;
         final email = data['email'] ?? '';
 
-        // Fetch idNumber from users collection using email
-        String idNumber = 'N/A';
-        try {
-          if (email.isNotEmpty) {
-            final userQuery =
-                await _firestore
-                    .collection('users')
-                    .where('email', isEqualTo: email)
-                    .limit(1)
-                    .get();
-
-            if (userQuery.docs.isNotEmpty) {
-              final userData = userQuery.docs.first.data();
-              idNumber =
-                  userData['idNumber'] ?? userData['studentIdNumber'] ?? 'N/A';
-            }
-          }
-        } catch (e) {
-          print('⚠️ Could not fetch idNumber for email $email: $e');
-        }
+        // Retrieve efficiently from our memory hashmap without making 300 Firebase queries
+        String idNumber = data['idNumber'] ?? c_idNumbers[studentId] ?? 'N/A';
 
         students.add({
           'id': doc.id,
@@ -712,11 +713,11 @@ class SubmissionsController extends GetxController {
       }
 
       enrolledStudents.assignAll(students);
-      print(
+      _log(
         '📚 Loaded ${students.length} enrolled students for section: $sectionId',
       );
     } catch (e) {
-      print('❌ Error loading enrolled students: $e');
+      _log('❌ Error loading enrolled students: $e');
       enrolledStudents.clear();
     }
   }
@@ -1083,7 +1084,7 @@ class SubmissionsController extends GetxController {
           },
         );
 
-        print('✅ Notification sent to student: $studentId');
+        _log('✅ Notification sent to student: $studentId');
       }
 
       Get.snackbar(
@@ -1162,7 +1163,7 @@ class SubmissionsController extends GetxController {
 
       return null;
     } catch (e) {
-      print('Error getting max points for submission: $e');
+      _log('Error getting max points for submission: $e');
       return null;
     }
   }
@@ -1214,7 +1215,7 @@ class SubmissionsController extends GetxController {
 
       return '$month $day, $year $hour:$minute $ampm';
     } catch (e) {
-      print('❌ Error formatting timestamp: $e');
+      _log('❌ Error formatting timestamp: $e');
       return 'Unknown Date';
     }
   }
@@ -1222,7 +1223,7 @@ class SubmissionsController extends GetxController {
   // Get instructor's assigned sections
   Future<List<String>> _getInstructorSections(String instructorId) async {
     try {
-      print('🔍 Getting instructor sections for: $instructorId');
+      _log('🔍 Getting instructor sections for: $instructorId');
 
       // Get instructor's classes to find their assigned sections
       final classesSnapshot =
@@ -1232,30 +1233,30 @@ class SubmissionsController extends GetxController {
               .collection('classes')
               .get();
 
-      print('  - Found ${classesSnapshot.docs.length} class documents');
+      _log('  - Found ${classesSnapshot.docs.length} class documents');
 
       final sections = <String>[];
       for (var doc in classesSnapshot.docs) {
         final data = doc.data();
         final sectionId = data['sectionId']?.toString();
-        print('  - Class doc ${doc.id}: sectionId = $sectionId');
+        _log('  - Class doc ${doc.id}: sectionId = $sectionId');
         if (sectionId != null && sectionId.isNotEmpty) {
           sections.add(sectionId);
         }
       }
 
-      print('  - Sections from classes: $sections');
+      _log('  - Sections from classes: $sections');
 
       // If no sections found in classes, try to get from assignments
       if (sections.isEmpty) {
-        print('  - No sections from classes, trying assignments...');
+        _log('  - No sections from classes, trying assignments...');
         final assignmentsSnapshot =
             await _firestore
                 .collection('assignments')
                 .where('instructorId', isEqualTo: instructorId)
                 .get();
 
-        print(
+        _log(
           '  - Found ${assignmentsSnapshot.docs.length} assignment documents',
         );
 
@@ -1264,58 +1265,58 @@ class SubmissionsController extends GetxController {
           final selectedClasses = List<String>.from(
             data['selectedClasses'] ?? [],
           );
-          print('  - Assignment ${doc.id}: selectedClasses = $selectedClasses');
+          _log('  - Assignment ${doc.id}: selectedClasses = $selectedClasses');
           sections.addAll(selectedClasses);
         }
       }
 
       // Also try to get from activities and quizzes
       if (sections.isEmpty) {
-        print('  - No sections from assignments, trying activities...');
+        _log('  - No sections from assignments, trying activities...');
         final activitiesSnapshot =
             await _firestore
                 .collection('activities')
                 .where('instructorId', isEqualTo: instructorId)
                 .get();
 
-        print('  - Found ${activitiesSnapshot.docs.length} activity documents');
+        _log('  - Found ${activitiesSnapshot.docs.length} activity documents');
 
         for (var doc in activitiesSnapshot.docs) {
           final data = doc.data();
           final selectedClasses = List<String>.from(
             data['selectedClasses'] ?? [],
           );
-          print('  - Activity ${doc.id}: selectedClasses = $selectedClasses');
+          _log('  - Activity ${doc.id}: selectedClasses = $selectedClasses');
           sections.addAll(selectedClasses);
         }
       }
 
       if (sections.isEmpty) {
-        print('  - No sections from activities, trying quizzes...');
+        _log('  - No sections from activities, trying quizzes...');
         final quizzesSnapshot =
             await _firestore
                 .collection('quizzes')
                 .where('instructorId', isEqualTo: instructorId)
                 .get();
 
-        print('  - Found ${quizzesSnapshot.docs.length} quiz documents');
+        _log('  - Found ${quizzesSnapshot.docs.length} quiz documents');
 
         for (var doc in quizzesSnapshot.docs) {
           final data = doc.data();
           final selectedClasses = List<String>.from(
             data['selectedClasses'] ?? [],
           );
-          print('  - Quiz ${doc.id}: selectedClasses = $selectedClasses');
+          _log('  - Quiz ${doc.id}: selectedClasses = $selectedClasses');
           sections.addAll(selectedClasses);
         }
       }
 
       // Remove duplicates and return
       final uniqueSections = sections.toSet().toList();
-      print('  - Final unique sections: $uniqueSections');
+      _log('  - Final unique sections: $uniqueSections');
       return uniqueSections;
     } catch (e) {
-      print('❌ Error getting instructor sections: $e');
+      _log('❌ Error getting instructor sections: $e');
       return [];
     }
   }
@@ -1326,10 +1327,10 @@ class SubmissionsController extends GetxController {
     String? sectionId,
     List<String> instructorSections,
   ) {
-    print('🔍 Filtering submissions by section:');
-    print('  - Section ID: $sectionId');
-    print('  - Instructor sections: $instructorSections');
-    print('  - Total submissions before filtering: ${submissions.length}');
+    _log('🔍 Filtering submissions by section:');
+    _log('  - Section ID: $sectionId');
+    _log('  - Instructor sections: $instructorSections');
+    _log('  - Total submissions before filtering: ${submissions.length}');
 
     if (sectionId == null || sectionId.isEmpty) {
       // Filter by instructor sections - use exact matching only
@@ -1338,9 +1339,9 @@ class SubmissionsController extends GetxController {
             final submissionSectionId = submission['sectionId'] ?? '';
             final submissionSectionName = submission['sectionName'] ?? '';
 
-            print('  - Checking submission: ${submission['studentName']}');
-            print('    - Submission sectionId: $submissionSectionId');
-            print('    - Submission sectionName: $submissionSectionName');
+            _log('  - Checking submission: ${submission['studentName']}');
+            _log('    - Submission sectionId: $submissionSectionId');
+            _log('    - Submission sectionName: $submissionSectionName');
 
             // Check if submission belongs to any of instructor's sections using exact matching
             final matches = instructorSections.any((instructorSection) {
@@ -1349,7 +1350,7 @@ class SubmissionsController extends GetxController {
                   submissionSectionName == instructorSection;
 
               if (exactMatch) {
-                print(
+                _log(
                   '    - ✅ EXACT MATCH with instructor section: $instructorSection',
                 );
               }
@@ -1357,11 +1358,11 @@ class SubmissionsController extends GetxController {
               return exactMatch;
             });
 
-            print('    - Match result: $matches');
+            _log('    - Match result: $matches');
             return matches;
           }).toList();
 
-      print('  - Filtered submissions count: ${filteredSubmissions.length}');
+      _log('  - Filtered submissions count: ${filteredSubmissions.length}');
       return filteredSubmissions;
     } else {
       // Filter by specific section - use exact matching only
@@ -1370,21 +1371,21 @@ class SubmissionsController extends GetxController {
             final submissionSectionId = submission['sectionId'] ?? '';
             final submissionSectionName = submission['sectionName'] ?? '';
 
-            print('  - Checking submission: ${submission['studentName']}');
-            print('    - Submission sectionId: $submissionSectionId');
-            print('    - Submission sectionName: $submissionSectionName');
-            print('    - Target section: $sectionId');
+            _log('  - Checking submission: ${submission['studentName']}');
+            _log('    - Submission sectionId: $submissionSectionId');
+            _log('    - Submission sectionName: $submissionSectionName');
+            _log('    - Target section: $sectionId');
 
             // Use exact matching only - no contains() to prevent false matches
             final exactMatch =
                 submissionSectionId == sectionId ||
                 submissionSectionName == sectionId;
 
-            print('    - Exact match result: $exactMatch');
+            _log('    - Exact match result: $exactMatch');
             return exactMatch;
           }).toList();
 
-      print('  - Filtered submissions count: ${filteredSubmissions.length}');
+      _log('  - Filtered submissions count: ${filteredSubmissions.length}');
       return filteredSubmissions;
     }
   }
@@ -1399,10 +1400,10 @@ class SubmissionsController extends GetxController {
       isLoading.value = true;
       errorMessage.value = '';
 
-      print('🔄 Loading submissions with real-time updates:');
-      print('  - Activity ID: $activityId');
-      print('  - Item Type: $itemType');
-      print('  - Section ID: $sectionId');
+      _log('🔄 Loading submissions with real-time updates:');
+      _log('  - Activity ID: $activityId');
+      _log('  - Item Type: $itemType');
+      _log('  - Section ID: $sectionId');
 
       // Load initial submissions
       switch (itemType.toLowerCase()) {
@@ -1425,7 +1426,7 @@ class SubmissionsController extends GetxController {
 
       // Real-time listener removed - no more automatic updates
     } catch (e) {
-      print('❌ Error loading submissions with real-time updates: $e');
+      _log('❌ Error loading submissions with real-time updates: $e');
       errorMessage.value = 'Failed to load submissions: $e';
     } finally {
       isLoading.value = false;
@@ -1447,7 +1448,7 @@ class SubmissionsController extends GetxController {
 
       // If a specific section is provided, query directly by sectionName in Firestore
       if (sectionId != null && sectionId.isNotEmpty) {
-        print(
+        _log(
           '  - Querying PIT submissions directly by sectionName: $sectionId',
         );
         query = query.where('sectionName', isEqualTo: sectionId);
@@ -1486,7 +1487,7 @@ class SubmissionsController extends GetxController {
       submissions.assignAll(loadedSubmissions);
       updateStats();
     } catch (e) {
-      print('❌ Error loading PIT submissions: $e');
+      _log('❌ Error loading PIT submissions: $e');
     }
   }
 
@@ -1505,7 +1506,7 @@ class SubmissionsController extends GetxController {
         return;
       }
 
-      print('🌳 Loading tree planting submissions for instructor: ${user.uid}');
+      _log('🌳 Loading tree planting submissions for instructor: ${user.uid}');
 
       // Build query - get all tree planting submissions for this instructor
       Query query = _firestore
@@ -1515,7 +1516,7 @@ class SubmissionsController extends GetxController {
 
       // Filter by section if provided
       if (sectionId != null && sectionId.isNotEmpty) {
-        print('🌳 Filtering by section: $sectionId');
+        _log('🌳 Filtering by section: $sectionId');
         query = query.where('sectionName', isEqualTo: sectionId);
       }
 
@@ -1524,11 +1525,11 @@ class SubmissionsController extends GetxController {
         querySnapshot =
             await query.orderBy('submittedAt', descending: true).get();
       } catch (e) {
-        print('🌳 OrderBy failed, trying without it: $e');
+        _log('🌳 OrderBy failed, trying without it: $e');
         querySnapshot = await query.get();
       }
 
-      print('🌳 Found ${querySnapshot.docs.length} tree planting submissions');
+      _log('🌳 Found ${querySnapshot.docs.length} tree planting submissions');
 
       List<Map<String, dynamic>> loadedSubmissions = [];
 
@@ -1553,9 +1554,9 @@ class SubmissionsController extends GetxController {
       updateStats();
       isLoading.value = false;
 
-      print('🌳 Loaded ${loadedSubmissions.length} tree planting submissions');
+      _log('🌳 Loaded ${loadedSubmissions.length} tree planting submissions');
     } catch (e) {
-      print('❌ Error loading tree planting submissions: $e');
+      _log('❌ Error loading tree planting submissions: $e');
       submissions.value = [];
       isLoading.value = false;
     }
@@ -1592,9 +1593,9 @@ class SubmissionsController extends GetxController {
         updateStats();
       }
 
-      print('✅ Submission $submissionId status updated to: $status');
+      _log('✅ Submission $submissionId status updated to: $status');
     } catch (e) {
-      print('❌ Error updating submission status: $e');
+      _log('❌ Error updating submission status: $e');
       rethrow;
     }
   }
@@ -1611,7 +1612,7 @@ class SubmissionsController extends GetxController {
   // Set up real-time listener for all instructor submissions
   void setupAllSubmissionsRealtimeListener({String? sectionId}) {
     // Real-time listener removed - no more automatic updates
-    print('Real-time listener disabled - no automatic updates');
+    _log('Real-time listener disabled - no automatic updates');
   }
 
   // Refresh submissions
@@ -1663,7 +1664,7 @@ class SubmissionsController extends GetxController {
       }
       return null;
     } catch (e) {
-      print('❌ Error parsing timestamp: $e');
+      _log('❌ Error parsing timestamp: $e');
       return null;
     }
   }
@@ -1674,7 +1675,7 @@ class SubmissionsController extends GetxController {
     String submissionType,
   ) async {
     try {
-      print('🗑️ Removing submission: $submissionId of type: $submissionType');
+      _log('🗑️ Removing submission: $submissionId of type: $submissionType');
 
       final user = _auth.currentUser;
       if (user == null) {
@@ -1706,10 +1707,10 @@ class SubmissionsController extends GetxController {
       // Update stats
       updateStats();
 
-      print('✅ Successfully removed submission: $submissionId');
+      _log('✅ Successfully removed submission: $submissionId');
       return true;
     } catch (e) {
-      print('❌ Error removing submission: $e');
+      _log('❌ Error removing submission: $e');
       errorMessage.value = 'Failed to remove submission: $e';
       return false;
     }

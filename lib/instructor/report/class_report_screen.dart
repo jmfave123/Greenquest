@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,6 +24,12 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
   late ClassReportController _classReportController;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // State variables for different item types (Midterm)
   List<Map<String, dynamic>> _classStandingItems = [];
@@ -80,11 +87,11 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
 
   // Build simple dynamic table for class standing
   Widget _buildDynamicClassStandingTable(List<Map<String, dynamic>> scores) {
-    print('🔍 Building Syncfusion DataGrid with ${scores.length} students');
-    print('🔍 Class standing items: ${_classStandingItems.length}');
-    print('🔍 Quiz/prelim items: ${_quizPrelimItems.length}');
-    print('🔍 Midterm exam items: ${_midtermExamItems.length}');
-    print('🔍 PIT items: ${_pitItems.length}');
+    _log('🔍 Building Syncfusion DataGrid with ${scores.length} students');
+    _log('🔍 Class standing items: ${_classStandingItems.length}');
+    _log('🔍 Quiz/prelim items: ${_quizPrelimItems.length}');
+    _log('🔍 Midterm exam items: ${_midtermExamItems.length}');
+    _log('🔍 PIT items: ${_pitItems.length}');
 
     // Always show the table structure, even if empty
     // The table will display with empty student rows if no students exist
@@ -101,7 +108,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       finalPitItems: _finalPitItems,
       onCellValueChanged: (student, itemKey, value) {
         // Handle cell editing if needed in the future
-        print(
+        _log(
           'Cell value changed: $itemKey = $value for student ${student['name']}',
         );
       },
@@ -244,7 +251,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       final user = _auth.currentUser;
       if (user == null) return [];
 
-      print(
+      _log(
         '🔍 Fetching items without semester for section: $sectionCode, category: $category',
       );
 
@@ -306,16 +313,16 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
             }
           }
         } catch (e) {
-          print('  ⚠️ Error fetching $itemType items: $e');
+          _log('  ⚠️ Error fetching $itemType items: $e');
         }
       }
 
-      print(
+      _log(
         '✅ Found ${items.length} items without semester for category $category',
       );
       return items;
     } catch (e) {
-      print('❌ Error fetching items without semester: $e');
+      _log('❌ Error fetching items without semester: $e');
       return [];
     }
   }
@@ -329,15 +336,11 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       // Get current section code for filtering
       final currentSectionCode = _classReportController.sectionName.value;
       if (currentSectionCode.isEmpty) {
-        print(
-          '⚠️ No section code available for filtering class standing items',
-        );
+        _log('⚠️ No section code available for filtering class standing items');
         return;
       }
 
-      print(
-        '🔍 Fetching class standing items for section: $currentSectionCode',
-      );
+      _log('🔍 Fetching class standing items for section: $currentSectionCode');
       List<Map<String, dynamic>> items = [];
 
       // Fetch assignments with category: 'class_standing' AND selectedClasses containing current section
@@ -487,17 +490,17 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         _classStandingItems = items;
       });
 
-      print(
+      _log(
         '✅ Fetched ${_classStandingItems.length} class standing items (all types) for section $currentSectionCode',
       );
       for (int i = 0; i < _classStandingItems.length; i++) {
         var item = _classStandingItems[i];
-        print(
+        _log(
           '  ${i + 1}. ${item['title']} (${item['type']}) - ID: ${item['id']}',
         );
       }
     } catch (e) {
-      print('❌ Error fetching class standing items: $e');
+      _log('❌ Error fetching class standing items: $e');
     }
   }
 
@@ -510,11 +513,11 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       // Get current section code for filtering
       final currentSectionCode = _classReportController.sectionName.value;
       if (currentSectionCode.isEmpty) {
-        print('⚠️ No section code available for filtering quiz/prelim items');
+        _log('⚠️ No section code available for filtering quiz/prelim items');
         return;
       }
 
-      print('🔍 Fetching quiz/prelim items for section: $currentSectionCode');
+      _log('🔍 Fetching quiz/prelim items for section: $currentSectionCode');
       List<Map<String, dynamic>> items = [];
 
       // Fetch assignments with category and optional semester filter
@@ -664,17 +667,17 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         _quizPrelimItems = items;
       });
 
-      print(
+      _log(
         '✅ Fetched ${_quizPrelimItems.length} quiz/prelim items (all types) for section $currentSectionCode',
       );
       for (int i = 0; i < _quizPrelimItems.length; i++) {
         var item = _quizPrelimItems[i];
-        print(
+        _log(
           '  ${i + 1}. ${item['title']} (${item['type']}) - ID: ${item['id']}',
         );
       }
     } catch (e) {
-      print('❌ Error fetching quiz/prelim items: $e');
+      _log('❌ Error fetching quiz/prelim items: $e');
     }
   }
 
@@ -825,7 +828,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalClassStandingItems = items);
     } catch (e) {
-      print('❌ Error fetching final class standing items: $e');
+      _log('❌ Error fetching final class standing items: $e');
     }
   }
 
@@ -975,7 +978,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalQuizItems = items);
     } catch (e) {
-      print('❌ Error fetching final quiz items: $e');
+      _log('❌ Error fetching final quiz items: $e');
     }
   }
 
@@ -1238,7 +1241,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalExamItems = items);
     } catch (e) {
-      print('❌ Error fetching final exam items: $e');
+      _log('❌ Error fetching final exam items: $e');
     }
   }
 
@@ -1388,7 +1391,7 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       items.sort((a, b) => a['title'].compareTo(b['title']));
       setState(() => _finalPitItems = items);
     } catch (e) {
-      print('❌ Error fetching final PIT items: $e');
+      _log('❌ Error fetching final PIT items: $e');
     }
   }
 
@@ -1401,11 +1404,11 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       // Get current section code for filtering
       final currentSectionCode = _classReportController.sectionName.value;
       if (currentSectionCode.isEmpty) {
-        print('⚠️ No section code available for filtering midterm exam items');
+        _log('⚠️ No section code available for filtering midterm exam items');
         return;
       }
 
-      print('🔍 Fetching midterm exam items for section: $currentSectionCode');
+      _log('🔍 Fetching midterm exam items for section: $currentSectionCode');
       List<Map<String, dynamic>> items = [];
 
       // Fetch assignments with category: 'midterm_exam' AND selectedClasses containing current section
@@ -1555,17 +1558,17 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         _midtermExamItems = items;
       });
 
-      print(
+      _log(
         '✅ Fetched ${_midtermExamItems.length} midterm exam items (all types) for section $currentSectionCode',
       );
       for (int i = 0; i < _midtermExamItems.length; i++) {
         var item = _midtermExamItems[i];
-        print(
+        _log(
           '  ${i + 1}. ${item['title']} (${item['type']}) - ID: ${item['id']}',
         );
       }
     } catch (e) {
-      print('❌ Error fetching midterm exam items: $e');
+      _log('❌ Error fetching midterm exam items: $e');
     }
   }
 
@@ -1578,11 +1581,11 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
       // Get current section code for filtering
       final currentSectionCode = _classReportController.sectionName.value;
       if (currentSectionCode.isEmpty) {
-        print('⚠️ No section code available for filtering PIT items');
+        _log('⚠️ No section code available for filtering PIT items');
         return;
       }
 
-      print('🔍 Fetching PIT items for section: $currentSectionCode');
+      _log('🔍 Fetching PIT items for section: $currentSectionCode');
       List<Map<String, dynamic>> items = [];
 
       // Fetch assignments with category: 'pit' and optional semester filter
@@ -1737,17 +1740,17 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
         _pitItems = items;
       });
 
-      print(
+      _log(
         '✅ Fetched ${_pitItems.length} PIT items (all types) for section $currentSectionCode',
       );
       for (int i = 0; i < _pitItems.length; i++) {
         var item = _pitItems[i];
-        print(
+        _log(
           '  ${i + 1}. ${item['title']} (${item['type']}) - ID: ${item['id']}',
         );
       }
     } catch (e) {
-      print('❌ Error fetching PIT items: $e');
+      _log('❌ Error fetching PIT items: $e');
     }
   }
 
@@ -1872,33 +1875,43 @@ class _ClassReportScreenState extends State<ClassReportScreen> {
           columnHeaders: columnHeaders,
         ),
         exportOptions: const [],
-        onExport: () async {
-          // Perform actual export
-          await exportService.exportCompleteClassRecord(
-            students: students,
-            classStandingItems: _classStandingItems,
-            quizPrelimItems: _quizPrelimItems,
-            midtermExamItems: _midtermExamItems,
-            pitItems: _pitItems,
-            finalClassStandingItems: _finalClassStandingItems,
-            finalQuizItems: _finalQuizItems,
-            finalExamItems: _finalExamItems,
-            finalPitItems: _finalPitItems,
-            sectionName: sectionName,
-            courseName: courseName,
-            instructorName: instructorName,
-            departmentName:
-                departmentName.isNotEmpty
-                    ? departmentName
-                    : 'Department of NATIONAL SERVICE TRAINING PROGRAM',
-          );
-        },
+        onExport: () {},
       );
 
       // If user cancelled, do nothing
       if (shouldExport != true) {
         return;
       }
+
+      // Perform actual export outside dialog so exceptions are caught
+      await exportService.exportCompleteClassRecord(
+        students: students,
+        classStandingItems: _classStandingItems,
+        quizPrelimItems: _quizPrelimItems,
+        midtermExamItems: _midtermExamItems,
+        pitItems: _pitItems,
+        finalClassStandingItems: _finalClassStandingItems,
+        finalQuizItems: _finalQuizItems,
+        finalExamItems: _finalExamItems,
+        finalPitItems: _finalPitItems,
+        sectionName: sectionName,
+        courseName: courseName,
+        instructorName: instructorName,
+        departmentName:
+            departmentName.isNotEmpty
+                ? departmentName
+                : 'Department of NATIONAL SERVICE TRAINING PROGRAM',
+      );
+
+      // Show success message
+      Get.snackbar(
+        'Export Successful',
+        'Class record exported successfully',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
     } catch (e) {
       // Show error message
       Get.snackbar(

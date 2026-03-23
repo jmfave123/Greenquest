@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../shared/services/student_data_service.dart';
 
 class LeaderboardController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -50,15 +51,14 @@ class LeaderboardController extends GetxController {
     }
   }
 
-  /// Get current user's instructor information
+  /// Get current user's instructor information from cache
   Future<Map<String, String>?> _getCurrentInstructor() async {
     try {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final instructorId = userData['selectedInstructorId'] as String?;
 
         if (instructorId != null && instructorId.isNotEmpty) {

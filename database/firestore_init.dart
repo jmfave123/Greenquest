@@ -3,6 +3,13 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+void _log(Object? message) {
+  if (kDebugMode) {
+    debugPrint('$message');
+  }
+}
 
 class FirestoreInitializer {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,8 +18,6 @@ class FirestoreInitializer {
   // Initialize default data
   Future<void> initializeDatabase() async {
     try {
-      print('🚀 Initializing Firestore database...');
-
       // Create default admin
       await _createDefaultAdmin();
 
@@ -27,11 +32,7 @@ class FirestoreInitializer {
 
       // Create sample announcements
       await _createSampleAnnouncements();
-
-      print('✅ Database initialization completed successfully!');
-    } catch (e) {
-      print('❌ Error initializing database: $e');
-    }
+    } catch (e) {}
   }
 
   // Create default admin user
@@ -47,9 +48,9 @@ class FirestoreInitializer {
         'role': 'admin',
         'permissions': ['user_management', 'content_management', 'analytics'],
       });
-      print('✅ Default admin created');
+      _log('✅ Default admin created');
     } catch (e) {
-      print('❌ Error creating admin: $e');
+      _log('❌ Error creating admin: $e');
     }
   }
 
@@ -80,9 +81,9 @@ class FirestoreInitializer {
         ],
         'lastUpdated': FieldValue.serverTimestamp(),
       });
-      print('✅ Default instructor created');
+      _log('✅ Default instructor created');
     } catch (e) {
-      print('❌ Error creating instructor: $e');
+      _log('❌ Error creating instructor: $e');
     }
   }
 
@@ -124,9 +125,9 @@ class FirestoreInitializer {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      print('✅ Sample classes created');
+      _log('✅ Sample classes created');
     } catch (e) {
-      print('❌ Error creating classes: $e');
+      _log('❌ Error creating classes: $e');
     }
   }
 
@@ -164,9 +165,9 @@ class FirestoreInitializer {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      print('✅ Sample activities created');
+      _log('✅ Sample activities created');
     } catch (e) {
-      print('❌ Error creating activities: $e');
+      _log('❌ Error creating activities: $e');
     }
   }
 
@@ -186,16 +187,16 @@ class FirestoreInitializer {
         'isActive': true,
         'expiresAt': Timestamp.fromDate(DateTime.now().add(Duration(days: 30))),
       });
-      print('✅ Sample announcements created');
+      _log('✅ Sample announcements created');
     } catch (e) {
-      print('❌ Error creating announcements: $e');
+      _log('❌ Error creating announcements: $e');
     }
   }
 
   // Create test user accounts (for development)
   Future<void> createTestUsers() async {
     try {
-      print('👥 Creating test user accounts...');
+      _log('👥 Creating test user accounts...');
 
       // Test student 1
       await _firestore.collection('users').doc('user_001').set({
@@ -251,16 +252,16 @@ class FirestoreInitializer {
         'totalPointsEarned': 100,
       });
 
-      print('✅ Test users created');
+      _log('✅ Test users created');
     } catch (e) {
-      print('❌ Error creating test users: $e');
+      _log('❌ Error creating test users: $e');
     }
   }
 
   // Initialize leaderboard
   Future<void> initializeLeaderboard() async {
     try {
-      print('🏆 Initializing leaderboard...');
+      _log('🏆 Initializing leaderboard...');
 
       // Get all users and create leaderboard entries
       QuerySnapshot users = await _firestore.collection('users').get();
@@ -295,9 +296,9 @@ class FirestoreInitializer {
             .set(leaderboardData[i]);
       }
 
-      print('✅ Leaderboard initialized');
+      _log('✅ Leaderboard initialized');
     } catch (e) {
-      print('❌ Error initializing leaderboard: $e');
+      _log('❌ Error initializing leaderboard: $e');
     }
   }
 }
@@ -318,5 +319,5 @@ void main() async {
   // Initialize leaderboard
   await initializer.initializeLeaderboard();
 
-  print('🎉 All done! Your Firestore database is ready.');
+  _log('🎉 All done! Your Firestore database is ready.');
 }

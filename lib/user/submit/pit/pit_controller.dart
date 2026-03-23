@@ -1,12 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../shared/services/submission_routing_service.dart';
+import '../../../shared/services/student_data_service.dart';
 
 class PitController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Observable variables
   final RxList<Map<String, dynamic>> pits = <Map<String, dynamic>>[].obs;
@@ -29,16 +37,15 @@ class PitController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final sectionCode = userData['selectedSectionCode']?.toString();
-        print('📚 Student section code: $sectionCode');
+        _log('📚 Student section code: $sectionCode');
         return sectionCode;
       }
       return null;
     } catch (e) {
-      print('❌ Error getting user section code: $e');
+      _log('❌ Error getting user section code: $e');
       return null;
     }
   }
@@ -47,21 +54,20 @@ class PitController extends GetxController {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('❌ No authenticated user');
+        _log('❌ No authenticated user');
         return;
       }
 
-      print('🔍 Loading instructor for user: ${user.uid}');
+      _log('🔍 Loading instructor for user: ${user.uid}');
 
-      // Get user's selected instructor from their profile
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
+      // Get user's selected instructor from their profile snapshot via the cache
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final instructorId = userData['selectedInstructorId'] ?? '';
         final instructorName = userData['selectedInstructorName'] ?? '';
         final selectionComplete = userData['selectionComplete'] ?? false;
 
-        print(
+        _log(
           '📋 User data: selectedInstructorId=$instructorId, selectedInstructorName=$instructorName, selectionComplete=$selectionComplete',
         );
 
@@ -69,22 +75,22 @@ class PitController extends GetxController {
           currentInstructorUid.value = instructorId;
           currentInstructorName.value = instructorName;
 
-          print('📚 Loaded instructor: $instructorName ($instructorId)');
+          _log('📚 Loaded instructor: $instructorName ($instructorId)');
 
           // Load pits for this instructor
           await loadCurrentInstructorPits();
         } else {
-          print(
+          _log(
             '⚠️ User has not completed instructor selection or no instructor selected',
           );
           errorMessage.value = 'Please select an instructor first';
         }
       } else {
-        print('❌ User document not found');
+        _log('❌ User data from cache was empty');
         errorMessage.value = 'User profile not found';
       }
     } catch (e) {
-      print('❌ Error loading current instructor: $e');
+      _log('❌ Error loading current instructor: $e');
       errorMessage.value = 'Failed to load instructor: $e';
     }
   }
@@ -101,7 +107,7 @@ class PitController extends GetxController {
 
       // Get student's section code for filtering
       final userSectionCode = await _getUserSectionCode();
-      print('📚 Student section code: $userSectionCode');
+      _log('📚 Student section code: $userSectionCode');
 
       final pitsQuery =
           await _firestore
@@ -126,12 +132,12 @@ class PitController extends GetxController {
             userSectionCode.isNotEmpty &&
             selectedClasses.isNotEmpty) {
           if (!selectedClasses.contains(userSectionCode)) {
-            print(
+            _log(
               '❌ Skipping PIT "${pitData['title']}" - not for section $userSectionCode',
             );
             continue;
           }
-          print(
+          _log(
             '✅ PIT "${pitData['title']}" matches student section $userSectionCode',
           );
         }
@@ -144,14 +150,14 @@ class PitController extends GetxController {
         pits.add(pitData);
       }
 
-      print(
+      _log(
         '✅ Loaded ${pits.length} pits for instructor: ${currentInstructorName.value} (filtered by section $userSectionCode)',
       );
 
       // Load submission statuses for all PITs
       await loadSubmissionStatuses();
     } catch (e) {
-      print('❌ Error loading pits: $e');
+      _log('❌ Error loading pits: $e');
       errorMessage.value = 'Failed to load pits: $e';
     } finally {
       isLoading.value = false;
@@ -201,12 +207,12 @@ class PitController extends GetxController {
         return dateB.compareTo(dateA);
       });
 
-      print('✅ Loaded ${pits.length} pits from all instructors');
+      _log('✅ Loaded ${pits.length} pits from all instructors');
 
       // Load submission statuses for all PITs
       await loadSubmissionStatuses();
     } catch (e) {
-      print('❌ Error loading all pits: $e');
+      _log('❌ Error loading all pits: $e');
       errorMessage.value = 'Failed to load pits: $e';
     } finally {
       isLoading.value = false;
@@ -244,12 +250,11 @@ class PitController extends GetxController {
         throw Exception('User not authenticated');
       }
 
-      print('📤 Submitting PIT: $pitId');
-      print('📝 PIT data: ${pitData.keys.length} fields');
+      _log('📤 Submitting PIT: $pitId');
+      _log('📝 PIT data: ${pitData.keys.length} fields');
 
-      // Get user data for student information
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final userData = userDoc.data() ?? {};
+      // Get user data for student information from cache
+      final userData = await StudentDataService.getStudentData() ?? {};
 
       // Create submission data
       final submissionData = {
@@ -279,9 +284,9 @@ class PitController extends GetxController {
         throw Exception(routingResult['error'] ?? 'Failed to route submission');
       }
 
-      print('✅ PIT submission routed successfully');
-      print('📍 Routed to instructor: ${routingResult['instructorId']}');
-      print('📍 Section: ${routingResult['sectionId']}');
+      _log('✅ PIT submission routed successfully');
+      _log('📍 Routed to instructor: ${routingResult['instructorId']}');
+      _log('📍 Section: ${routingResult['sectionId']}');
 
       Get.snackbar(
         'Success',
@@ -292,7 +297,7 @@ class PitController extends GetxController {
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
-      print('❌ Error submitting PIT: $e');
+      _log('❌ Error submitting PIT: $e');
       Get.snackbar(
         'Error',
         'Failed to submit PIT: $e',
@@ -304,7 +309,7 @@ class PitController extends GetxController {
     }
   }
 
-  /// Get submission status for a PIT
+  /// Get submission status for a PIT (Legacy individual read - fallback)
   Future<String> getSubmissionStatus(String pitId) async {
     try {
       final user = _auth.currentUser;
@@ -326,39 +331,57 @@ class PitController extends GetxController {
 
       return 'not_submitted';
     } catch (e) {
-      print('❌ Error getting submission status: $e');
+      _log('❌ Error getting submission status: $e');
       return 'not_submitted';
     }
   }
 
-  /// Load submission statuses for all PITs
+  /// Bulk load ALL submission statuses in a SINGLE query (N+1 query fix)
   Future<void> loadSubmissionStatuses() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null || pits.isEmpty) return;
 
-      // Clear existing statuses
+      // Clear existing statuses and extract IDs
       submissionStatus.clear();
+      final pitIds = pits.map((a) => a['id']?.toString()).whereType<String>().toList();
+      
+      if (pitIds.isEmpty) return;
 
-      // Get status for each PIT
-      for (final pit in pits) {
-        final pitId = pit['id']?.toString();
-        if (pitId != null) {
-          final status = await getSubmissionStatus(pitId);
-          submissionStatus[pitId] = status;
+      // Set defaults for all first
+      for (final id in pitIds) {
+        submissionStatus[id] = 'not_submitted';
+      }
+
+      _log('🔍 Bulk loading submissions for ${pitIds.length} PITs');
+
+      // 1 single query to fetch all pit submissions created by THIS student 
+      final allSubmissions = await _firestore
+          .collection('submissions')
+          .where('studentId', isEqualTo: user.uid)
+          .where('activityType', isEqualTo: 'pit')
+          .get();
+
+      // Process them locally in memory instantly
+      for (var doc in allSubmissions.docs) {
+        final data = doc.data();
+        final activityId = data['activityId']?.toString();
+        
+        if (activityId != null && submissionStatus.containsKey(activityId)) {
+           submissionStatus[activityId] = data['status']?.toString() ?? 'not_submitted';
         }
       }
 
-      print('📊 Loaded submission statuses for ${pits.length} PITs');
+      _log('📊 Successfully mapped submission statuses without looping queries.');
     } catch (e) {
-      print('❌ Error loading submission statuses: $e');
+      _log('❌ Error bulk loading submission statuses: $e');
     }
   }
 
   // Debug method for instructor selection
   Future<void> debugInstructorSelection() async {
-    print('🔍 Current instructor UID: ${currentInstructorUid.value}');
-    print('🔍 Current instructor name: ${currentInstructorName.value}');
-    print('🔍 Number of pits loaded: ${pits.length}');
+    _log('🔍 Current instructor UID: ${currentInstructorUid.value}');
+    _log('🔍 Current instructor name: ${currentInstructorName.value}');
+    _log('🔍 Number of pits loaded: ${pits.length}');
   }
 }

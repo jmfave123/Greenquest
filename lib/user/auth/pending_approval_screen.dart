@@ -20,6 +20,12 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   String instructorName = '';
   String instructorId = '';
   String instructorProfileImage = '';
@@ -45,14 +51,14 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      print('🔍 DEBUG: Checking user document for: ${user.uid}');
+      _log('🔍 DEBUG: Checking user document for: ${user.uid}');
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
 
       if (userDoc.exists) {
         final data = userDoc.data() as Map<String, dynamic>;
-        print('🔍 DEBUG: User document data:');
+        _log('🔍 DEBUG: User document data:');
         data.forEach((key, value) {
-          print('🔍 DEBUG: $key: $value');
+          _log('🔍 DEBUG: $key: $value');
         });
 
         // Check specific fields
@@ -62,14 +68,14 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
             data['selectedInstructorName'] ?? 'NOT_SET';
         final selectionComplete = data['selectionComplete'] ?? false;
 
-        print('🔍 DEBUG: enrollmentStatus: $enrollmentStatus');
-        print('🔍 DEBUG: selectedInstructorId: $selectedInstructorId');
-        print('🔍 DEBUG: selectedInstructorName: $selectedInstructorName');
-        print('🔍 DEBUG: selectionComplete: $selectionComplete');
+        _log('🔍 DEBUG: enrollmentStatus: $enrollmentStatus');
+        _log('🔍 DEBUG: selectedInstructorId: $selectedInstructorId');
+        _log('🔍 DEBUG: selectedInstructorName: $selectedInstructorName');
+        _log('🔍 DEBUG: selectionComplete: $selectionComplete');
 
         // Check if this user should be approved
         if (enrollmentStatus == 'pending') {
-          print(
+          _log(
             '🔍 DEBUG: User is still pending - checking instructor approval...',
           );
           // Check if instructor has approved this user
@@ -79,10 +85,10 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
           }
         }
       } else {
-        print('🔍 DEBUG: User document does not exist!');
+        _log('🔍 DEBUG: User document does not exist!');
       }
     } catch (e) {
-      print('🔍 DEBUG: Error checking user document: $e');
+      _log('🔍 DEBUG: Error checking user document: $e');
     }
   }
 
@@ -92,7 +98,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
     String studentId,
   ) async {
     try {
-      print(
+      _log(
         '🔍 DEBUG: Checking instructor approval for student $studentId in instructor $instructorId',
       );
 
@@ -118,22 +124,22 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         if (studentDoc.exists) {
           final studentData = studentDoc.data() as Map<String, dynamic>;
           final enrollmentStatus = studentData['enrollmentStatus'] ?? 'NOT_SET';
-          print(
+          _log(
             '🔍 DEBUG: Found student in class ${classDoc.id} with status: $enrollmentStatus',
           );
 
           if (enrollmentStatus == 'approved') {
-            print(
+            _log(
               '🔍 DEBUG: Student is approved in instructor class but not in user document!',
             );
-            print(
+            _log(
               '🔍 DEBUG: This suggests the approval process failed to update the user document.',
             );
           }
         }
       }
     } catch (e) {
-      print('🔍 DEBUG: Error checking instructor approval: $e');
+      _log('🔍 DEBUG: Error checking instructor approval: $e');
     }
   }
 
@@ -143,7 +149,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
     String studentId,
   ) async {
     try {
-      print('🔄 SYNC: Checking and syncing approval status...');
+      _log('🔄 SYNC: Checking and syncing approval status...');
 
       // Check if student exists in instructor's classes
       final classesSnapshot =
@@ -168,12 +174,12 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
           final studentData = studentDoc.data() as Map<String, dynamic>;
           final studentEnrollmentStatus =
               studentData['enrollmentStatus'] ?? 'NOT_SET';
-          print(
+          _log(
             '🔄 SYNC: Found student in class ${classDoc.id} with status: $studentEnrollmentStatus',
           );
 
           if (studentEnrollmentStatus == 'approved') {
-            print(
+            _log(
               '🔄 SYNC: Student is approved in instructor class! Syncing to user document...',
             );
 
@@ -185,7 +191,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
               'updatedAt': FieldValue.serverTimestamp(),
             });
 
-            print('✅ SYNC: User document updated to approved status');
+            _log('✅ SYNC: User document updated to approved status');
 
             // Update local state and redirect
             setState(() {
@@ -202,7 +208,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
             );
 
             Future.delayed(const Duration(milliseconds: 1500), () {
-              print('🏠 SYNC: Navigating to home dashboard');
+              _log('🏠 SYNC: Navigating to home dashboard');
               Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
             });
 
@@ -211,9 +217,9 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         }
       }
 
-      print('🔄 SYNC: No approval found in instructor classes');
+      _log('🔄 SYNC: No approval found in instructor classes');
     } catch (e) {
-      print('❌ SYNC: Error syncing approval status: $e');
+      _log('❌ SYNC: Error syncing approval status: $e');
     }
   }
 
@@ -276,12 +282,12 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
                   instructorData['profileImage'] ??
                   '';
             } else {
-              print(
+              _log(
                 '⚠️ Instructor document not found for ID: $instructorIdData',
               );
             }
           } catch (e) {
-            print('❌ Error fetching instructor profile: $e');
+            _log('❌ Error fetching instructor profile: $e');
           }
         }
 
@@ -296,9 +302,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
         // If user is already approved, redirect immediately
         if (status == 'approved') {
-          print(
-            '🎉 User already approved on load! Redirecting to dashboard...',
-          );
+          _log('🎉 User already approved on load! Redirecting to dashboard...');
 
           Get.snackbar(
             'Approved!',
@@ -310,7 +314,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
           );
 
           Future.delayed(const Duration(milliseconds: 1500), () {
-            print('🏠 Navigating to home dashboard');
+            _log('🏠 Navigating to home dashboard');
             Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
           });
           return;
@@ -322,7 +326,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         }
       }
     } catch (e) {
-      print('Error loading user data: $e');
+      _log('Error loading user data: $e');
       setState(() {
         isLoading = false;
       });
@@ -339,14 +343,14 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
   void _setupStatusListener() {
     final user = _auth.currentUser;
     if (user == null) {
-      print('❌ Cannot setup listener - no user found');
+      _log('❌ Cannot setup listener - no user found');
       return;
     }
 
     // Cancel any existing listener first
     _statusListener?.cancel();
 
-    print('🔍 Setting up status listener for user: ${user.uid}');
+    _log('🔍 Setting up status listener for user: ${user.uid}');
 
     _statusListener = _firestore
         .collection('users')
@@ -354,14 +358,12 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         .snapshots()
         .listen(
           (snapshot) {
-            print('📱 ===== LISTENER TRIGGERED =====');
-            print('📱 Timestamp: ${DateTime.now()}');
-            print(
-              '📱 Listener triggered - snapshot exists: ${snapshot.exists}',
-            );
+            _log('📱 ===== LISTENER TRIGGERED =====');
+            _log('📱 Timestamp: ${DateTime.now()}');
+            _log('📱 Listener triggered - snapshot exists: ${snapshot.exists}');
             if (snapshot.exists) {
               final data = snapshot.data() as Map<String, dynamic>;
-              print('📱 Listener - Full document data: $data');
+              _log('📱 Listener - Full document data: $data');
 
               final status = data['enrollmentStatus'] ?? 'pending';
               final lastStatusUpdate = data['lastStatusUpdate'];
@@ -369,20 +371,20 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
               final selectedInstructorName =
                   data['selectedInstructorName'] ?? '';
 
-              print('📱 Status from document: $status');
-              print('📱 Current local status: $enrollmentStatus');
-              print('📱 Last status update: $lastStatusUpdate');
-              print('📱 Instructor ID: $selectedInstructorId');
-              print('📱 Instructor Name: $selectedInstructorName');
+              _log('📱 Status from document: $status');
+              _log('📱 Current local status: $enrollmentStatus');
+              _log('📱 Last status update: $lastStatusUpdate');
+              _log('📱 Instructor ID: $selectedInstructorId');
+              _log('📱 Instructor Name: $selectedInstructorName');
 
-              print('📱 Status update received: $status');
-              print('📱 Last status update: $lastStatusUpdate');
-              print('📱 Current enrollmentStatus: $enrollmentStatus');
-              print('📱 Instructor ID: $selectedInstructorId');
-              print('📱 Instructor Name: $selectedInstructorName');
+              _log('📱 Status update received: $status');
+              _log('📱 Last status update: $lastStatusUpdate');
+              _log('📱 Current enrollmentStatus: $enrollmentStatus');
+              _log('📱 Instructor ID: $selectedInstructorId');
+              _log('📱 Instructor Name: $selectedInstructorName');
 
               if (status == 'approved' && enrollmentStatus != 'approved') {
-                print('📱 Status changed from $enrollmentStatus to $status');
+                _log('📱 Status changed from $enrollmentStatus to $status');
 
                 setState(() {
                   enrollmentStatus = status;
@@ -390,7 +392,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
                 });
 
                 if (status == 'approved') {
-                  print('🎉 Student approved! Redirecting to dashboard...');
+                  _log('🎉 Student approved! Redirecting to dashboard...');
 
                   // Show success message before redirecting
                   Get.snackbar(
@@ -404,30 +406,30 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
                   // Small delay to show the message, then navigate
                   Future.delayed(const Duration(milliseconds: 1500), () {
-                    print('🏠 Navigating to home dashboard');
-                    print('🏠 Current route: ${Get.currentRoute}');
-                    print('🏠 Routing to: /home');
+                    _log('🏠 Navigating to home dashboard');
+                    _log('🏠 Current route: ${Get.currentRoute}');
+                    _log('🏠 Routing to: /home');
                     Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
-                    print('🏠 Navigation called');
+                    _log('🏠 Navigation called');
                   });
                 } else if (status == 'rejected') {
-                  print('❌ Student rejected');
+                  _log('❌ Student rejected');
                   // Show rejection message and allow re-selection
                   _showRejectionDialog(
                     data['rejectionReason'] ?? 'No reason provided',
                   );
                 }
               } else {
-                print(
+                _log(
                   '📱 Status unchanged: $status (current: $enrollmentStatus)',
                 );
               }
             } else {
-              print('⚠️ User document does not exist');
+              _log('⚠️ User document does not exist');
             }
           },
           onError: (error) {
-            print('❌ Error in status listener: $error');
+            _log('❌ Error in status listener: $error');
             // Don't automatically retry to prevent multiple listeners
             // The user can manually refresh if needed
           },
@@ -487,7 +489,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
       // Navigate to instructor selection
       Get.offAllNamed('/select-instructor');
     } catch (e) {
-      print('Error resetting selection: $e');
+      _log('Error resetting selection: $e');
     }
   }
 
@@ -571,7 +573,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
       // Navigate to instructor selection
       Get.offAllNamed('/select-instructor');
     } catch (e) {
-      print('Error cancelling request: $e');
+      _log('Error cancelling request: $e');
       Get.snackbar(
         'Error',
         'Failed to cancel request. Please try again.',
@@ -618,12 +620,10 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
             .doc(studentId)
             .delete();
 
-        print(
-          'Student $studentId removed from instructor class ${classDoc.id}',
-        );
+        _log('Student $studentId removed from instructor class ${classDoc.id}');
       }
     } catch (e) {
-      print('Error removing student from instructor class: $e');
+      _log('Error removing student from instructor class: $e');
       // Don't throw error here as the main cancellation should still proceed
     }
   }
@@ -636,22 +636,22 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('❌ Manual refresh - No user found');
+        _log('❌ Manual refresh - No user found');
         setState(() {
           isLoading = false;
         });
         return;
       }
 
-      print('🔄 Manual refresh - checking user status for: ${user.uid}');
+      _log('🔄 Manual refresh - checking user status for: ${user.uid}');
 
       // Force a fresh read from Firestore
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      print('🔄 Manual refresh - Document exists: ${userDoc.exists}');
+      _log('🔄 Manual refresh - Document exists: ${userDoc.exists}');
 
       if (userDoc.exists) {
         final data = userDoc.data() as Map<String, dynamic>;
-        print('🔄 Manual refresh - Full document data: $data');
+        _log('🔄 Manual refresh - Full document data: $data');
 
         final status = data['enrollmentStatus'] ?? 'pending';
         final lastStatusUpdate = data['lastStatusUpdate'];
@@ -659,12 +659,12 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         final selectedInstructorName = data['selectedInstructorName'] ?? '';
         final selectionComplete = data['selectionComplete'] ?? false;
 
-        print('🔄 Manual refresh - Current status: $status');
-        print('🔄 Manual refresh - Last update: $lastStatusUpdate');
-        print('🔄 Manual refresh - Instructor ID: $selectedInstructorId');
-        print('🔄 Manual refresh - Instructor Name: $selectedInstructorName');
-        print('🔄 Manual refresh - Selection Complete: $selectionComplete');
-        print('🔄 Manual refresh - Previous status: $enrollmentStatus');
+        _log('🔄 Manual refresh - Current status: $status');
+        _log('🔄 Manual refresh - Last update: $lastStatusUpdate');
+        _log('🔄 Manual refresh - Instructor ID: $selectedInstructorId');
+        _log('🔄 Manual refresh - Instructor Name: $selectedInstructorName');
+        _log('🔄 Manual refresh - Selection Complete: $selectionComplete');
+        _log('🔄 Manual refresh - Previous status: $enrollmentStatus');
 
         setState(() {
           instructorName = selectedInstructorName;
@@ -674,7 +674,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
         // Check if status changed and handle accordingly
         if (status == 'approved') {
-          print('🎉 Manual refresh - Student approved! Redirecting...');
+          _log('🎉 Manual refresh - Student approved! Redirecting...');
 
           Get.snackbar(
             'Approved!',
@@ -686,18 +686,18 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
           );
 
           Future.delayed(const Duration(milliseconds: 1500), () {
-            print('🏠 Manual refresh - Navigating to home dashboard');
+            _log('🏠 Manual refresh - Navigating to home dashboard');
             Get.offAllNamed(kIsWeb ? WebRoutes.home : '/home');
           });
         } else if (status == 'rejected') {
-          print('❌ Manual refresh - Student rejected');
+          _log('❌ Manual refresh - Student rejected');
           _showRejectionDialog(data['rejectionReason'] ?? 'No reason provided');
         } else {
-          print('⏳ Manual refresh - Still pending approval');
+          _log('⏳ Manual refresh - Still pending approval');
 
           // Check if student is actually approved in instructor's class
           if (selectedInstructorId.isNotEmpty) {
-            print('🔍 Checking if student is approved in instructor class...');
+            _log('🔍 Checking if student is approved in instructor class...');
             await _checkAndSyncApprovalStatus(selectedInstructorId, user.uid);
           }
 
@@ -711,7 +711,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
           );
         }
       } else {
-        print('⚠️ Manual refresh - User document not found');
+        _log('⚠️ Manual refresh - User document not found');
         setState(() {
           isLoading = false;
         });
@@ -725,7 +725,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
         );
       }
     } catch (e) {
-      print('❌ Manual refresh error: $e');
+      _log('❌ Manual refresh error: $e');
       setState(() {
         isLoading = false;
       });

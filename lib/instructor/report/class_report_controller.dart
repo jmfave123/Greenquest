@@ -1,11 +1,18 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 class ClassReportController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   var instructorName = ''.obs;
   var profileImageUrl = ''.obs;
@@ -293,8 +300,8 @@ class ClassReportController extends GetxController {
 
       String sectionCode = '';
 
-      print('🔍 DEBUG: Loading students for classId: $_classId');
-      print('🔍 DEBUG: Current user UID: ${user.uid}');
+      _log('🔍 DEBUG: Loading students for classId: $_classId');
+      _log('🔍 DEBUG: Current user UID: ${user.uid}');
 
       // First, try to get sectionCode directly from sections collection
       // This handles the case where _classId is a sections document ID
@@ -305,11 +312,11 @@ class ClassReportController extends GetxController {
         // _classId is a sections document ID
         final sectionData = sectionDoc.data()!;
         sectionCode = sectionData['sectionCode'] ?? '';
-        print(
+        _log(
           '✅ DEBUG: Found section document directly. SectionCode: $sectionCode',
         );
       } else {
-        print('⚠️ DEBUG: No section document found with ID: $_classId');
+        _log('⚠️ DEBUG: No section document found with ID: $_classId');
         // _classId might be a classes document ID, try to get sectionId first
         final classDoc =
             await _firestore
@@ -323,7 +330,7 @@ class ClassReportController extends GetxController {
           // _classId is a classes document ID
           final classData = classDoc.data()!;
           final sectionId = classData['sectionId'] ?? '';
-          print('✅ DEBUG: Found class document. SectionId: $sectionId');
+          _log('✅ DEBUG: Found class document. SectionId: $sectionId');
 
           if (sectionId.isNotEmpty) {
             // Get the sectionCode from the sections collection using sectionId
@@ -332,32 +339,32 @@ class ClassReportController extends GetxController {
             if (sectionDocFromId.exists) {
               final sectionDataFromId = sectionDocFromId.data()!;
               sectionCode = sectionDataFromId['sectionCode'] ?? '';
-              print(
+              _log(
                 '✅ DEBUG: Got sectionCode from sectionId. SectionCode: $sectionCode',
               );
             } else {
-              print(
+              _log(
                 '❌ DEBUG: No section document found with sectionId: $sectionId',
               );
             }
           } else {
-            print('❌ DEBUG: SectionId is empty in class document');
+            _log('❌ DEBUG: SectionId is empty in class document');
           }
         } else {
-          print('❌ DEBUG: No class document found with ID: $_classId');
+          _log('❌ DEBUG: No class document found with ID: $_classId');
         }
       }
 
       if (sectionCode.isEmpty) {
-        print('❌ DEBUG: SectionCode is empty, returning empty students list');
+        _log('❌ DEBUG: SectionCode is empty, returning empty students list');
         students.value = [];
         studentCount.value = 0;
         return;
       }
 
       // Query instructor's students subcollection for approved students in this section
-      print('🔍 DEBUG: Querying students with sectionCode: $sectionCode');
-      print('🔍 DEBUG: Query path: instructors/${user.uid}/students');
+      _log('🔍 DEBUG: Querying students with sectionCode: $sectionCode');
+      _log('🔍 DEBUG: Query path: instructors/${user.uid}/students');
 
       final studentsSnapshot =
           await _firestore
@@ -368,9 +375,7 @@ class ClassReportController extends GetxController {
               .where('enrollmentStatus', isEqualTo: 'approved')
               .get();
 
-      print(
-        '📊 DEBUG: Found ${studentsSnapshot.docs.length} students in query',
-      );
+      _log('📊 DEBUG: Found ${studentsSnapshot.docs.length} students in query');
 
       // Debug: Let's also check all students in the subcollection to see what's there
       final allStudentsSnapshot =
@@ -380,13 +385,13 @@ class ClassReportController extends GetxController {
               .collection('students')
               .get();
 
-      print(
+      _log(
         '📊 DEBUG: Total students in instructor subcollection: ${allStudentsSnapshot.docs.length}',
       );
 
       for (var doc in allStudentsSnapshot.docs) {
         final data = doc.data();
-        print(
+        _log(
           '👤 DEBUG: Student ${doc.id} - selectedSectionCode: ${data['selectedSectionCode']}, enrollmentStatus: ${data['enrollmentStatus']}',
         );
       }
@@ -405,12 +410,12 @@ class ClassReportController extends GetxController {
           if (userDoc.exists) {
             final userData = userDoc.data() as Map<String, dynamic>;
             idNumber = userData['idNumber'] ?? '';
-            print('✅ DEBUG: Found idNumber for user ${doc.id}: $idNumber');
+            _log('✅ DEBUG: Found idNumber for user ${doc.id}: $idNumber');
           } else {
-            print('❌ DEBUG: No user document found for ID: ${doc.id}');
+            _log('❌ DEBUG: No user document found for ID: ${doc.id}');
           }
         } catch (e) {
-          print('Error fetching idNumber for student ${doc.id}: $e');
+          _log('Error fetching idNumber for student ${doc.id}: $e');
         }
 
         studentList.add({
@@ -429,7 +434,7 @@ class ClassReportController extends GetxController {
       // Sort students alphabetically by last name, first name, middle initial
       studentList.sort(_sortStudentsAlphabetically);
 
-      print('✅ DEBUG: Final student list length: ${studentList.length}');
+      _log('✅ DEBUG: Final student list length: ${studentList.length}');
       students.value = studentList;
       studentCount.value = studentList.length;
 
@@ -514,7 +519,7 @@ class ClassReportController extends GetxController {
             idNumber = userDoc.data()?['idNumber'] ?? '';
           }
         } catch (e) {
-          print('Error fetching idNumber: $e');
+          _log('Error fetching idNumber: $e');
         }
 
         final student = {
@@ -665,7 +670,7 @@ class ClassReportController extends GetxController {
           idNumber = userDoc.data()?['idNumber'] ?? '';
         }
       } catch (e) {
-        print('Error fetching idNumber: $e');
+        _log('Error fetching idNumber: $e');
       }
 
       final student = {
@@ -726,12 +731,12 @@ class ClassReportController extends GetxController {
           if (userDoc.exists) {
             final userData = userDoc.data() as Map<String, dynamic>;
             idNumber = userData['idNumber'] ?? '';
-            print('✅ DEBUG: Found idNumber for user ${doc.id}: $idNumber');
+            _log('✅ DEBUG: Found idNumber for user ${doc.id}: $idNumber');
           } else {
-            print('❌ DEBUG: No user document found for ID: ${doc.id}');
+            _log('❌ DEBUG: No user document found for ID: ${doc.id}');
           }
         } catch (e) {
-          print('Error fetching idNumber for student ${doc.id}: $e');
+          _log('Error fetching idNumber for student ${doc.id}: $e');
         }
 
         studentList.add({
@@ -782,7 +787,7 @@ class ClassReportController extends GetxController {
       String sectionCode = sectionName.value;
       if (sectionCode.isEmpty) return;
 
-      print('🔍 Loading student grades for section: $sectionCode');
+      _log('🔍 Loading student grades for section: $sectionCode');
 
       // Load grades for each student
       for (var student in students) {
@@ -793,9 +798,9 @@ class ClassReportController extends GetxController {
       }
 
       students.refresh();
-      print('✅ Loaded grades for ${students.length} students');
+      _log('✅ Loaded grades for ${students.length} students');
     } catch (e) {
-      print('❌ Error loading student grades: $e');
+      _log('❌ Error loading student grades: $e');
     }
   }
 
@@ -835,13 +840,13 @@ class ClassReportController extends GetxController {
             if (title != null) {
               final key = _createGradeKey(title, activityId);
               student[key] = grade.toString();
-              print('  ✅ Loaded grade for $key ($activityType): $grade');
+              _log('  ✅ Loaded grade for $key ($activityType): $grade');
             }
           }
         }
       }
     } catch (e) {
-      print('❌ Error loading grades for student $studentId: $e');
+      _log('❌ Error loading grades for student $studentId: $e');
     }
   }
 
@@ -885,7 +890,7 @@ class ClassReportController extends GetxController {
         return doc.data();
       }
     } catch (e) {
-      print('❌ Error getting item details for $itemId ($activityType): $e');
+      _log('❌ Error getting item details for $itemId ($activityType): $e');
     }
     return null;
   }

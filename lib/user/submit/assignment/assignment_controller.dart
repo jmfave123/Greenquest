@@ -1,12 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../shared/services/submission_routing_service.dart';
+import '../../../shared/services/student_data_service.dart';
 
 class AssignmentController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Observable variables
   final RxBool isLoading = true.obs;
@@ -30,16 +38,15 @@ class AssignmentController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final sectionCode = userData['selectedSectionCode']?.toString();
-        print('📚 Student section code: $sectionCode');
+        _log('📚 Student section code: $sectionCode');
         return sectionCode;
       }
       return null;
     } catch (e) {
-      print('❌ Error getting user section code: $e');
+      _log('❌ Error getting user section code: $e');
       return null;
     }
   }
@@ -47,17 +54,17 @@ class AssignmentController extends GetxController {
   /// Load assignments from the current instructor
   Future<void> loadCurrentInstructorAssignments() async {
     try {
-      print('🔍 Loading current instructor assignments...');
+      _log('🔍 Loading current instructor assignments...');
       isLoading.value = true;
       errorMessage.value = '';
 
       final user = _auth.currentUser;
-      print('👤 Current user: ${user?.uid}');
+      _log('👤 Current user: ${user?.uid}');
 
       if (user != null) {
         await user.reload();
         final refreshedUser = _auth.currentUser;
-        print('🔄 Refreshed user: ${refreshedUser?.uid}');
+        _log('🔄 Refreshed user: ${refreshedUser?.uid}');
 
         if (refreshedUser != null) {
           // Check if user has selected an instructor
@@ -73,7 +80,7 @@ class AssignmentController extends GetxController {
                 selectedInstructor['instructorName']?.toString() ??
                 'Unknown Instructor';
 
-            print(
+            _log(
               '✅ User has selected instructor: $instructorName (ID: $instructorId)',
             );
             currentInstructorUid.value = instructorId;
@@ -81,28 +88,28 @@ class AssignmentController extends GetxController {
 
             await loadAssignmentsByInstructorUid(instructorId);
           } else {
-            print('⚠️ No instructor selected, showing empty state');
+            _log('⚠️ No instructor selected, showing empty state');
             currentInstructorUid.value = '';
             currentInstructorName.value = '';
             assignments.value = [];
             errorMessage.value = 'Please select an instructor first';
           }
         } else {
-          print('⚠️ User token expired, showing empty state');
+          _log('⚠️ User token expired, showing empty state');
           currentInstructorUid.value = '';
           currentInstructorName.value = '';
           assignments.value = [];
           errorMessage.value = 'Please log in and select an instructor';
         }
       } else {
-        print('⚠️ No user logged in, showing empty state');
+        _log('⚠️ No user logged in, showing empty state');
         currentInstructorUid.value = '';
         currentInstructorName.value = '';
         assignments.value = [];
         errorMessage.value = 'Please log in and select an instructor';
       }
     } catch (e) {
-      print('❌ Error loading current instructor assignments: $e');
+      _log('❌ Error loading current instructor assignments: $e');
       errorMessage.value = 'Error loading assignments: $e';
       currentInstructorUid.value = '';
       currentInstructorName.value = '';
@@ -115,7 +122,7 @@ class AssignmentController extends GetxController {
   /// Load assignments for a specific instructor
   Future<void> loadAssignmentsByInstructorUid(String instructorUid) async {
     try {
-      print('🔍 Loading assignments for instructor UID: $instructorUid');
+      _log('🔍 Loading assignments for instructor UID: $instructorUid');
       isLoading.value = true;
       errorMessage.value = '';
 
@@ -124,7 +131,7 @@ class AssignmentController extends GetxController {
           await _firestore.collection('instructors').doc(instructorUid).get();
 
       if (!instructorDoc.exists) {
-        print('❌ Instructor document not found for UID: $instructorUid');
+        _log('❌ Instructor document not found for UID: $instructorUid');
         errorMessage.value = 'Instructor not found';
         assignments.value = [];
         return;
@@ -134,14 +141,14 @@ class AssignmentController extends GetxController {
       final instructorName =
           instructorData['name']?.toString() ?? 'Unknown Instructor';
 
-      print('✅ Instructor found: $instructorName');
+      _log('✅ Instructor found: $instructorName');
 
       // Get student's section code for filtering
       final userSectionCode = await _getUserSectionCode();
-      print('📚 Student section code: $userSectionCode');
+      _log('📚 Student section code: $userSectionCode');
 
       // Add debug: Print all assignments to see what sections they have
-      print('🔍 DEBUG: Fetching ALL assignments first to inspect data...');
+      _log('🔍 DEBUG: Fetching ALL assignments first to inspect data...');
       final allAssignmentsDebug =
           await _firestore
               .collection('instructors')
@@ -150,26 +157,24 @@ class AssignmentController extends GetxController {
               .where('status', isEqualTo: 'active')
               .get();
 
-      print(
+      _log(
         '🔍 DEBUG: Found ${allAssignmentsDebug.docs.length} total active assignments',
       );
       for (var doc in allAssignmentsDebug.docs) {
         final data = doc.data();
         final classes = data['selectedClasses'] ?? [];
-        print('  - Assignment: ${data['title']} - Selected Classes: $classes');
+        _log('  - Assignment: ${data['title']} - Selected Classes: $classes');
       }
 
       // Get assignments from the instructor's assignments subcollection
-      print(
+      _log(
         '📚 Querying assignments subcollection for instructor: $instructorUid',
       );
 
       // 🔥 OPTIMIZED: Use array-contains for efficient array filtering in Firestore
       QuerySnapshot assignmentsQuery;
       if (userSectionCode != null && userSectionCode.isNotEmpty) {
-        print(
-          '🎯 Using array-contains filter with section: "$userSectionCode"',
-        );
+        _log('🎯 Using array-contains filter with section: "$userSectionCode"');
         assignmentsQuery =
             await _firestore
                 .collection('instructors')
@@ -179,7 +184,7 @@ class AssignmentController extends GetxController {
                 .where('selectedClasses', arrayContains: userSectionCode)
                 .get();
       } else {
-        print('⚠️ No section code found, fetching all active assignments');
+        _log('⚠️ No section code found, fetching all active assignments');
         // If no section code, just filter by status
         assignmentsQuery =
             await _firestore
@@ -190,14 +195,14 @@ class AssignmentController extends GetxController {
                 .get();
       }
 
-      print(
+      _log(
         '📚 Assignments query result: ${assignmentsQuery.docs.length} documents',
       );
 
       List<Map<String, dynamic>> instructorAssignments = [];
 
       if (assignmentsQuery.docs.isNotEmpty) {
-        print(
+        _log(
           '📖 Processing ${assignmentsQuery.docs.length} assignments from subcollection...',
         );
 
@@ -205,14 +210,14 @@ class AssignmentController extends GetxController {
           var assignmentDoc = assignmentsQuery.docs[i];
           var assignmentData = assignmentDoc.data() as Map<String, dynamic>;
 
-          print(
+          _log(
             '📄 Assignment $i (${assignmentDoc.id}): ${assignmentData.runtimeType}',
           );
-          print('📄 Assignment $i data: ${assignmentData.keys.toList()}');
+          _log('📄 Assignment $i data: ${assignmentData.keys.toList()}');
 
           // Skip if assignmentData is null or empty
           if (assignmentData.isEmpty) {
-            print('⚠️ Assignment $i has empty data, skipping');
+            _log('⚠️ Assignment $i has empty data, skipping');
             continue;
           }
 
@@ -246,21 +251,21 @@ class AssignmentController extends GetxController {
             'category': assignmentData['category']?.toString() ?? '',
           };
 
-          print('📄 Processed assignment: ${assignmentMap['title']}');
-          print('📄 Instructor name: ${assignmentMap['instructorName']}');
-          print('📄 Assignment status: ${assignmentMap['status']}');
+          _log('📄 Processed assignment: ${assignmentMap['title']}');
+          _log('📄 Instructor name: ${assignmentMap['instructorName']}');
+          _log('📄 Assignment status: ${assignmentMap['status']}');
 
           // Only add valid assignments
           if (assignmentMap['title'] != 'No Title' &&
               assignmentMap['title'] != null) {
             instructorAssignments.add(assignmentMap);
-            print('✅ Added assignment: ${assignmentMap['title']}');
+            _log('✅ Added assignment: ${assignmentMap['title']}');
           } else {
-            print('⚠️ Skipping invalid assignment: ${assignmentMap['title']}');
+            _log('⚠️ Skipping invalid assignment: ${assignmentMap['title']}');
           }
         }
       } else {
-        print('⚠️ No assignments found in instructor subcollection');
+        _log('⚠️ No assignments found in instructor subcollection');
         errorMessage.value = 'No assignments found for this instructor';
       }
 
@@ -283,7 +288,7 @@ class AssignmentController extends GetxController {
               .toList();
 
       assignments.value = validAssignments;
-      print(
+      _log(
         '📊 Loaded ${validAssignments.length} assignments from instructor $instructorUid (filtered by section $userSectionCode)',
       );
 
@@ -294,7 +299,7 @@ class AssignmentController extends GetxController {
         errorMessage.value = 'No assignments found for your section';
       }
     } catch (e) {
-      print('❌ Error loading assignments: $e');
+      _log('❌ Error loading assignments: $e');
       errorMessage.value = 'Error loading assignments: $e';
       assignments.value = [];
     } finally {
@@ -305,13 +310,13 @@ class AssignmentController extends GetxController {
   /// Load all assignments from all instructors
   Future<void> loadAllAssignments() async {
     try {
-      print('🔍 Loading all assignments from all instructors...');
+      _log('🔍 Loading all assignments from all instructors...');
       isLoading.value = true;
       errorMessage.value = '';
 
       // Get all instructors
       final instructorsQuery = await _firestore.collection('instructors').get();
-      print('👥 Found ${instructorsQuery.docs.length} instructors');
+      _log('👥 Found ${instructorsQuery.docs.length} instructors');
 
       List<Map<String, dynamic>> allAssignments = [];
 
@@ -364,7 +369,7 @@ class AssignmentController extends GetxController {
             }
           }
         } catch (e) {
-          print('Error loading assignments from instructor $instructorId: $e');
+          _log('Error loading assignments from instructor $instructorId: $e');
         }
       }
 
@@ -387,7 +392,7 @@ class AssignmentController extends GetxController {
               .toList();
 
       assignments.value = validAssignments;
-      print(
+      _log(
         '📊 Loaded ${validAssignments.length} assignments from all instructors',
       );
 
@@ -404,19 +409,18 @@ class AssignmentController extends GetxController {
   /// Get selected instructor from user document
   Future<Map<String, dynamic>?> _getSelectedInstructor(String userId) async {
     try {
-      print('🔍 Getting selected instructor for user: $userId');
+      _log('🔍 Getting selected instructor for user: $userId');
 
-      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userData = await StudentDataService.getStudentData();
 
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
+      if (userData != null) {
         final selectedInstructorId =
             userData['selectedInstructorId']?.toString();
         final selectedInstructorName =
             userData['selectedInstructorName']?.toString();
         final selectionComplete = userData['selectionComplete'] ?? false;
 
-        print(
+        _log(
           '📋 User data: selectedInstructorId=$selectedInstructorId, selectedInstructorName=$selectedInstructorName, selectionComplete=$selectionComplete',
         );
 
@@ -435,7 +439,7 @@ class AssignmentController extends GetxController {
             final actualInstructorName =
                 instructorData['name']?.toString() ?? 'Unknown Instructor';
 
-            print(
+            _log(
               '✅ Verified instructor exists: $actualInstructorName (ID: $selectedInstructorId)',
             );
 
@@ -445,21 +449,21 @@ class AssignmentController extends GetxController {
                   actualInstructorName, // Use the actual name from Firestore
             };
           } else {
-            print(
+            _log(
               '❌ Selected instructor document not found in Firestore: $selectedInstructorId',
             );
             return null;
           }
         } else {
-          print('⚠️ User has not completed instructor selection');
+          _log('⚠️ User has not completed instructor selection');
           return null;
         }
       } else {
-        print('❌ User document not found');
+        _log('❌ User data from cache was empty');
         return null;
       }
     } catch (e) {
-      print('❌ Error getting selected instructor: $e');
+      _log('❌ Error getting selected instructor: $e');
       return null;
     }
   }
@@ -469,7 +473,7 @@ class AssignmentController extends GetxController {
     try {
       await loadCurrentInstructorAssignments();
     } catch (e) {
-      print('Error refreshing assignments: $e');
+      _log('Error refreshing assignments: $e');
       assignments.value = [];
       errorMessage.value = 'Error refreshing assignments: $e';
     }
@@ -494,12 +498,11 @@ class AssignmentController extends GetxController {
         throw Exception('User not logged in');
       }
 
-      print('📤 Submitting $submissionType: $assignmentId');
-      print('📁 Files to submit: ${uploadedFiles.length}');
+      _log('📤 Submitting $submissionType: $assignmentId');
+      _log('📁 Files to submit: ${uploadedFiles.length}');
 
-      // Get user data for student information
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final userData = userDoc.data() ?? {};
+      // Get user data for student information from cache
+      final userData = await StudentDataService.getStudentData() ?? {};
 
       // Create submission data with Cloudinary URLs
       final submissionData = {
@@ -547,9 +550,9 @@ class AssignmentController extends GetxController {
       // Update submission status
       submissionStatus[assignmentId] = 'submitted';
 
-      print('✅ $submissionType submission routed successfully');
-      print('📍 Routed to instructor: ${routingResult['instructorId']}');
-      print('📍 Section: ${routingResult['sectionId']}');
+      _log('✅ $submissionType submission routed successfully');
+      _log('📍 Routed to instructor: ${routingResult['instructorId']}');
+      _log('📍 Section: ${routingResult['sectionId']}');
 
       Get.snackbar(
         'Success',
@@ -560,7 +563,7 @@ class AssignmentController extends GetxController {
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
-      print('❌ Error submitting $submissionType with Cloudinary: $e');
+      _log('❌ Error submitting $submissionType with Cloudinary: $e');
       Get.snackbar(
         'Error',
         'Failed to submit $submissionType: $e',
@@ -587,12 +590,11 @@ class AssignmentController extends GetxController {
         throw Exception('User not logged in');
       }
 
-      print('📤 Submitting assignment: $assignmentId');
-      print('📁 Files to submit: ${files.length}');
+      _log('📤 Submitting assignment: $assignmentId');
+      _log('📁 Files to submit: ${files.length}');
 
-      // Get user data for student information
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final userData = userDoc.data() ?? {};
+      // Get user data for student information from cache
+      final userData = await StudentDataService.getStudentData() ?? {};
 
       // Create submission data
       final submissionData = {
@@ -626,9 +628,9 @@ class AssignmentController extends GetxController {
       // Update submission status
       submissionStatus[assignmentId] = 'submitted';
 
-      print('✅ Assignment submission routed successfully');
-      print('📍 Routed to instructor: ${routingResult['instructorId']}');
-      print('📍 Section: ${routingResult['sectionId']}');
+      _log('✅ Assignment submission routed successfully');
+      _log('📍 Routed to instructor: ${routingResult['instructorId']}');
+      _log('📍 Section: ${routingResult['sectionId']}');
 
       Get.snackbar(
         'Success',
@@ -639,7 +641,7 @@ class AssignmentController extends GetxController {
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
-      print('❌ Error submitting assignment: $e');
+      _log('❌ Error submitting assignment: $e');
       Get.snackbar(
         'Error',
         'Failed to submit assignment: $e',
@@ -657,7 +659,7 @@ class AssignmentController extends GetxController {
   Future<List<Map<String, dynamic>>> pickFiles() async {
     try {
       // For now, return mock files until file picker is properly configured
-      print('📁 File picker not yet configured - using mock files');
+      _log('📁 File picker not yet configured - using mock files');
 
       // Show a dialog to simulate file selection
       Get.dialog(
@@ -685,7 +687,7 @@ class AssignmentController extends GetxController {
 
       return [];
     } catch (e) {
-      print('❌ Error picking files: $e');
+      _log('❌ Error picking files: $e');
       return [];
     }
   }
@@ -699,11 +701,11 @@ class AssignmentController extends GetxController {
     ];
 
     // This would be called from the UI
-    print('📁 Mock files selected: ${mockFiles.length}');
+    _log('📁 Mock files selected: ${mockFiles.length}');
     return mockFiles;
   }
 
-  /// Get submission status for an assignment
+  /// Get submission status for an assignment (Legacy individual read - fallback)
   Future<String> getSubmissionStatus(String assignmentId) async {
     try {
       final user = _auth.currentUser;
@@ -725,34 +727,50 @@ class AssignmentController extends GetxController {
 
       return 'not_submitted';
     } catch (e) {
-      print('❌ Error getting submission status: $e');
+      _log('❌ Error getting submission status: $e');
       return 'not_submitted';
     }
   }
 
-  /// Load submission statuses for all assignments
+  /// Bulk load ALL submission statuses in a SINGLE query (N+1 query fix)
   Future<void> loadSubmissionStatuses() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null || assignments.isEmpty) return;
 
-      // Clear existing statuses
+      // Clear existing statuses and extract IDs
       submissionStatus.clear();
+      final assignmentIds = assignments.map((a) => a['id']?.toString()).whereType<String>().toList();
+      
+      if (assignmentIds.isEmpty) return;
 
-      // Get status for each assignment
-      for (final assignment in assignments) {
-        final assignmentId = assignment['id']?.toString();
-        if (assignmentId != null) {
-          final status = await getSubmissionStatus(assignmentId);
-          submissionStatus[assignmentId] = status;
+      // Set defaults for all first
+      for (final id in assignmentIds) {
+        submissionStatus[id] = 'not_submitted';
+      }
+
+      _log('🔍 Bulk loading submissions for ${assignmentIds.length} assignments');
+
+      // 1 single query to fetch all assignment submissions created by THIS student 
+      final allSubmissions = await _firestore
+          .collection('submissions')
+          .where('studentId', isEqualTo: user.uid)
+          .where('activityType', isEqualTo: 'assignment')
+          .get();
+
+      // Process them locally in memory instantly
+      for (var doc in allSubmissions.docs) {
+        final data = doc.data();
+        final activityId = data['activityId']?.toString();
+        
+        if (activityId != null && submissionStatus.containsKey(activityId)) {
+           submissionStatus[activityId] = data['status']?.toString() ?? 'not_submitted';
         }
       }
 
-      print(
-        '📊 Loaded submission statuses for ${assignments.length} assignments',
-      );
+      _log('📊 Successfully mapped submission statuses without looping queries.');
     } catch (e) {
-      print('❌ Error loading submission statuses: $e');
+      _log('❌ Error bulk loading submission statuses: $e');
     }
   }
 
@@ -766,17 +784,17 @@ class AssignmentController extends GetxController {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('❌ No user logged in');
+        _log('❌ No user logged in');
         return;
       }
 
-      print('🔍 DEBUG: Checking instructor selection for user: ${user.uid}');
+      _log('🔍 DEBUG: Checking instructor selection for user: ${user.uid}');
 
       // Check user document
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       if (userDoc.exists) {
         final userData = userDoc.data()!;
-        print('📋 User document data: ${userData.toString()}');
+        _log('📋 User document data: ${userData.toString()}');
 
         final selectedInstructorId =
             userData['selectedInstructorId']?.toString();
@@ -784,9 +802,9 @@ class AssignmentController extends GetxController {
             userData['selectedInstructorName']?.toString();
         final selectionComplete = userData['selectionComplete'] ?? false;
 
-        print('📋 Selected Instructor ID: $selectedInstructorId');
-        print('📋 Selected Instructor Name: $selectedInstructorName');
-        print('📋 Selection Complete: $selectionComplete');
+        _log('📋 Selected Instructor ID: $selectedInstructorId');
+        _log('📋 Selected Instructor Name: $selectedInstructorName');
+        _log('📋 Selection Complete: $selectionComplete');
 
         if (selectedInstructorId != null && selectedInstructorId.isNotEmpty) {
           // Check if instructor exists
@@ -797,17 +815,17 @@ class AssignmentController extends GetxController {
                   .get();
           if (instructorDoc.exists) {
             final instructorData = instructorDoc.data()!;
-            print('✅ Instructor found: ${instructorData['name']}');
-            print('📋 Instructor data: ${instructorData.toString()}');
+            _log('✅ Instructor found: ${instructorData['name']}');
+            _log('📋 Instructor data: ${instructorData.toString()}');
           } else {
-            print('❌ Instructor document not found: $selectedInstructorId');
+            _log('❌ Instructor document not found: $selectedInstructorId');
           }
         }
       } else {
-        print('❌ User document not found');
+        _log('❌ User document not found');
       }
     } catch (e) {
-      print('❌ Debug error: $e');
+      _log('❌ Debug error: $e');
     }
   }
 
@@ -822,7 +840,7 @@ class AssignmentController extends GetxController {
         final name = data['name']?.toString().toLowerCase() ?? '';
 
         if (name.contains('rolan') && name.contains('gwapo')) {
-          print('✅ Found rolan gwapo instructor: ${doc.id}');
+          _log('✅ Found rolan gwapo instructor: ${doc.id}');
 
           currentInstructorUid.value = doc.id;
           currentInstructorName.value =
@@ -833,10 +851,10 @@ class AssignmentController extends GetxController {
         }
       }
 
-      print('❌ rolan gwapo instructor not found');
+      _log('❌ rolan gwapo instructor not found');
       errorMessage.value = 'rolan gwapo instructor not found';
     } catch (e) {
-      print('❌ Error setting instructor for testing: $e');
+      _log('❌ Error setting instructor for testing: $e');
       errorMessage.value = 'Error setting instructor: $e';
     }
   }
@@ -890,7 +908,7 @@ class AssignmentController extends GetxController {
 
       return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
     } catch (e) {
-      print('Error formatting due date: $e');
+      _log('Error formatting due date: $e');
       return 'Unknown Date';
     }
   }

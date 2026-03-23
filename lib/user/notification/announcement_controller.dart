@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../shared/services/student_data_service.dart';
 
 class UserAnnouncementController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -33,12 +34,10 @@ class UserAnnouncementController extends GetxController {
 
       log('Getting selected instructor for user: ${user.uid}');
 
-      // Get user document to find selected instructor
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(user.uid).get();
+      // Get user document from cache to find selected instructor
+      final userData = await StudentDataService.getStudentData();
 
-      if (userDoc.exists) {
-        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      if (userData != null) {
         String instructorId = userData['selectedInstructorId'] ?? '';
         String instructorName = userData['selectedInstructorName'] ?? '';
 
@@ -105,9 +104,8 @@ class UserAnnouncementController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final sectionCode = userData['selectedSectionCode']?.toString();
         log('📚 Student section code: $sectionCode');
         return sectionCode;

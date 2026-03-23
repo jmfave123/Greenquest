@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../shared/models/instructor_assignment_model.dart';
 import '../../shared/models/assigned_period_model.dart';
+import '../../shared/services/student_data_service.dart';
 
 class SelectController extends GetxController {
   final _firestore = FirebaseFirestore.instance;
@@ -269,33 +270,20 @@ class SelectController extends GetxController {
         selectedInstructorId.value,
       );
 
-      // Save user selection to Firestore (in users collection, not instructors)
-      await _firestore.collection('users').doc(user.uid).update({
+      // Save user selection directly through the synchronized Cache Service
+      await StudentDataService.updateStudentProfile({
         'selectedInstructorId': selectedInstructorId.value,
         'selectedInstructorName': selectedInstructorName.value,
-        'instructorAssignments':
-            instructorAssignments.map((a) => a.toMap()).toList(),
-        'selectionComplete': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-        if (activePeriod != null) 'assignedSemester': activePeriod,
-        if (nstpComponent.value.isNotEmpty)
-          'nstpComponent': nstpComponent.value,
-      });
-
-      isSelectionComplete.value = true;
-
-      // Also save to user document
-      await _firestore.collection('users').doc(user.uid).update({
-        'selectedInstructorId': selectedInstructorId.value,
-        'selectedInstructorName': selectedInstructorName.value,
+        'instructorAssignments': instructorAssignments.map((a) => a.toMap()).toList(),
         'selectedSectionCode': selectedSectionCode.value,
         'selectionComplete': true,
         'enrollmentStatus': 'pending', // Set as pending for instructor approval
         'updatedAt': FieldValue.serverTimestamp(),
         if (activePeriod != null) 'assignedSemester': activePeriod,
-        if (nstpComponent.value.isNotEmpty)
-          'nstpComponent': nstpComponent.value,
+        if (nstpComponent.value.isNotEmpty) 'nstpComponent': nstpComponent.value,
       });
+
+      isSelectionComplete.value = true;
 
       // NOTE: Students are now only created in instructors/{instructorId}/students
       // AFTER instructor approval. No need to enroll in classes subcollection.
@@ -330,8 +318,8 @@ class SelectController extends GetxController {
         selectedInstructorId.value,
       );
 
-      // Save selection and COR to user document
-      await _firestore.collection('users').doc(user.uid).update({
+      // Save selection and COR synchronized with Cache Service
+      await StudentDataService.updateStudentProfile({
         'selectedInstructorId': selectedInstructorId.value,
         'selectedInstructorName': selectedInstructorName.value,
         'selectedSectionCode': selectedSectionCode.value,
@@ -384,8 +372,8 @@ class SelectController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      // Save to user document immediately
-      await _firestore.collection('users').doc(user.uid).update({
+      // Save incrementally immediately via Cache Service
+      await StudentDataService.updateStudentProfile({
         'selectedInstructorId': selectedInstructorId.value,
         'selectedInstructorName': selectedInstructorName.value,
         if (nstpComponent.value.isNotEmpty)

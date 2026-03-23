@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../shared/services/file_upload_service.dart';
 import '../../shared/utils/auth_error_utils.dart';
+import '../../shared/services/student_data_service.dart';
 
 class ProfileController extends GetxController {
   final _auth = FirebaseAuth.instance;
@@ -45,9 +46,8 @@ class ProfileController extends GetxController {
     if (user == null) {
       return;
     }
-    final userDoc = await _firestore.collection('users').doc(user.uid).get();
-    if (userDoc.exists) {
-      final userData = userDoc.data() as Map<String, dynamic>;
+    final userData = await StudentDataService.getStudentData();
+    if (userData != null) {
       this.userData.value = userData;
       log(userData.toString());
     }
@@ -209,10 +209,10 @@ class ProfileController extends GetxController {
       );
 
       if (response != null) {
-        // Update Firestore with new image URL
+        // Update Firestore directly through cache sync
         final user = _auth.currentUser;
         if (user != null) {
-          await _firestore.collection('users').doc(user.uid).update({
+          await StudentDataService.updateStudentProfile({
             'profileImage': response.secureUrl,
             'updatedAt': FieldValue.serverTimestamp(),
           });
@@ -250,8 +250,8 @@ class ProfileController extends GetxController {
     try {
       final user = _auth.currentUser;
       if (user != null) {
-        // Remove profileImage field from Firestore
-        await _firestore.collection('users').doc(user.uid).update({
+        // Remove profileImage field via cache sync
+        await StudentDataService.updateStudentProfile({
           'profileImage': FieldValue.delete(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -345,8 +345,8 @@ class ProfileController extends GetxController {
         return;
       }
 
-      // Update Firestore
-      await _firestore.collection('users').doc(user.uid).update({
+      // Update config using cache sync
+      await StudentDataService.updateStudentProfile({
         'phoneNumber': phoneNumber,
         'updatedAt': FieldValue.serverTimestamp(),
       });

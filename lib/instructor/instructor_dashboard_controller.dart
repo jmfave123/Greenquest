@@ -1,10 +1,17 @@
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class InstructorController extends GetxController {
   var instructorName = ''.obs;
   var profileImageUrl = ''.obs;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Dashboard statistics
   var studentCount = 0.obs;
@@ -115,7 +122,7 @@ class InstructorController extends GetxController {
       // Load active classes count
       await _loadActiveClassesCount(user.uid);
     } catch (e) {
-      print('Error loading dashboard stats: $e');
+      _log('Error loading dashboard stats: $e');
     } finally {
       isLoadingStats.value = false;
     }
@@ -165,9 +172,9 @@ class InstructorController extends GetxController {
       }
 
       plantedTreesCount.value = totalTrees;
-      print('✅ Loaded $totalTrees planted trees from approved submissions');
+      _log('✅ Loaded $totalTrees planted trees from approved submissions');
     } catch (e) {
-      print('❌ Error loading planted trees count: $e');
+      _log('❌ Error loading planted trees count: $e');
       plantedTreesCount.value = 0;
     }
   }
@@ -184,7 +191,7 @@ class InstructorController extends GetxController {
 
       activeClassesCount.value = classesQuery.docs.length;
     } catch (e) {
-      print('Error loading active classes count: $e');
+      _log('Error loading active classes count: $e');
       activeClassesCount.value = 0;
     }
   }
@@ -202,7 +209,7 @@ class InstructorController extends GetxController {
 
       // Check if instructor has any classes - if not, skip loading leaderboard
       if (activeClassesCount.value == 0) {
-        print('No classes found for instructor. Skipping leaderboard load.');
+        _log('No classes found for instructor. Skipping leaderboard load.');
         // Clear leaderboard data
         leaderboardData['Total'] = [];
         leaderboardData['Assignments'] = [];
@@ -220,7 +227,7 @@ class InstructorController extends GetxController {
       // Load activities leaderboard
       await _loadActivitiesLeaderboard(user.uid);
     } catch (e) {
-      print('Error loading leaderboard data: $e');
+      _log('Error loading leaderboard data: $e');
     } finally {
       isLoadingLeaderboard.value = false;
     }
@@ -312,7 +319,7 @@ class InstructorController extends GetxController {
 
       leaderboardData['Total'] = studentsWithPoints;
     } catch (e) {
-      print('Error loading total leaderboard: $e');
+      _log('Error loading total leaderboard: $e');
       leaderboardData['Total'] = [];
     }
   }
@@ -404,7 +411,7 @@ class InstructorController extends GetxController {
 
       leaderboardData['Assignments'] = studentsWithPoints;
     } catch (e) {
-      print('Error loading assignments leaderboard: $e');
+      _log('Error loading assignments leaderboard: $e');
       leaderboardData['Assignments'] = [];
     }
   }
@@ -496,7 +503,7 @@ class InstructorController extends GetxController {
 
       leaderboardData['Activities'] = studentsWithPoints;
     } catch (e) {
-      print('Error loading activities leaderboard: $e');
+      _log('Error loading activities leaderboard: $e');
       leaderboardData['Activities'] = [];
     }
   }

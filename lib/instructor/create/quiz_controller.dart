@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,12 @@ import 'create_controller.dart';
 class QuizController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Observable variables
   var isLoading = false.obs;
@@ -43,7 +50,7 @@ class QuizController extends GetxController {
     } catch (e) {
       // Only update error if controller is still mounted
       if (isMounted) {
-        print('Error initializing QuizController: $e');
+        _log('Error initializing QuizController: $e');
         errorMessage.value = 'Error initializing data: $e';
       }
     }
@@ -110,7 +117,7 @@ class QuizController extends GetxController {
       // Only update error if controller is still mounted
       if (isMounted) {
         errorMessage.value = 'Error loading quizzes: $e';
-        print('Error loading quizzes: $e');
+        _log('Error loading quizzes: $e');
       }
     } finally {
       // Only update loading state if controller is still mounted
@@ -167,7 +174,7 @@ class QuizController extends GetxController {
       // Return active semester if found, otherwise most recent
       return activeSemester ?? mostRecentSemester;
     } catch (e) {
-      print('Error getting instructor semester: $e');
+      _log('Error getting instructor semester: $e');
       return null;
     }
   }
@@ -224,7 +231,7 @@ class QuizController extends GetxController {
           .collection('quizzes')
           .add(quizData);
 
-      print('Quiz created with ID: ${docRef.id}');
+      _log('Quiz created with ID: ${docRef.id}');
 
       // Reload quizzes to show the new one
       await loadQuizzes();
@@ -235,7 +242,7 @@ class QuizController extends GetxController {
         await createController.loadCreatedItems();
       } catch (e) {
         // CreateController might not be initialized, that's okay
-        print('CreateController not found, skipping refresh: $e');
+        _log('CreateController not found, skipping refresh: $e');
       }
 
       Get.snackbar(
@@ -247,7 +254,7 @@ class QuizController extends GetxController {
       );
     } catch (e) {
       errorMessage.value = 'Error creating quiz: $e';
-      print('Error creating quiz: $e');
+      _log('Error creating quiz: $e');
       Get.snackbar(
         'Error',
         'Failed to create quiz: $e',
@@ -319,7 +326,7 @@ class QuizController extends GetxController {
           .doc(quizId)
           .update(quizData);
 
-      print('Quiz updated with ID: $quizId');
+      _log('Quiz updated with ID: $quizId');
 
       // Reload quizzes to show the updated one
       await loadQuizzes();
@@ -330,7 +337,7 @@ class QuizController extends GetxController {
         await createController.loadCreatedItems();
       } catch (e) {
         // CreateController might not be initialized, that's okay
-        print('CreateController not found, skipping refresh: $e');
+        _log('CreateController not found, skipping refresh: $e');
       }
 
       Get.snackbar(
@@ -342,7 +349,7 @@ class QuizController extends GetxController {
       );
     } catch (e) {
       errorMessage.value = 'Error updating quiz: $e';
-      print('Error updating quiz: $e');
+      _log('Error updating quiz: $e');
       Get.snackbar(
         'Error',
         'Failed to update quiz: $e',
@@ -384,7 +391,7 @@ class QuizController extends GetxController {
           .doc(quizId)
           .delete();
 
-      print('Quiz deleted with ID: $quizId');
+      _log('Quiz deleted with ID: $quizId');
 
       // Reload quizzes to remove the deleted one
       await loadQuizzes();
@@ -395,7 +402,7 @@ class QuizController extends GetxController {
         await createController.loadCreatedItems();
       } catch (e) {
         // CreateController might not be initialized, that's okay
-        print('CreateController not found, skipping refresh: $e');
+        _log('CreateController not found, skipping refresh: $e');
       }
 
       Get.snackbar(
@@ -407,7 +414,7 @@ class QuizController extends GetxController {
       );
     } catch (e) {
       errorMessage.value = 'Error deleting quiz: $e';
-      print('Error deleting quiz: $e');
+      _log('Error deleting quiz: $e');
       Get.snackbar(
         'Error',
         'Failed to delete quiz: $e',
@@ -435,7 +442,7 @@ class QuizController extends GetxController {
         };
       }).toList();
     } catch (e) {
-      print('Error loading instructors: $e');
+      _log('Error loading instructors: $e');
       return [];
     }
   }
@@ -512,21 +519,21 @@ class QuizController extends GetxController {
     String? period,
     List<Map<String, dynamic>>? questions,
   }) {
-    print('=== DEBUG VALIDATION ===');
-    print('Title: "$title" (null: ${title == null}, empty: ${title?.isEmpty})');
-    print(
+    _log('=== DEBUG VALIDATION ===');
+    _log('Title: "$title" (null: ${title == null}, empty: ${title?.isEmpty})');
+    _log(
       'Instruction: "$instruction" (null: ${instruction == null}, empty: ${instruction?.isEmpty})',
     );
-    print(
+    _log(
       'Points: $points (null: ${points == null}, <=0: ${points != null && points <= 0})',
     );
-    print('DueDate: "$dueDate" (null: ${dueDate == null})');
-    print(
+    _log('DueDate: "$dueDate" (null: ${dueDate == null})');
+    _log(
       'Period: "$period" (null: ${period == null}, empty: ${period?.isEmpty})',
     );
-    print(
+    _log(
       'Questions: ${questions?.length} items (null: ${questions == null}, empty: ${questions?.isEmpty})',
     );
-    print('========================');
+    _log('========================');
   }
 }

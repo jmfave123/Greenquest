@@ -10,8 +10,6 @@ class FirestoreTester {
 
   // Test all collections
   Future<void> testDatabaseSetup() async {
-    print('🧪 Testing Firestore Database Setup...\n');
-
     try {
       // Test admins collection
       await _testAdminsCollection();
@@ -33,34 +31,18 @@ class FirestoreTester {
 
       // Test leaderboard collection
       await _testLeaderboardCollection();
-
-      print('\n✅ All tests completed successfully!');
-      print('🎉 Your Firestore database is properly configured.');
-    } catch (e) {
-      print('\n❌ Test failed: $e');
-      print(
-        '💡 Make sure Firebase is properly initialized and you have the correct permissions.',
-      );
-    }
+    } catch (e) {}
   }
 
   // Test admins collection
   Future<void> _testAdminsCollection() async {
     try {
       QuerySnapshot admins = await _firestore.collection('admins').get();
-      print('👑 Admins Collection:');
-      print('   - Total admins: ${admins.docs.length}');
 
       for (var doc in admins.docs) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        print(
-          '   - ${data['name']} (${data['email']}) - Active: ${data['isActive']}',
-        );
       }
-      print('');
-    } catch (e) {
-      print('❌ Error testing admins collection: $e\n');
-    }
+    } catch (e) {}
   }
 
   // Test instructors collection

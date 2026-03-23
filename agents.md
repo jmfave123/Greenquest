@@ -421,6 +421,8 @@ Explicitness > Magic
 
 Stability > Novelty
 
+17. Write a code atleast 300 lines only
+
 The Golden Rule for AI Agents
 
 Write code as if another engineer will maintain it for 5 years.

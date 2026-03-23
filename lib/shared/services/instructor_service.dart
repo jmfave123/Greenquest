@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'student_data_service.dart';
 
 /// Service to handle instructor-related operations
 class InstructorService {
@@ -12,11 +13,10 @@ class InstructorService {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      // Get user document to find selected instructor
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (!userDoc.exists) return null;
+      // Get user from cache to find selected instructor
+      final userData = await StudentDataService.getStudentData();
+      if (userData == null) return null;
 
-      final userData = userDoc.data() as Map<String, dynamic>;
       final selectedInstructorId = userData['selectedInstructorId'] as String?;
       final selectedInstructorName =
           userData['selectedInstructorName'] as String?;

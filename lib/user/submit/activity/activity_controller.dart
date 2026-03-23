@@ -1,12 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../shared/services/submission_routing_service.dart';
+import '../../../shared/services/student_data_service.dart';
 
 class ActivityController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   // Note: Firebase Storage will be added when dependencies are available
 
   // Observable variables
@@ -31,16 +39,15 @@ class ActivityController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final sectionCode = userData['selectedSectionCode']?.toString();
-        print('📚 Student section code: $sectionCode');
+        _log('📚 Student section code: $sectionCode');
         return sectionCode;
       }
       return null;
     } catch (e) {
-      print('❌ Error getting user section code: $e');
+      _log('❌ Error getting user section code: $e');
       return null;
     }
   }
@@ -49,17 +56,17 @@ class ActivityController extends GetxController {
   Future<void> loadCurrentInstructorActivities() async {
     try {
       isLoading.value = true;
-      print('🔍 Loading current instructor activities...');
+      _log('🔍 Loading current instructor activities...');
 
       // Check if user is authenticated with valid token
       final user = _auth.currentUser;
-      print('👤 Current user: ${user?.uid}');
+      _log('👤 Current user: ${user?.uid}');
 
       if (user != null) {
         // Refresh user to ensure token is valid
         await user.reload();
         final refreshedUser = _auth.currentUser;
-        print('🔄 Refreshed user: ${refreshedUser?.uid}');
+        _log('🔄 Refreshed user: ${refreshedUser?.uid}');
 
         if (refreshedUser != null) {
           // Check if user has selected an instructor
@@ -75,7 +82,7 @@ class ActivityController extends GetxController {
                 selectedInstructor['instructorName']?.toString() ??
                 'Unknown Instructor';
 
-            print(
+            _log(
               '✅ User has selected instructor: $instructorName (ID: $instructorId)',
             );
             currentInstructorUid.value = instructorId;
@@ -84,27 +91,27 @@ class ActivityController extends GetxController {
             await loadActivitiesByInstructorUid(instructorId);
           } else {
             // No instructor selected, load all activities
-            print('⚠️ No instructor selected, loading all activities');
+            _log('⚠️ No instructor selected, loading all activities');
             currentInstructorUid.value = '';
             currentInstructorName.value = '';
             await loadAllActivities();
           }
         } else {
           // Token expired, load all activities as fallback
-          print('⚠️ User token expired, loading all activities');
+          _log('⚠️ User token expired, loading all activities');
           currentInstructorUid.value = '';
           currentInstructorName.value = '';
           await loadAllActivities();
         }
       } else {
         // If no user is logged in, load all activities as fallback
-        print('⚠️ No user logged in, loading all activities');
+        _log('⚠️ No user logged in, loading all activities');
         currentInstructorUid.value = '';
         currentInstructorName.value = '';
         await loadAllActivities();
       }
     } catch (e) {
-      print('❌ Error loading current instructor activities: $e');
+      _log('❌ Error loading current instructor activities: $e');
       currentInstructorUid.value = '';
       currentInstructorName.value = '';
       await loadAllActivities();
@@ -117,14 +124,14 @@ class ActivityController extends GetxController {
       isLoading.value = true;
       errorMessage.value = '';
 
-      print('🔍 Loading activities for instructor UID: $instructorUid');
+      _log('🔍 Loading activities for instructor UID: $instructorUid');
 
       // Get instructor document first
       final instructorDoc =
           await _firestore.collection('instructors').doc(instructorUid).get();
 
       if (!instructorDoc.exists) {
-        print('❌ Instructor document not found for UID: $instructorUid');
+        _log('❌ Instructor document not found for UID: $instructorUid');
         errorMessage.value = 'Instructor not found';
         activities.value = [];
         return;
@@ -134,17 +141,17 @@ class ActivityController extends GetxController {
       final instructorName =
           instructorData['name']?.toString() ?? 'Unknown Instructor';
 
-      print('✅ Instructor found: $instructorName');
+      _log('✅ Instructor found: $instructorName');
 
       // Update instructor name
       currentInstructorName.value = instructorName;
 
       // Get student's section code for filtering
       final userSectionCode = await _getUserSectionCode();
-      print('📚 Student section code: $userSectionCode');
+      _log('📚 Student section code: $userSectionCode');
 
       // Get activities from the instructor's activities subcollection
-      print(
+      _log(
         '📚 Querying activities subcollection for instructor: $instructorUid',
       );
 
@@ -156,14 +163,14 @@ class ActivityController extends GetxController {
               .where('status', isEqualTo: 'active')
               .get();
 
-      print(
+      _log(
         '📚 Activities query result: ${activitiesQuery.docs.length} documents',
       );
 
       List<Map<String, dynamic>> instructorActivities = [];
 
       if (activitiesQuery.docs.isNotEmpty) {
-        print(
+        _log(
           '📖 Processing ${activitiesQuery.docs.length} activities from subcollection...',
         );
 
@@ -171,14 +178,14 @@ class ActivityController extends GetxController {
           var activityDoc = activitiesQuery.docs[i];
           var activityData = activityDoc.data();
 
-          print(
+          _log(
             '📄 Activity $i (${activityDoc.id}): ${activityData.runtimeType}',
           );
-          print('📄 Activity $i data: ${activityData.keys.toList()}');
+          _log('📄 Activity $i data: ${activityData.keys.toList()}');
 
           // Skip if activityData is null or empty
           if (activityData.isEmpty) {
-            print('⚠️ Skipping empty activity at index $i');
+            _log('⚠️ Skipping empty activity at index $i');
             continue;
           }
 
@@ -192,12 +199,12 @@ class ActivityController extends GetxController {
               userSectionCode.isNotEmpty &&
               selectedClasses.isNotEmpty) {
             if (!selectedClasses.contains(userSectionCode)) {
-              print(
+              _log(
                 '❌ Skipping activity "${activityData['title']}" - not for section $userSectionCode',
               );
               continue;
             }
-            print(
+            _log(
               '✅ Activity "${activityData['title']}" matches student section $userSectionCode',
             );
           }
@@ -223,22 +230,22 @@ class ActivityController extends GetxController {
             'attachments': activityData['attachments'] ?? [],
           };
 
-          print('📄 Processed activity: ${activityMap['title']}');
-          print('📄 Instructor name: ${activityMap['instructorName']}');
-          print('📄 Activity status: ${activityMap['status']}');
-          print('📄 Created date: ${activityMap['createdAt']}');
+          _log('📄 Processed activity: ${activityMap['title']}');
+          _log('📄 Instructor name: ${activityMap['instructorName']}');
+          _log('📄 Activity status: ${activityMap['status']}');
+          _log('📄 Created date: ${activityMap['createdAt']}');
 
           // Only add if activity has valid data for UI display
           if (activityMap['title'] != null &&
               activityMap['title'] != 'No Title') {
             instructorActivities.add(activityMap);
-            print('✅ Added activity: ${activityMap['title']}');
+            _log('✅ Added activity: ${activityMap['title']}');
           } else {
-            print('❌ Skipped activity due to missing or invalid title');
+            _log('❌ Skipped activity due to missing or invalid title');
           }
         }
       } else {
-        print('⚠️ No activities found in instructor subcollection');
+        _log('⚠️ No activities found in instructor subcollection');
         errorMessage.value = 'No activities found for this instructor';
       }
 
@@ -261,7 +268,7 @@ class ActivityController extends GetxController {
               .toList();
 
       activities.value = validActivities;
-      print(
+      _log(
         '📊 Loaded ${validActivities.length} activities from instructor $instructorUid (filtered by section $userSectionCode)',
       );
 
@@ -269,14 +276,14 @@ class ActivityController extends GetxController {
       await loadSubmissionStatuses();
 
       if (validActivities.isEmpty) {
-        print('⚠️ No valid activities found after processing');
+        _log('⚠️ No valid activities found after processing');
         errorMessage.value = 'No activities found for your section';
       } else {
         errorMessage.value = ''; // Clear any previous errors
       }
     } catch (e) {
       errorMessage.value = 'Error loading activities: $e';
-      print('❌ Error loading activities: $e');
+      _log('❌ Error loading activities: $e');
       activities.value = [];
 
       Get.snackbar(
@@ -352,7 +359,7 @@ class ActivityController extends GetxController {
             }
           }
         } catch (e) {
-          print('Error loading activities from instructor $instructorId: $e');
+          _log('Error loading activities from instructor $instructorId: $e');
         }
       }
 
@@ -375,7 +382,7 @@ class ActivityController extends GetxController {
               .toList();
 
       activities.value = validActivities;
-      print(
+      _log(
         '📊 Loaded ${validActivities.length} activities from all instructors',
       );
 
@@ -383,7 +390,7 @@ class ActivityController extends GetxController {
       await loadSubmissionStatuses();
     } catch (e) {
       errorMessage.value = 'Error loading activities: $e';
-      print('Error loading activities: $e');
+      _log('Error loading activities: $e');
       Get.snackbar(
         'Error',
         'Failed to load activities: $e',
@@ -400,19 +407,18 @@ class ActivityController extends GetxController {
   /// Get selected instructor from user's document
   Future<Map<String, dynamic>?> _getSelectedInstructor(String userId) async {
     try {
-      print('🔍 Getting selected instructor for user: $userId');
+      _log('🔍 Getting selected instructor for user: $userId');
 
-      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userData = await StudentDataService.getStudentData();
 
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
+      if (userData != null) {
         final selectedInstructorId =
             userData['selectedInstructorId']?.toString();
         final selectedInstructorName =
             userData['selectedInstructorName']?.toString();
         final selectionComplete = userData['selectionComplete'] ?? false;
 
-        print(
+        _log(
           '📋 User data: selectedInstructorId=$selectedInstructorId, selectedInstructorName=$selectedInstructorName, selectionComplete=$selectionComplete',
         );
 
@@ -424,15 +430,15 @@ class ActivityController extends GetxController {
             'instructorName': selectedInstructorName ?? 'Unknown Instructor',
           };
         } else {
-          print('⚠️ User has not completed instructor selection');
+          _log('⚠️ User has not completed instructor selection');
           return null;
         }
       } else {
-        print('❌ User document not found');
+        _log('❌ User data from cache was empty');
         return null;
       }
     } catch (e) {
-      print('❌ Error getting selected instructor: $e');
+      _log('❌ Error getting selected instructor: $e');
       return null;
     }
   }
@@ -440,7 +446,7 @@ class ActivityController extends GetxController {
   /// Set selected activity for detail view
   void setSelectedActivity(Map<String, dynamic> activity) {
     selectedActivity.value = activity;
-    print('📄 Selected activity: ${activity['title']}');
+    _log('📄 Selected activity: ${activity['title']}');
   }
 
   /// Submit activity using automatic routing
@@ -456,12 +462,11 @@ class ActivityController extends GetxController {
         throw Exception('User not authenticated');
       }
 
-      print('📤 Submitting activity: $activityId');
-      print('📁 Files to submit: ${files.length}');
+      _log('📤 Submitting activity: $activityId');
+      _log('📁 Files to submit: ${files.length}');
 
-      // Get user data for student information
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final userData = userDoc.data() ?? {};
+      // Get user data for student information from cache
+      final userData = await StudentDataService.getStudentData() ?? {};
 
       // Create submission data
       final submissionData = {
@@ -493,9 +498,9 @@ class ActivityController extends GetxController {
       // Update submission status
       submissionStatus[activityId] = 'submitted';
 
-      print('✅ Activity submission routed successfully');
-      print('📍 Routed to instructor: ${routingResult['instructorId']}');
-      print('📍 Section: ${routingResult['sectionId']}');
+      _log('✅ Activity submission routed successfully');
+      _log('📍 Routed to instructor: ${routingResult['instructorId']}');
+      _log('📍 Section: ${routingResult['sectionId']}');
 
       Get.snackbar(
         'Success',
@@ -506,7 +511,7 @@ class ActivityController extends GetxController {
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
-      print('❌ Error submitting activity: $e');
+      _log('❌ Error submitting activity: $e');
       Get.snackbar(
         'Error',
         'Failed to submit activity: $e',
@@ -524,7 +529,7 @@ class ActivityController extends GetxController {
   Future<List<Map<String, dynamic>>> pickFiles() async {
     try {
       // For now, return mock files until file picker is properly configured
-      print('📁 File picker not yet configured - using mock files');
+      _log('📁 File picker not yet configured - using mock files');
 
       // Show a dialog to simulate file selection
       Get.dialog(
@@ -552,7 +557,7 @@ class ActivityController extends GetxController {
 
       return [];
     } catch (e) {
-      print('❌ Error picking files: $e');
+      _log('❌ Error picking files: $e');
       Get.snackbar(
         'Error',
         'Failed to pick files: $e',
@@ -573,10 +578,10 @@ class ActivityController extends GetxController {
     ];
 
     // This would be called from the UI
-    print('📁 Mock files selected: ${mockFiles.length}');
+    _log('📁 Mock files selected: ${mockFiles.length}');
   }
 
-  /// Check submission status for an activity
+  /// Get submission status for an activity (Legacy individual read - fallback)
   Future<String> getSubmissionStatus(String activityId) async {
     try {
       final user = _auth.currentUser;
@@ -598,34 +603,50 @@ class ActivityController extends GetxController {
 
       return 'not_submitted';
     } catch (e) {
-      print('❌ Error checking submission status: $e');
+      _log('❌ Error checking submission status: $e');
       return 'not_submitted';
     }
   }
 
-  /// Load submission statuses for all activities
+  /// Bulk load ALL submission statuses in a SINGLE query (N+1 query fix)
   Future<void> loadSubmissionStatuses() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null || activities.isEmpty) return;
 
-      // Clear existing statuses
+      // Clear existing statuses and extract IDs
       submissionStatus.clear();
+      final activityIds = activities.map((a) => a['id']?.toString()).whereType<String>().toList();
+      
+      if (activityIds.isEmpty) return;
 
-      // Get status for each activity
-      for (final activity in activities) {
-        final activityId = activity['id']?.toString();
-        if (activityId != null) {
-          final status = await getSubmissionStatus(activityId);
-          submissionStatus[activityId] = status;
+      // Set defaults for all first
+      for (final id in activityIds) {
+        submissionStatus[id] = 'not_submitted';
+      }
+
+      _log('🔍 Bulk loading submissions for ${activityIds.length} activities');
+
+      // 1 single query to fetch all activity submissions created by THIS student 
+      final allSubmissions = await _firestore
+          .collection('submissions')
+          .where('studentId', isEqualTo: user.uid)
+          .where('activityType', isEqualTo: 'activity')
+          .get();
+
+      // Process them locally in memory instantly
+      for (var doc in allSubmissions.docs) {
+        final data = doc.data();
+        final activityId = data['activityId']?.toString();
+        
+        if (activityId != null && submissionStatus.containsKey(activityId)) {
+           submissionStatus[activityId] = data['status']?.toString() ?? 'not_submitted';
         }
       }
 
-      print(
-        '📊 Loaded submission statuses for ${activities.length} activities',
-      );
+      _log('📊 Successfully mapped submission statuses without looping queries.');
     } catch (e) {
-      print('❌ Error loading submission statuses: $e');
+      _log('❌ Error bulk loading submission statuses: $e');
     }
   }
 
@@ -634,7 +655,7 @@ class ActivityController extends GetxController {
     try {
       await loadCurrentInstructorActivities();
     } catch (e) {
-      print('Error refreshing activities: $e');
+      _log('Error refreshing activities: $e');
       await loadAllActivities();
     }
   }
@@ -674,7 +695,7 @@ class ActivityController extends GetxController {
       final month = months[date.month - 1];
       return '$month ${date.day}';
     } catch (e) {
-      print('Error formatting date: $e');
+      _log('Error formatting date: $e');
       return 'Unknown Date';
     }
   }
@@ -733,7 +754,7 @@ class ActivityController extends GetxController {
 
       return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
     } catch (e) {
-      print('Error formatting due date: $e');
+      _log('Error formatting due date: $e');
       return 'Unknown Date';
     }
   }

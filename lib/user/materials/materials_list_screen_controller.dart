@@ -1,11 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../shared/services/student_data_service.dart';
 
 class MaterialsListScreenController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   // Observable variables
   var isLoading = true.obs;
@@ -24,26 +32,25 @@ class MaterialsListScreenController extends GetxController {
   /// Load materials for the current logged-in instructor
   Future<void> loadCurrentInstructorMaterials() async {
     try {
-      print('🔍 Loading current instructor materials...');
+      _log('🔍 Loading current instructor materials...');
 
       final user = _auth.currentUser;
-      print('👤 Current user: ${user?.uid}');
+      _log('👤 Current user: ${user?.uid}');
 
       if (user == null) {
-        print('⚠️ No user logged in, loading all materials');
+        _log('⚠️ No user logged in, loading all materials');
         await loadMaterials();
         return;
       }
 
-      // Single Firestore read — extract both instructor selection and section code
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      // Single cache read — extract both instructor selection and section code
+      final userData = await StudentDataService.getStudentData();
 
       String? instructorId;
       String? instructorName;
       String? sectionCode;
 
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
+      if (userData != null) {
         final selectionComplete = userData['selectionComplete'] ?? false;
         final rawInstructorId = userData['selectedInstructorId']?.toString();
 
@@ -62,7 +69,7 @@ class MaterialsListScreenController extends GetxController {
       userSectionCode.value = sectionCode ?? '';
 
       if (instructorId != null) {
-        print(
+        _log(
           '✅ User has selected instructor: $instructorName (ID: $instructorId)',
         );
         currentInstructorUid.value = instructorId;
@@ -72,13 +79,13 @@ class MaterialsListScreenController extends GetxController {
           sectionCode,
         );
       } else {
-        print('⚠️ No instructor selected, loading all materials');
+        _log('⚠️ No instructor selected, loading all materials');
         currentInstructorUid.value = '';
         currentInstructorName.value = '';
         await loadMaterialsWithSectionFilter(sectionCode);
       }
     } catch (e) {
-      print('❌ Error loading current instructor materials: $e');
+      _log('❌ Error loading current instructor materials: $e');
       currentInstructorUid.value = '';
       currentInstructorName.value = '';
       await loadMaterials();
@@ -93,14 +100,14 @@ class MaterialsListScreenController extends GetxController {
       isLoading.value = true;
       errorMessage.value = '';
 
-      print('🔍 Loading materials for instructor UID: $instructorUid');
+      _log('🔍 Loading materials for instructor UID: $instructorUid');
 
       // Get instructor document first
       final instructorDoc =
           await _firestore.collection('instructors').doc(instructorUid).get();
 
       if (!instructorDoc.exists) {
-        print('❌ Instructor document not found for UID: $instructorUid');
+        _log('❌ Instructor document not found for UID: $instructorUid');
         errorMessage.value = 'Instructor not found';
         materials.value = [];
         return;
@@ -110,14 +117,14 @@ class MaterialsListScreenController extends GetxController {
       final instructorName =
           instructorData['name']?.toString() ?? 'Unknown Instructor';
 
-      print('✅ Instructor found: $instructorName');
-      print('📋 Instructor data keys: ${instructorData.keys.toList()}');
+      _log('✅ Instructor found: $instructorName');
+      _log('📋 Instructor data keys: ${instructorData.keys.toList()}');
 
       // Update instructor name
       currentInstructorName.value = instructorName;
 
       // Get materials from the instructor's materials subcollection
-      print(
+      _log(
         '📚 Querying materials subcollection for instructor: $instructorUid',
       );
 
@@ -129,14 +136,14 @@ class MaterialsListScreenController extends GetxController {
               .orderBy('createdAt', descending: true)
               .get();
 
-      print(
+      _log(
         '📚 Materials query result: ${materialsQuery.docs.length} documents',
       );
 
       List<Map<String, dynamic>> instructorMaterials = [];
 
       if (materialsQuery.docs.isNotEmpty) {
-        print(
+        _log(
           '📖 Processing ${materialsQuery.docs.length} materials from subcollection...',
         );
 
@@ -144,14 +151,14 @@ class MaterialsListScreenController extends GetxController {
           var materialDoc = materialsQuery.docs[i];
           var materialData = materialDoc.data();
 
-          print(
+          _log(
             '📄 Material $i (${materialDoc.id}): ${materialData.runtimeType}',
           );
-          print('📄 Material $i data: ${materialData.keys.toList()}');
+          _log('📄 Material $i data: ${materialData.keys.toList()}');
 
           // Skip if materialData is null or empty
           if (materialData.isEmpty) {
-            print('⚠️ Skipping empty material at index $i');
+            _log('⚠️ Skipping empty material at index $i');
             continue;
           }
 
@@ -174,22 +181,22 @@ class MaterialsListScreenController extends GetxController {
             'period': materialData['period']?.toString() ?? '',
           };
 
-          print('📄 Processed material: ${materialMap['title']}');
-          print('📄 Instructor name: ${materialMap['instructorName']}');
-          print('📄 Material status: ${materialMap['status']}');
-          print('📄 Created date: ${materialMap['createdAt']}');
+          _log('📄 Processed material: ${materialMap['title']}');
+          _log('📄 Instructor name: ${materialMap['instructorName']}');
+          _log('📄 Material status: ${materialMap['status']}');
+          _log('📄 Created date: ${materialMap['createdAt']}');
 
           // Only add if material has valid data for UI display
           if (materialMap['title'] != null &&
               materialMap['title'] != 'No Title') {
             instructorMaterials.add(materialMap);
-            print('✅ Added material: ${materialMap['title']}');
+            _log('✅ Added material: ${materialMap['title']}');
           } else {
-            print('❌ Skipped material due to missing or invalid title');
+            _log('❌ Skipped material due to missing or invalid title');
           }
         }
       } else {
-        print('⚠️ No materials found in instructor subcollection');
+        _log('⚠️ No materials found in instructor subcollection');
         errorMessage.value = 'No materials found for this instructor';
       }
 
@@ -212,19 +219,19 @@ class MaterialsListScreenController extends GetxController {
               .toList();
 
       materials.value = validMaterials;
-      print(
+      _log(
         '📊 Loaded ${validMaterials.length} materials from instructor $instructorUid',
       );
 
       if (validMaterials.isEmpty) {
-        print('⚠️ No valid materials found after processing');
+        _log('⚠️ No valid materials found after processing');
         errorMessage.value = 'No materials available for this instructor';
       } else {
         errorMessage.value = ''; // Clear any previous errors
       }
     } catch (e) {
       errorMessage.value = 'Error loading materials: $e';
-      print('❌ Error loading materials: $e');
+      _log('❌ Error loading materials: $e');
       materials.value = [];
 
       Get.snackbar(
@@ -301,7 +308,7 @@ class MaterialsListScreenController extends GetxController {
             }
           }
         } catch (e) {
-          print('Error loading materials from instructor $instructorId: $e');
+          _log('Error loading materials from instructor $instructorId: $e');
         }
       }
 
@@ -324,12 +331,10 @@ class MaterialsListScreenController extends GetxController {
               .toList();
 
       materials.value = validMaterials;
-      print(
-        '📊 Loaded ${validMaterials.length} materials from all instructors',
-      );
+      _log('📊 Loaded ${validMaterials.length} materials from all instructors');
     } catch (e) {
       errorMessage.value = 'Error loading materials: $e';
-      print('Error loading materials: $e');
+      _log('Error loading materials: $e');
       Get.snackbar(
         'Error',
         'Failed to load materials: $e',
@@ -423,12 +428,12 @@ class MaterialsListScreenController extends GetxController {
               .toList();
 
       materials.value = validMaterials;
-      print(
+      _log(
         '📊 Loaded ${validMaterials.length} materials from instructor $instructorId',
       );
     } catch (e) {
       errorMessage.value = 'Error loading materials: $e';
-      print('Error loading materials: $e');
+      _log('Error loading materials: $e');
       Get.snackbar(
         'Error',
         'Failed to load materials: $e',
@@ -516,7 +521,7 @@ class MaterialsListScreenController extends GetxController {
       final month = months[date.month - 1];
       return '$month ${date.day}, ${date.year}';
     } catch (e) {
-      print('Error formatting date: $e');
+      _log('Error formatting date: $e');
       return 'Unknown Date';
     }
   }
@@ -527,7 +532,7 @@ class MaterialsListScreenController extends GetxController {
       // Always reload from the selected instructor
       await loadCurrentInstructorMaterials();
     } catch (e) {
-      print('Error refreshing materials: $e');
+      _log('Error refreshing materials: $e');
       // Fallback to loading all materials
       await loadMaterials();
     }
@@ -542,7 +547,7 @@ class MaterialsListScreenController extends GetxController {
 
   /// Load materials for a specific instructor by UID (alternative method)
   Future<void> loadMaterialsForInstructorByUid(String instructorUid) async {
-    print('🎯 Loading materials for instructor: $instructorUid');
+    _log('🎯 Loading materials for instructor: $instructorUid');
     currentInstructorUid.value = instructorUid;
     await loadMaterialsByInstructorUid(instructorUid);
   }
@@ -550,7 +555,7 @@ class MaterialsListScreenController extends GetxController {
   /// Load instructor name by UID
   Future<void> _loadInstructorName(String instructorUid) async {
     try {
-      print('🔍 Loading instructor name for UID: $instructorUid');
+      _log('🔍 Loading instructor name for UID: $instructorUid');
       final instructorDoc =
           await _firestore.collection('instructors').doc(instructorUid).get();
 
@@ -559,13 +564,13 @@ class MaterialsListScreenController extends GetxController {
         final instructorName =
             instructorData['name']?.toString() ?? 'Unknown Instructor';
         currentInstructorName.value = instructorName;
-        print('✅ Instructor name loaded: $instructorName');
+        _log('✅ Instructor name loaded: $instructorName');
       } else {
-        print('❌ Instructor document not found for UID: $instructorUid');
+        _log('❌ Instructor document not found for UID: $instructorUid');
         currentInstructorName.value = 'Unknown Instructor';
       }
     } catch (e) {
-      print('❌ Error loading instructor name: $e');
+      _log('❌ Error loading instructor name: $e');
       currentInstructorName.value = 'Unknown Instructor';
     }
   }
@@ -577,29 +582,29 @@ class MaterialsListScreenController extends GetxController {
 
   /// Test method to load materials for a specific instructor (for debugging)
   Future<void> testLoadMaterialsForInstructor(String instructorUid) async {
-    print('🧪 Testing materials load for instructor: $instructorUid');
+    _log('🧪 Testing materials load for instructor: $instructorUid');
     await loadMaterialsByInstructorUid(instructorUid);
   }
 
   /// Debug method to list all available instructors
   Future<void> listAllInstructors() async {
     try {
-      print('🔍 Listing all available instructors...');
+      _log('🔍 Listing all available instructors...');
       final instructorsQuery = await _firestore.collection('instructors').get();
 
-      print('📋 Found ${instructorsQuery.docs.length} instructors:');
+      _log('📋 Found ${instructorsQuery.docs.length} instructors:');
       for (var doc in instructorsQuery.docs) {
         final data = doc.data();
         final name = data['name']?.toString() ?? 'Unknown';
         final email = data['email']?.toString() ?? 'No email';
-        print('  - ID: ${doc.id}');
-        print('    Name: $name');
-        print('    Email: $email');
-        print('    Status: ${data['status']?.toString() ?? 'Unknown'}');
-        print('    ---');
+        _log('  - ID: ${doc.id}');
+        _log('    Name: $name');
+        _log('    Email: $email');
+        _log('    Status: ${data['status']?.toString() ?? 'Unknown'}');
+        _log('    ---');
       }
     } catch (e) {
-      print('❌ Error listing instructors: $e');
+      _log('❌ Error listing instructors: $e');
     }
   }
 
@@ -609,7 +614,7 @@ class MaterialsListScreenController extends GetxController {
     String? userSectionCode,
   ) async {
     try {
-      print(
+      _log(
         '🔍 Loading materials from instructor $instructorUid with section filter: $userSectionCode',
       );
 
@@ -633,7 +638,7 @@ class MaterialsListScreenController extends GetxController {
         bool shouldInclude = true;
         if (userSectionCode != null && userSectionCode.isNotEmpty) {
           shouldInclude = selectedClasses.contains(userSectionCode);
-          print(
+          _log(
             '📚 Material "${materialData['title']}" - Classes: $selectedClasses, User Section: $userSectionCode, Include: $shouldInclude',
           );
         }
@@ -664,19 +669,19 @@ class MaterialsListScreenController extends GetxController {
       }
 
       materials.value = filteredMaterials;
-      print(
+      _log(
         '📊 Loaded ${filteredMaterials.length} materials from instructor $instructorUid (filtered by section: $userSectionCode)',
       );
     } catch (e) {
       errorMessage.value = 'Error loading materials: $e';
-      print('❌ Error loading materials from instructor: $e');
+      _log('❌ Error loading materials from instructor: $e');
     }
   }
 
   /// Load all materials with section filtering
   Future<void> loadMaterialsWithSectionFilter(String? userSectionCode) async {
     try {
-      print('🔍 Loading all materials with section filter: $userSectionCode');
+      _log('🔍 Loading all materials with section filter: $userSectionCode');
 
       final instructorsQuery = await _firestore.collection('instructors').get();
       final allMaterials = <Map<String, dynamic>>[];
@@ -733,7 +738,7 @@ class MaterialsListScreenController extends GetxController {
             }
           }
         } catch (e) {
-          print('Error loading materials from instructor $instructorId: $e');
+          _log('Error loading materials from instructor $instructorId: $e');
         }
       }
 
@@ -745,12 +750,12 @@ class MaterialsListScreenController extends GetxController {
       });
 
       materials.value = allMaterials;
-      print(
+      _log(
         '📊 Loaded ${allMaterials.length} materials from all instructors (filtered by section: $userSectionCode)',
       );
     } catch (e) {
       errorMessage.value = 'Error loading materials: $e';
-      print('❌ Error loading all materials: $e');
+      _log('❌ Error loading all materials: $e');
     }
   }
 
@@ -846,7 +851,7 @@ class MaterialsListScreenController extends GetxController {
                           'Unknown Instructor';
                     }
                   } catch (e) {
-                    print('Error loading instructor name: $e');
+                    _log('Error loading instructor name: $e');
                   }
                 }
 
@@ -885,7 +890,7 @@ class MaterialsListScreenController extends GetxController {
             });
       }
     } catch (e) {
-      print('❌ Error creating materials stream: $e');
+      _log('❌ Error creating materials stream: $e');
       return Stream.value([]);
     }
   }

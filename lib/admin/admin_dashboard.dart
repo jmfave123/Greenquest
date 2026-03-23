@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../shared/admin/admin_sidebar.dart';
@@ -20,6 +21,12 @@ class _AdminDashboardState extends State<AdminDashboard>
     with AutomaticKeepAliveClientMixin {
   AdminNavigationItem _selectedItem = AdminNavigationItem.dashboard;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   List<Map<String, dynamic>> instructors = [];
   List<String> programs = ['All Programs'];
@@ -91,7 +98,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading dashboard data: $e');
+      _log('Error loading dashboard data: $e');
       Get.snackbar(
         'Error',
         'Failed to load dashboard data: $e',
@@ -132,7 +139,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         _isTreeCountLoading = false;
       });
     } catch (e) {
-      print('Error loading tree stats: $e');
+      _log('Error loading tree stats: $e');
       if (!mounted) return;
       setState(() {
         _totalTreeCount = 0;
@@ -155,7 +162,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         programs = ['All Programs', ...departmentCodes];
       });
     } catch (e) {
-      print('Error loading programs: $e');
+      _log('Error loading programs: $e');
     }
   }
 
@@ -163,6 +170,24 @@ class _AdminDashboardState extends State<AdminDashboard>
     try {
       final instructorsSnapshot =
           await _firestore.collection('instructors').get();
+
+      // OPTIMIZATION: Fetch ALL departments and ALL users in 2 queries instead of thousands of loops
+      final allDeptsSnapshot = await _firestore.collection('departments').get();
+      final Map<String, Map<String, dynamic>> deptCache = {};
+      for (var doc in allDeptsSnapshot.docs) {
+        deptCache[doc.id] = doc.data();
+      }
+      
+      final allUsersSnapshot = await _firestore.collection('users').get();
+      final Map<String, Map<String, dynamic>> userCacheById = {};
+      final Map<String, Map<String, dynamic>> userCacheByStudentId = {};
+      for (var doc in allUsersSnapshot.docs) {
+        final data = doc.data();
+        userCacheById[doc.id] = data;
+        if (data['studentId'] != null) {
+          userCacheByStudentId[data['studentId']] = data;
+        }
+      }
 
       instructors.clear();
 
@@ -180,15 +205,15 @@ class _AdminDashboardState extends State<AdminDashboard>
 
         // Only include approved instructors - exclude pending and rejected
         if (instructorStatus != 'Approved') {
-          print(
+          _log(
             '⏭️ Skipping instructor $instructorName - Status: $instructorStatus',
           );
           continue;
         }
 
         // Debug: Print all fields in instructor document
-        print('🔍 Instructor: $instructorName');
-        print('   Document ID: ${instructorDoc.id}');
+        _log('🔍 Instructor: $instructorName');
+        _log('   Document ID: ${instructorDoc.id}');
 
         // Build a map of departmentCode -> departmentId from assignments
         Map<String, String> departmentCodeToId = {};
@@ -199,7 +224,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         if (assignments != null &&
             assignments is List &&
             assignments.isNotEmpty) {
-          print('   📋 Found ${assignments.length} assignments');
+          _log('   📋 Found ${assignments.length} assignments');
 
           for (var i = 0; i < assignments.length; i++) {
             final assignmentData = assignments[i];
@@ -213,31 +238,26 @@ class _AdminDashboardState extends State<AdminDashboard>
                 departmentCodeToId[departmentCode] = departmentId;
                 departmentCodes.add(departmentCode);
 
-                print(
+                _log(
                   '   🔍 Assignment $i - DeptCode: $departmentCode, DeptId: $departmentId',
                 );
 
-                // Fetch department details from departments collection
+                // Use cached departments
                 try {
-                  final departmentDoc =
-                      await _firestore
-                          .collection('departments')
-                          .doc(departmentId)
-                          .get();
+                  final departmentData = deptCache[departmentId];
 
-                  if (departmentDoc.exists) {
-                    final departmentData = departmentDoc.data();
+                  if (departmentData != null) {
                     final deptName =
-                        departmentData?['displayName'] ??
-                        departmentData?['name'] ??
-                        departmentData?['code'] ??
+                        departmentData['displayName'] ??
+                        departmentData['name'] ??
+                        departmentData['code'] ??
                         departmentCode;
 
                     departmentNames.add(deptName);
-                    print('   ✅ Assignment $i - Department: $deptName');
+                    _log('   ✅ Assignment $i - Department: $deptName');
                   }
                 } catch (e) {
-                  print('   ❌ Error fetching department $departmentId: $e');
+                  _log('   ❌ Error fetching department $departmentId: $e');
                 }
               }
             }
@@ -250,8 +270,8 @@ class _AdminDashboardState extends State<AdminDashboard>
                 ? departmentNames.join(', ')
                 : (instructorData['department']?.toString() ?? 'N/A');
 
-        print('   ✅ Final department: $departmentName');
-        print('   ✅ Department codes: ${departmentCodes.join(', ')}');
+        _log('   ✅ Final department: $departmentName');
+        _log('   ✅ Department codes: ${departmentCodes.join(', ')}');
 
         // Load classes for this instructor (schedules only)
         final classesSnapshot =
@@ -297,16 +317,13 @@ class _AdminDashboardState extends State<AdminDashboard>
             }
           }
 
-          // Fetch idNumber and profileImage from users collection using doc.id as user document ID
+          // Fetch idNumber and profileImage from local cache
           String idNumber = '';
           String profileImage = '';
           try {
-            // The document ID in students subcollection is often the user document ID
-            final userDoc =
-                await _firestore.collection('users').doc(studentDoc.id).get();
+            final userData = userCacheById[studentDoc.id];
 
-            if (userDoc.exists) {
-              final userData = userDoc.data() ?? {};
+            if (userData != null) {
               idNumber = userData['idNumber']?.toString() ?? '';
               profileImage =
                   userData['profileImage']?.toString() ??
@@ -318,32 +335,21 @@ class _AdminDashboardState extends State<AdminDashboard>
               final studentId = studentData['studentId']?.toString() ?? '';
 
               if (studentId.isNotEmpty) {
-                final userQuery =
-                    await _firestore
-                        .collection('users')
-                        .where('studentId', isEqualTo: studentId)
-                        .limit(1)
-                        .get();
+                final fallbackUserData = userCacheByStudentId[studentId];
 
-                if (userQuery.docs.isNotEmpty) {
-                  final userData = userQuery.docs.first.data();
-                  idNumber = userData['idNumber']?.toString() ?? '';
+                if (fallbackUserData != null) {
+                  idNumber = fallbackUserData['idNumber']?.toString() ?? '';
                   profileImage =
-                      userData['profileImage']?.toString() ??
-                      userData['profileImageUrl']?.toString() ??
-                      userData['profileUrl']?.toString() ??
+                      fallbackUserData['profileImage']?.toString() ??
+                      fallbackUserData['profileImageUrl']?.toString() ??
+                      fallbackUserData['profileUrl']?.toString() ??
                       '';
-                  print(
-                    '✅ Found idNumber via studentId query ("$studentId"): "$idNumber"',
-                  );
-                } else {
-                  print('❌ No user found with studentId: "$studentId"');
                 }
               }
             }
           } catch (e) {}
 
-          print(
+          _log(
             '📝 Student: ${studentData['studentName']}, idNumber: "$idNumber"',
           );
 
@@ -422,7 +428,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         });
       }
     } catch (e) {
-      print('Error loading instructors: $e');
+      _log('Error loading instructors: $e');
     }
   }
 
@@ -439,12 +445,12 @@ class _AdminDashboardState extends State<AdminDashboard>
               .get();
 
       if (instructorsSnapshot.docs.isEmpty) {
-        print('Instructor "dem" not found');
+        _log('Instructor "dem" not found');
         return allStudents;
       }
 
       final demInstructorId = instructorsSnapshot.docs.first.id;
-      print('Found instructor "dem" with ID: $demInstructorId');
+      _log('Found instructor "dem" with ID: $demInstructorId');
 
       // Method 1: Get students from instructor's classes
       final classesSnapshot =
@@ -532,9 +538,9 @@ class _AdminDashboardState extends State<AdminDashboard>
         }
       }
 
-      print('Loaded ${allStudents.length} students for instructor "dem"');
+      _log('Loaded ${allStudents.length} students for instructor "dem"');
     } catch (e) {
-      print('Error loading all dem students: $e');
+      _log('Error loading all dem students: $e');
     }
 
     return allStudents;
@@ -554,7 +560,7 @@ class _AdminDashboardState extends State<AdminDashboard>
       }
       return 'Unknown';
     } catch (e) {
-      print('Error formatting date: $e, date type: ${date.runtimeType}');
+      _log('Error formatting date: $e, date type: ${date.runtimeType}');
       return 'Unknown';
     }
   }
@@ -869,7 +875,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                                       ),
                                     );
                                   } catch (e) {
-                                    print(
+                                    _log(
                                       'Error displaying student at index $index: $e',
                                     );
                                     return Container(
@@ -1287,8 +1293,8 @@ class _AdminDashboardState extends State<AdminDashboard>
                                               setState(() {
                                                 searchQuery = value;
                                               });
-                                              print('Search query: "$value"');
-                                              print(
+                                              _log('Search query: "$value"');
+                                              _log(
                                                 'Filtered instructors count: ${filteredInstructors.length}',
                                               );
                                             },

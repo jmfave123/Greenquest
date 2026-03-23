@@ -14,6 +14,12 @@ import '../utils/file_type_utils.dart';
 class FileDownloadService {
   static final Dio _dio = Dio();
 
+  static void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   /// Download file and open it
   static Future<void> downloadAndOpenFile({
     required String fileUrl,
@@ -50,7 +56,7 @@ class FileDownloadService {
       // For other files, use regular download logic
       await _downloadRegularFile(fileUrl, fileName, fileType, context);
     } catch (e) {
-      print('Error downloading file: $e');
+      _log('Error downloading file: $e');
       if (context != null) {
         try {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -61,7 +67,7 @@ class FileDownloadService {
           );
         } catch (snackbarError) {
           // Context may be invalid if screen was closed, ignore silently
-          print('Could not show error snackbar: $snackbarError');
+          _log('Could not show error snackbar: $snackbarError');
         }
       }
     }
@@ -88,7 +94,7 @@ class FileDownloadService {
         );
       }
     } catch (e) {
-      print('Error downloading file on web: $e');
+      _log('Error downloading file on web: $e');
       // Fallback: show URL for manual download
       if (context != null) {
         _showWebDownloadDialog(context, fileUrl, fileName);
@@ -129,9 +135,9 @@ class FileDownloadService {
         // Clean up object URL
         html.Url.revokeObjectUrl(url);
 
-        print('File downloaded successfully: $fileName');
+        _log('File downloaded successfully: $fileName');
       } catch (e) {
-        print('Error downloading file: $e');
+        _log('Error downloading file: $e');
         throw Exception('Failed to download file: $e');
       }
     } else {
@@ -405,7 +411,7 @@ class FileDownloadService {
         // Request access to photos
         bool granted = await Gal.requestAccess();
         if (!granted) {
-          print('Photo access denied');
+          _log('Photo access denied');
           if (context != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -442,7 +448,7 @@ class FileDownloadService {
           await tempFile.delete();
         }
       } catch (e) {
-        print('Could not delete temp file: $e');
+        _log('Could not delete temp file: $e');
       }
 
       if (context != null) {
@@ -454,9 +460,9 @@ class FileDownloadService {
           ),
         );
       }
-      print('Image saved to gallery successfully');
+      _log('Image saved to gallery successfully');
     } catch (e) {
-      print('Error downloading image: $e');
+      _log('Error downloading image: $e');
       rethrow;
     }
   }
@@ -474,7 +480,7 @@ class FileDownloadService {
         // Request access to photos
         bool granted = await Gal.requestAccess();
         if (!granted) {
-          print('Photo access denied');
+          _log('Photo access denied');
           throw Exception(
             'Permission denied. Please allow photo access in settings.',
           );
@@ -498,12 +504,12 @@ class FileDownloadService {
           await tempFile.delete();
         }
       } catch (e) {
-        print('Could not delete temp file: $e');
+        _log('Could not delete temp file: $e');
       }
 
-      print('Image saved to gallery successfully');
+      _log('Image saved to gallery successfully');
     } catch (e) {
-      print('Error downloading image: $e');
+      _log('Error downloading image: $e');
       rethrow;
     }
   }
@@ -524,22 +530,22 @@ class FileDownloadService {
 
     // If all permissions denied, try to open directly from URL
     if (!hasPermission) {
-      print('Storage permission denied, trying to open directly from URL');
+      _log('Storage permission denied, trying to open directly from URL');
       try {
         await openFileFromUrl(fileUrl);
         return;
       } catch (e) {
-        print('URL opening failed, showing manual dialog: $e');
+        _log('URL opening failed, showing manual dialog: $e');
         if (context != null) {
           try {
             _showFileOpenDialog(context, fileUrl, fileName);
           } catch (dialogError) {
             // Context may be invalid if screen was closed, fallback to URL
-            print('Could not show dialog: $dialogError');
+            _log('Could not show dialog: $dialogError');
             try {
               await openFileFromUrl(fileUrl);
             } catch (urlError) {
-              print('All fallbacks failed: $urlError');
+              _log('All fallbacks failed: $urlError');
             }
           }
         }
@@ -577,7 +583,7 @@ class FileDownloadService {
         );
       } catch (e) {
         // Context may be invalid if screen was closed, ignore silently
-        print('Could not show success snackbar: $e');
+        _log('Could not show success snackbar: $e');
       }
     }
   }
@@ -585,7 +591,7 @@ class FileDownloadService {
   /// Open file directly from URL (for web or if download fails)
   static Future<void> openFileFromUrl(String fileUrl) async {
     try {
-      print('Attempting to open URL: $fileUrl');
+      _log('Attempting to open URL: $fileUrl');
 
       // Clean and validate URL
       String cleanUrl = fileUrl.trim();
@@ -594,44 +600,44 @@ class FileDownloadService {
       }
 
       final uri = Uri.parse(cleanUrl);
-      print('Parsed URI: $uri');
+      _log('Parsed URI: $uri');
 
       // Try different launch modes without checking canLaunchUrl first
       // Sometimes canLaunchUrl returns false but the URL can still be opened
 
       // Try external application first
       try {
-        print('Trying external application...');
+        _log('Trying external application...');
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-        print('External application succeeded');
+        _log('External application succeeded');
         return;
       } catch (e) {
-        print('External application failed: $e');
+        _log('External application failed: $e');
       }
 
       // Try platform default
       try {
-        print('Trying platform default...');
+        _log('Trying platform default...');
         await launchUrl(uri, mode: LaunchMode.platformDefault);
-        print('Platform default succeeded');
+        _log('Platform default succeeded');
         return;
       } catch (e) {
-        print('Platform default failed: $e');
+        _log('Platform default failed: $e');
       }
 
       // Try in-app web view
       try {
-        print('Trying in-app web view...');
+        _log('Trying in-app web view...');
         await launchUrl(uri, mode: LaunchMode.inAppWebView);
-        print('In-app web view succeeded');
+        _log('In-app web view succeeded');
         return;
       } catch (e) {
-        print('In-app web view failed: $e');
+        _log('In-app web view failed: $e');
       }
 
       // Final check with canLaunchUrl
       final canLaunch = await canLaunchUrl(uri);
-      print('Final canLaunch check: $canLaunch');
+      _log('Final canLaunch check: $canLaunch');
 
       if (!canLaunch) {
         throw Exception('URL cannot be launched: $cleanUrl');
@@ -639,7 +645,7 @@ class FileDownloadService {
 
       throw Exception('All launch modes failed for URL: $cleanUrl');
     } catch (e) {
-      print('Error opening file URL: $e');
+      _log('Error opening file URL: $e');
       rethrow;
     }
   }
@@ -673,18 +679,18 @@ class FileDownloadService {
         await openFileFromUrl(fileUrl);
       }
     } catch (e) {
-      print('Download failed, trying to open from URL: $e');
+      _log('Download failed, trying to open from URL: $e');
       // Fallback: open directly from URL
       try {
         await openFileFromUrl(fileUrl);
       } catch (urlError) {
-        print('URL opening also failed: $urlError');
+        _log('URL opening also failed: $urlError');
         if (context != null) {
           try {
             _showFileOpenDialog(context, fileUrl, fileName);
           } catch (dialogError) {
             // Context may be invalid if screen was closed, ignore silently
-            print('Could not show file open dialog: $dialogError');
+            _log('Could not show file open dialog: $dialogError');
           }
         }
       }
@@ -843,7 +849,7 @@ class FileDownloadService {
       await _dio.download(pdfUrl, filePath);
       return filePath;
     } catch (e) {
-      print('Error downloading PDF: $e');
+      _log('Error downloading PDF: $e');
       return null;
     }
   }
@@ -875,7 +881,7 @@ class FileDownloadService {
       await _dio.download(url, filePath, onReceiveProgress: onProgress);
       return filePath;
     } catch (e) {
-      print('Error downloading file: $e');
+      _log('Error downloading file: $e');
       return null;
     }
   }

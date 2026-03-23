@@ -1,11 +1,11 @@
 import 'dart:developer';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import '../../shared/services/tree_progress_service.dart';
+import '../../shared/services/student_data_service.dart';
 
 class WebHomeController extends GetxController {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TreeProgressService _treeProgressService = TreeProgressService();
 
@@ -59,15 +59,14 @@ class WebHomeController extends GetxController {
     fetchStudentData();
   }
 
-  Future<void> fetchStudentData() async {
+  Future<void> fetchStudentData({bool forceRefresh = false}) async {
     try {
       isLoading.value = true;
       final user = _auth.currentUser;
       if (user == null) return;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
+      final data = await StudentDataService.getStudentData(forceRefresh: forceRefresh);
+      if (data != null) {
         fullName.value =
             data['fullName'] ??
             data['name'] ??
@@ -135,6 +134,6 @@ class WebHomeController extends GetxController {
   }
 
   Future<void> refreshAll() async {
-    await fetchStudentData();
+    await fetchStudentData(forceRefresh: true);
   }
 }

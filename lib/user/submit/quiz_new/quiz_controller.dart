@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../shared/services/submission_routing_service.dart';
+import '../../../shared/services/student_data_service.dart';
 
 class QuizController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -30,9 +31,8 @@ class QuizController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final sectionCode = userData['selectedSectionCode']?.toString();
         log('📚 Student section code: $sectionCode');
         return sectionCode;
@@ -55,10 +55,9 @@ class QuizController extends GetxController {
 
       log('🔍 Loading instructor for user: ${user.uid}');
 
-      // Get user's selected instructor from their profile
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
+      // Get user's selected instructor from their profile via cache
+      final userData = await StudentDataService.getStudentData();
+      if (userData != null) {
         final instructorId = userData['selectedInstructorId'] ?? '';
         final instructorName = userData['selectedInstructorName'] ?? '';
         final selectionComplete = userData['selectionComplete'] ?? false;
@@ -82,7 +81,7 @@ class QuizController extends GetxController {
           errorMessage.value = 'Please select an instructor first';
         }
       } else {
-        log('❌ User document not found');
+        log('❌ User data from cache was empty');
         errorMessage.value = 'User profile not found';
       }
     } catch (e) {
@@ -262,9 +261,8 @@ class QuizController extends GetxController {
       log('📤 Submitting quiz: $quizId');
       log('📝 Answers: ${answers.keys.length} questions answered');
 
-      // Get user data for student information
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final userData = userDoc.data() ?? {};
+      // Get user data for student information from cache
+      final userData = await StudentDataService.getStudentData() ?? {};
 
       // Create submission data
       final submissionData = {
@@ -319,7 +317,7 @@ class QuizController extends GetxController {
     }
   }
 
-  /// Get submission status for a quiz
+  /// Get submission status for a quiz (Legacy individual read - fallback)
   Future<String> getSubmissionStatus(String quizId) async {
     try {
       final user = _auth.currentUser;
@@ -346,27 +344,45 @@ class QuizController extends GetxController {
     }
   }
 
-  /// Load submission statuses for all quizzes
+  /// Bulk load ALL submission statuses in a SINGLE query (N+1 query fix)
   Future<void> loadSubmissionStatuses() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null || quizzes.isEmpty) return;
 
-      // Clear existing statuses
+      // Clear existing statuses and extract IDs
       submissionStatus.clear();
+      final quizIds = quizzes.map((a) => a['id']?.toString()).whereType<String>().toList();
+      
+      if (quizIds.isEmpty) return;
 
-      // Get status for each quiz
-      for (final quiz in quizzes) {
-        final quizId = quiz['id']?.toString();
-        if (quizId != null) {
-          final status = await getSubmissionStatus(quizId);
-          submissionStatus[quizId] = status;
+      // Set defaults for all first
+      for (final id in quizIds) {
+        submissionStatus[id] = 'not_submitted';
+      }
+
+      log('🔍 Bulk loading submissions for ${quizIds.length} quizzes');
+
+      // 1 single query to fetch all quiz submissions created by THIS student 
+      final allSubmissions = await _firestore
+          .collection('submissions')
+          .where('studentId', isEqualTo: user.uid)
+          .where('activityType', isEqualTo: 'quiz')
+          .get();
+
+      // Process them locally in memory instantly
+      for (var doc in allSubmissions.docs) {
+        final data = doc.data();
+        final activityId = data['activityId']?.toString();
+        
+        if (activityId != null && submissionStatus.containsKey(activityId)) {
+           submissionStatus[activityId] = data['status']?.toString() ?? 'not_submitted';
         }
       }
 
-      log('📊 Loaded submission statuses for ${quizzes.length} quizzes');
+      log('📊 Successfully mapped submission statuses without looping queries.');
     } catch (e) {
-      log('❌ Error loading submission statuses: $e');
+      log('❌ Error bulk loading submission statuses: $e');
     }
   }
 

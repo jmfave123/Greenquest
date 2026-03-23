@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/services/in_app_notification_service.dart';
@@ -31,6 +32,12 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
   final ValueNotifier<List<Map<String, dynamic>>> _notificationsNotifier =
       ValueNotifier<List<Map<String, dynamic>>>([]);
 
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -55,7 +62,7 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
       final notifications =
           await InAppNotificationService.getNotificationsForInstructor();
 
-      print('📬 Loaded ${notifications.length} notifications');
+      _log('📬 Loaded ${notifications.length} notifications');
 
       if (mounted) {
         setState(() {
@@ -66,12 +73,12 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
         _loadingNotifier.value = false;
         _notificationsNotifier.value = notifications;
 
-        print(
+        _log(
           '📬 Updated state: ${_notifications.length} notifications, loading: $_isLoadingNotifications',
         );
       }
     } catch (e) {
-      print('❌ Error loading notifications: $e');
+      _log('❌ Error loading notifications: $e');
       if (mounted) {
         setState(() {
           _notifications = [];
@@ -565,16 +572,16 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print('❌ User not authenticated');
+        _log('❌ User not authenticated');
         return null;
       }
 
       final collectionName = _getCollectionName(activityType);
-      print('🔍 Fetching activity data:');
-      print('  - Activity ID: $activityId');
-      print('  - Activity Type: $activityType');
-      print('  - Collection: $collectionName');
-      print('  - Instructor ID: ${user.uid}');
+      _log('🔍 Fetching activity data:');
+      _log('  - Activity ID: $activityId');
+      _log('  - Activity Type: $activityType');
+      _log('  - Collection: $collectionName');
+      _log('  - Instructor ID: ${user.uid}');
 
       final doc =
           await FirebaseFirestore.instance
@@ -585,7 +592,7 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
               .get();
 
       if (!doc.exists) {
-        print('❌ Activity document not found');
+        _log('❌ Activity document not found');
         return null;
       }
 
@@ -598,10 +605,10 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
         'type': _getCapitalizedType(activityType),
       };
 
-      print('✅ Activity data fetched successfully');
+      _log('✅ Activity data fetched successfully');
       return activityData;
     } catch (e) {
-      print('❌ Error fetching activity data: $e');
+      _log('❌ Error fetching activity data: $e');
       return null;
     }
   }
@@ -618,7 +625,7 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
 
     // Validate required fields
     if (activityId == null || activityId.isEmpty) {
-      print('❌ Activity ID not found in notification');
+      _log('❌ Activity ID not found in notification');
       _showErrorSnackbar('Notification data is invalid');
       return;
     }
@@ -676,7 +683,7 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
       if (mounted) {
         Navigator.of(context).pop();
       }
-      print('❌ Error navigating to submissions: $e');
+      _log('❌ Error navigating to submissions: $e');
       _showErrorSnackbar('Failed to load activity. Please try again.');
     }
   }

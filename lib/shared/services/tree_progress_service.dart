@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 /// Category completion data structure
 class CategoryCompletion {
@@ -47,6 +48,12 @@ class TreeProgressService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   /// Calculate tree progress for current user
   /// Returns progress as double (0.0 to 1.0)
   Future<double> calculateProgress() async {
@@ -90,7 +97,7 @@ class TreeProgressService {
 
       return {'id': snapshot.docs.first.id, ...snapshot.docs.first.data()};
     } catch (e) {
-      print('Error getting active period: $e');
+      _log('Error getting active period: $e');
       return null;
     }
   }
@@ -152,13 +159,13 @@ class TreeProgressService {
       // Emit initial value
       _calculateProgressForContext(userId, instructorId, sectionCode)
           .then((result) => controller.add(result))
-          .catchError((e) => print('Error calculating initial progress: $e'));
+          .catchError((e) => _log('Error calculating initial progress: $e'));
 
       // Listen to unified submissions stream
       allSubmissionsSub = allSubmissionsStream.listen(
         (_) =>
             _recalculateProgress(controller, userId, instructorId, sectionCode),
-        onError: (e) => print('Submissions stream error: $e'),
+        onError: (e) => _log('Submissions stream error: $e'),
       );
 
       // Clean up subscriptions when stream is cancelled
@@ -213,7 +220,7 @@ class TreeProgressService {
         controller.add(result);
       }
     } catch (e) {
-      print('❌ Error recalculating progress: $e');
+      _log('❌ Error recalculating progress: $e');
     }
   }
 
@@ -273,7 +280,7 @@ class TreeProgressService {
         activePeriodType: activePeriodType,
       );
     } catch (e) {
-      print('❌ Error calculating tree progress: $e');
+      _log('❌ Error calculating tree progress: $e');
       return ProgressResult(
         progress: 0.0,
         computedFinalGrade: 5.00,
@@ -386,7 +393,7 @@ class TreeProgressService {
         activePeriodType: activePeriodType,
       );
     } catch (e) {
-      print('❌ Error calculating tree progress: $e');
+      _log('❌ Error calculating tree progress: $e');
       return ProgressResult(
         progress: 0.0,
         computedFinalGrade: 5.00,
@@ -508,7 +515,7 @@ class TreeProgressService {
         items['finalPitItems']!,
       );
     } catch (e) {
-      print('❌ Error fetching items: $e');
+      _log('❌ Error fetching items: $e');
     }
 
     return items;
@@ -622,7 +629,7 @@ class TreeProgressService {
         }
       }
     } catch (e) {
-      print('❌ Error fetching from $collection: $e');
+      _log('❌ Error fetching from $collection: $e');
     }
   }
 
@@ -675,7 +682,7 @@ class TreeProgressService {
         }
       }
     } catch (e) {
-      print('❌ Error fetching student grades: $e');
+      _log('❌ Error fetching student grades: $e');
     }
 
     return grades;
@@ -719,7 +726,7 @@ class TreeProgressService {
         return doc.data();
       }
     } catch (e) {
-      print('❌ Error getting item details for $itemId ($activityType): $e');
+      _log('❌ Error getting item details for $itemId ($activityType): $e');
     }
     return null;
   }
@@ -809,20 +816,20 @@ class TreeProgressService {
         finalMGA,
       ); // If finalMGA = 0, this gives 5.000
 
-      print(
+      _log(
         '🌳 DEBUG - Midterm MGA: $midtermMGA → Grade Point: $midtermGradePoint',
       );
-      print('🌳 DEBUG - Final MGA: $finalMGA → Grade Point: $finalGradePoint');
+      _log('🌳 DEBUG - Final MGA: $finalMGA → Grade Point: $finalGradePoint');
 
       // Step 2: Convert Grade Points to Grades (1.00, 1.25, 2.00, etc.)
       // Uses same intervals as _getMidtermGradeEquivalent in class record
       final midtermGrade = _gradePointToGrade(midtermGradePoint);
       final finalGrade = _gradePointToGrade(finalGradePoint);
 
-      print(
+      _log(
         '🌳 DEBUG - Midterm Grade Point: $midtermGradePoint → Grade: $midtermGrade',
       );
-      print(
+      _log(
         '🌳 DEBUG - Final Grade Point: $finalGradePoint → Grade: $finalGrade',
       );
 
@@ -836,7 +843,7 @@ class TreeProgressService {
         computedFinalGrade.toStringAsFixed(2),
       );
 
-      print(
+      _log(
         '🌳 DEBUG - Computed Final Grade: ($midtermGrade × 0.5) + ($finalGrade × 0.5) = $computedFinalGrade → rounded: $roundedComputedFinalGrade',
       );
 
@@ -844,7 +851,7 @@ class TreeProgressService {
       // Grade 1.00 = 100%, Grade 5.00 = 0%
       // Use rounded value to match class record table display
       final progress = _gradeToProgress(roundedComputedFinalGrade);
-      print(
+      _log(
         '🌳 DEBUG - Progress: $roundedComputedFinalGrade → ${(progress * 100).toStringAsFixed(2)}%',
       );
       return {
@@ -930,15 +937,15 @@ class TreeProgressService {
   ///   4.00 → 65%, 4.01-5.00 → interpolate 64% to 0%
   /// For decimal grades, linearly interpolates between adjacent exact points
   double _gradeToProgress(double grade) {
-    print('🌳 DEBUG _gradeToProgress - Input grade: $grade');
+    _log('🌳 DEBUG _gradeToProgress - Input grade: $grade');
 
     // Handle edge cases
     if (grade <= 1.00) {
-      print('🌳 DEBUG _gradeToProgress - Grade <= 1.00, returning 1.0 (100%)');
+      _log('🌳 DEBUG _gradeToProgress - Grade <= 1.00, returning 1.0 (100%)');
       return 1.0; // Perfect grade = 100%
     }
     if (grade >= 5.00) {
-      print('🌳 DEBUG _gradeToProgress - Grade >= 5.00, returning 0.0 (0%)');
+      _log('🌳 DEBUG _gradeToProgress - Grade >= 5.00, returning 0.0 (0%)');
       return 0.0; // Failing grade = 0%
     }
 
@@ -946,11 +953,11 @@ class TreeProgressService {
     if (grade > 4.01) {
       // Linear interpolation: 4.01 = 64%, 5.00 = 0%
       final progress = 0.64 * (5.00 - grade) / (5.00 - 4.01);
-      print(
+      _log(
         '🌳 DEBUG _gradeToProgress - Special range (4.01-5.00): 0.64 * (5.00 - $grade) / 0.99 = $progress',
       );
       final clampedProgress = progress.clamp(0.0, 1.0);
-      print(
+      _log(
         '🌳 DEBUG _gradeToProgress - Result: $clampedProgress = ${(clampedProgress * 100).toStringAsFixed(2)}%',
       );
       return clampedProgress;
@@ -978,7 +985,7 @@ class TreeProgressService {
     for (var point in exactPoints) {
       if ((grade - (point[0] as num)).abs() < 0.001) {
         final progress = (point[1] as num).toDouble();
-        print(
+        _log(
           '🌳 DEBUG _gradeToProgress - Exact match: ${point[0]} → ${(progress * 100).toStringAsFixed(2)}%',
         );
         return progress;
@@ -1000,10 +1007,10 @@ class TreeProgressService {
         final ratio = (grade - lowerGrade) / gradeRange;
         final progress = lowerProgress - (ratio * progressRange);
 
-        print(
+        _log(
           '🌳 DEBUG _gradeToProgress - Interpolating: $grade between $lowerGrade (${(lowerProgress * 100).toStringAsFixed(2)}%) and $upperGrade (${(upperProgress * 100).toStringAsFixed(2)}%)',
         );
-        print(
+        _log(
           '🌳 DEBUG _gradeToProgress - Ratio: $ratio, Result: $progress = ${(progress * 100).toStringAsFixed(2)}%',
         );
 
@@ -1013,7 +1020,7 @@ class TreeProgressService {
     }
 
     // Fallback (shouldn't reach here)
-    print('🌳 DEBUG _gradeToProgress - Fallback calculation');
+    _log('🌳 DEBUG _gradeToProgress - Fallback calculation');
     return ((5.00 - grade) / 4.00).clamp(0.0, 1.0);
   }
 

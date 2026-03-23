@@ -14,6 +14,8 @@ const REMINDER_WINDOWS = [
   { key: '15m', minutesBefore: 15, label: 'in 15 minutes' },
 ];
 
+const CLOSED_WINDOW = { key: 'closed', label: 'is now closed' };
+
 function parseBoolean(value, defaultValue = false) {
   if (value === undefined || value === null) return defaultValue;
   const normalized = String(value).toLowerCase().trim();
@@ -152,6 +154,22 @@ function buildReminderCopy({ itemType, title, window }) {
   return {
     heading: `${label} Due Soon`,
     content: `${label} "${title}" is due ${window.label}.`,
+  };
+}
+
+function buildClosedCopy({ itemType, title, testMode }) {
+  const label = itemTypeLabel(itemType);
+
+  if (testMode) {
+    return {
+      heading: `${label} Closed (Test)`,
+      content: `${label} "${title}" is now closed for submission.`,
+    };
+  }
+
+  return {
+    heading: `${label} Submission Closed`,
+    content: `${label} "${title}" is now closed for submission.`,
   };
 }
 
@@ -402,6 +420,114 @@ async function processItemReminder({
   stats.sentStudents += unsentStudentIds.length;
 }
 
+async function processItemClosed({
+  db,
+  appId,
+  restApiKey,
+  oneSignalApiUrl,
+  itemType,
+  itemDoc,
+  instructorId,
+  stats,
+  dryRun,
+  testMode,
+}) {
+  const data = itemDoc.data() || {};
+  const title = (data.title || 'Untitled').toString();
+  const dueAt = toDate(data.dueDate);
+  const selectedClasses = Array.isArray(data.selectedClasses)
+    ? data.selectedClasses
+    : [];
+
+  if (!dueAt || !selectedClasses.length) return;
+
+  stats.eligibleClosedItems += 1;
+
+  const studentMap = await getStudentsForSections(
+    db,
+    instructorId,
+    selectedClasses,
+  );
+  if (!studentMap.size) {
+    stats.skippedNoRecipients += 1;
+    return;
+  }
+
+  const unsentStudentIds = await filterUnsentStudents(
+    db,
+    itemType,
+    itemDoc.id,
+    CLOSED_WINDOW.key,
+    studentMap,
+  );
+
+  if (!unsentStudentIds.length) {
+    stats.skippedAlreadySent += 1;
+    return;
+  }
+
+  const playerIds = unsentStudentIds
+    .map((studentId) => studentMap.get(studentId))
+    .filter(Boolean);
+
+  if (!playerIds.length) {
+    stats.skippedNoRecipients += 1;
+    return;
+  }
+
+  if (dryRun) {
+    stats.wouldSendClosedStudents += unsentStudentIds.length;
+    return;
+  }
+
+  const copy = buildClosedCopy({ itemType, title, testMode });
+
+  const sendChunks = chunkArray(playerIds, 2000);
+  for (const playerChunk of sendChunks) {
+    const result = await sendOneSignal(
+      {
+        include_player_ids: playerChunk,
+        headings: { en: copy.heading },
+        contents: { en: copy.content },
+        data: {
+          type: 'submission-closed',
+          itemType,
+          itemId: itemDoc.id,
+          instructorId,
+          windowKey: CLOSED_WINDOW.key,
+        },
+      },
+      appId,
+      restApiKey,
+      oneSignalApiUrl,
+    );
+
+    if (!result.success) {
+      stats.failedSends += playerChunk.length;
+      console.error('[send-due-reminders] Failed closed OneSignal send', {
+        itemType,
+        itemId: itemDoc.id,
+        windowKey: CLOSED_WINDOW.key,
+        statusCode: result.statusCode,
+      });
+      return;
+    }
+  }
+
+  await saveReminderEvents({
+    db,
+    itemType,
+    itemId: itemDoc.id,
+    itemTitle: title,
+    instructorId,
+    dueAt,
+    windowKey: CLOSED_WINDOW.key,
+    studentIds: unsentStudentIds,
+  });
+
+  stats.sentClosedStudents += unsentStudentIds.length;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed.' });
@@ -449,6 +575,10 @@ module.exports = async (req, res) => {
     eligibleItems: 0,
     sentStudents: 0,
     wouldSendStudents: 0,
+    scannedClosedItems: 0,
+    eligibleClosedItems: 0,
+    sentClosedStudents: 0,
+    wouldSendClosedStudents: 0,
     skippedAlreadySent: 0,
     skippedNoRecipients: 0,
     failedSends: 0,
@@ -506,6 +636,46 @@ module.exports = async (req, res) => {
               dryRun,
             });
           }
+        }
+
+        // Closed submissions pass: send one-time "submission closed" notices
+        // for items that crossed due date recently.
+        const closedRangeStart = testMode
+          ? new Date(now.getTime() - testWindowMinutes * 60 * 1000)
+          : new Date(now.getTime() - intervalMinutes * 60 * 1000);
+        const closedRangeEnd = new Date(now.getTime());
+
+        let closedItemsSnap;
+        try {
+          closedItemsSnap = await subColRef
+            .where('status', '==', 'active')
+            .where('dueDate', '>=', admin.firestore.Timestamp.fromDate(closedRangeStart))
+            .where('dueDate', '<', admin.firestore.Timestamp.fromDate(closedRangeEnd))
+            .get();
+        } catch (queryErr) {
+          // Fallback: broader query if composite index is not available yet.
+          closedItemsSnap = await subColRef.where('status', '==', 'active').get();
+        }
+
+        for (const itemDoc of closedItemsSnap.docs) {
+          const data = itemDoc.data() || {};
+          const dueAt = toDate(data.dueDate);
+          if (!dueAt) continue;
+          if (dueAt < closedRangeStart || dueAt >= closedRangeEnd) continue;
+
+          stats.scannedClosedItems += 1;
+          await processItemClosed({
+            db,
+            appId,
+            restApiKey,
+            oneSignalApiUrl,
+            itemType: itemCollection.itemType,
+            itemDoc,
+            instructorId,
+            stats,
+            dryRun,
+            testMode,
+          });
         }
       }
     }

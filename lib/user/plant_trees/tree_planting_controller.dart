@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:greenquest/core/utils/app_logger.dart';
 
 import '../../shared/services/file_upload_service.dart';
+import '../../shared/services/student_data_service.dart';
 import '../../student_web_version/helpers/tree_submission_edit_helper.dart';
 
 class TreePlantingController extends GetxController {
@@ -50,9 +51,8 @@ class TreePlantingController extends GetxController {
         throw Exception('User not logged in');
       }
 
-      // Get user data for student information and instructor
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final userData = userDoc.data() ?? {};
+      // Get user data for student information and instructor from Cache
+      final userData = await StudentDataService.getStudentData() ?? {};
 
       // Get student's selected instructor
       final selectedInstructorId = userData['selectedInstructorId'];

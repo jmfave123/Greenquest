@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -140,9 +141,6 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
 
         // Only include approved instructors - exclude pending and rejected
         if (instructorStatus != 'Approved') {
-          print(
-            '⏭️ Skipping instructor $instructorName - Status: $instructorStatus',
-          );
           continue;
         }
 
@@ -176,9 +174,7 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
 
                     departmentNames.add(deptName);
                   }
-                } catch (e) {
-                  print('Error fetching department $departmentId: $e');
-                }
+                } catch (e) {}
               }
             }
           }
@@ -204,9 +200,7 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
       if (mounted) {
         _instructors = instructorsList;
       }
-    } catch (e) {
-      print('Error loading instructors: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadAllClasses() async {
@@ -264,9 +258,7 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
 
         _instructorClasses[instructor['id']] = instructorClassList;
       }
-    } catch (e) {
-      print('Error loading classes: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _loadAllClassStudents() async {
@@ -326,9 +318,7 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
                 }
               }
             }
-          } catch (e) {
-            print('Error fetching user data for student ${doc.id}: $e');
-          }
+          } catch (e) {}
 
           students.add({
             'id': doc.id,
@@ -344,9 +334,7 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
 
         _classStudents[classData['id']] = students;
       }
-    } catch (e) {
-      print('Error loading class students: $e');
-    }
+    } catch (e) {}
   }
 
   List<Map<String, dynamic>> get _filteredInstructors {
@@ -392,9 +380,7 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
           _instructorStats[instructorId] = stats;
         }
       }
-    } catch (e) {
-      print('Error loading instructor stats: $e');
-    }
+    } catch (e) {}
   }
 
   Future<Map<String, int>> _getInstructorStatsAsync(String instructorId) async {
@@ -435,7 +421,6 @@ class _AdminClassManagementScreenState extends State<AdminClassManagementScreen>
         'inactiveStudents': inactiveStudents,
       };
     } catch (e) {
-      print('Error getting instructor stats: $e');
       return {
         'totalClasses': 0,
         'totalStudents': 0,
@@ -1036,6 +1021,12 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
   List<Map<String, dynamic>> _departments = [];
   String _departmentError = '';
 
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   // Helper function to get initials from name (e.g., "Jv P. Tenefrancia" -> "JT")
   String _getInitials(String name) {
     if (name.isEmpty) return 'U';
@@ -1128,7 +1119,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
       // Load students from all classes
       await _loadStudents(instructorId);
     } catch (e) {
-      print('Error loading instructor data: $e');
+      _log('Error loading instructor data: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -1215,7 +1206,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             }
           }
         } catch (e) {
-          print('Error fetching department $departmentId: $e');
+          _log('Error fetching department $departmentId: $e');
         }
       }
 
@@ -1226,7 +1217,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
         });
       }
     } catch (e) {
-      print('Error loading departments: $e');
+      _log('Error loading departments: $e');
       if (mounted) {
         setState(() {
           _departmentError = 'Failed to load departments';
@@ -1294,7 +1285,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             };
           }).toList();
     } catch (e) {
-      print('Error loading assignments: $e');
+      _log('Error loading assignments: $e');
     }
   }
 
@@ -1323,7 +1314,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             };
           }).toList();
     } catch (e) {
-      print('Error loading activities: $e');
+      _log('Error loading activities: $e');
     }
   }
 
@@ -1352,7 +1343,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             };
           }).toList();
     } catch (e) {
-      print('Error loading quizzes: $e');
+      _log('Error loading quizzes: $e');
     }
   }
 
@@ -1381,7 +1372,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             };
           }).toList();
     } catch (e) {
-      print('Error loading PITs: $e');
+      _log('Error loading PITs: $e');
     }
   }
 
@@ -1435,7 +1426,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             };
           }).toList();
     } catch (e) {
-      print('❌ Error loading materials: $e');
+      _log('❌ Error loading materials: $e');
       _materials = [];
     }
   }
@@ -1516,7 +1507,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
             }
           }
         } catch (e) {
-          print('Error fetching user data for student ${studentDoc.id}: $e');
+          _log('Error fetching user data for student ${studentDoc.id}: $e');
         }
 
         studentsBySection[sectionCode]!.add({
@@ -1566,7 +1557,7 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
         }
       }
     } catch (e) {
-      print('Error loading students: $e');
+      _log('Error loading students: $e');
     }
   }
 
@@ -2510,7 +2501,7 @@ class _SectionDetailViewState extends State<SectionDetailView> {
             }
           }
         } catch (e) {
-          print('Error fetching user data for student ${doc.id}: $e');
+          _log('Error fetching user data for student ${doc.id}: $e');
         }
 
         _students.add({
@@ -2533,7 +2524,7 @@ class _SectionDetailViewState extends State<SectionDetailView> {
           widget.section['instructorId'],
         );
         if (instructorName?.toLowerCase() == 'dem') {
-          print(
+          _log(
             'No students in section, loading all students for instructor "dem"',
           );
           await _loadAllDemStudents();
@@ -2544,7 +2535,7 @@ class _SectionDetailViewState extends State<SectionDetailView> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading students: $e');
+      _log('Error loading students: $e');
       setState(() {
         _isLoading = false;
       });
@@ -2565,7 +2556,7 @@ class _SectionDetailViewState extends State<SectionDetailView> {
       }
       return null;
     } catch (e) {
-      print('Error getting instructor name: $e');
+      _log('Error getting instructor name: $e');
       return null;
     }
   }
@@ -2582,12 +2573,12 @@ class _SectionDetailViewState extends State<SectionDetailView> {
               .get();
 
       if (instructorsSnapshot.docs.isEmpty) {
-        print('Instructor "dem" not found');
+        _log('Instructor "dem" not found');
         return;
       }
 
       final demInstructorId = instructorsSnapshot.docs.first.id;
-      print('Found instructor "dem" with ID: $demInstructorId');
+      _log('Found instructor "dem" with ID: $demInstructorId');
 
       // Method 1: Get students from instructor's classes
       final classesSnapshot =
@@ -2665,14 +2656,14 @@ class _SectionDetailViewState extends State<SectionDetailView> {
         }
       }
 
-      print('Loaded ${allStudents.length} students for instructor "dem"');
+      _log('Loaded ${allStudents.length} students for instructor "dem"');
 
       setState(() {
         _students = allStudents;
         _showAllDemStudents = true;
       });
     } catch (e) {
-      print('Error loading all dem students: $e');
+      _log('Error loading all dem students: $e');
     }
   }
 
@@ -3048,5 +3039,11 @@ class _SectionDetailViewState extends State<SectionDetailView> {
         ),
       ),
     );
+  }
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
   }
 }

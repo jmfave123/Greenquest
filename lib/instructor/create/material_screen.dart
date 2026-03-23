@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_appbar.dart';
@@ -44,6 +45,12 @@ class _MaterialScreenState extends State<MaterialScreen> {
   bool _isLoadingClasses = true;
   List<dynamic> _existingAttachments = [];
 
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -57,21 +64,21 @@ class _MaterialScreenState extends State<MaterialScreen> {
 
     // Pre-fill data if editing
     if (widget.isEdit && widget.initialData != null) {
-      print('🔄 Pre-filling material edit form');
-      print('📊 Initial data: ${widget.initialData}');
-      print('🆔 Material ID: ${widget.itemId}');
+      _log('🔄 Pre-filling material edit form');
+      _log('📊 Initial data: ${widget.initialData}');
+      _log('🆔 Material ID: ${widget.itemId}');
 
       _titleController.text = widget.initialData!['title'] ?? '';
       _descriptionController.text = widget.initialData!['description'] ?? '';
 
-      print('📝 Pre-filled title: ${_titleController.text}');
-      print('📝 Pre-filled description: ${_descriptionController.text}');
+      _log('📝 Pre-filled title: ${_titleController.text}');
+      _log('📝 Pre-filled description: ${_descriptionController.text}');
 
       // Pre-select classes
       final selectedClasses = List<String>.from(
         widget.initialData!['selectedClasses'] ?? [],
       );
-      print('📚 Pre-selected classes: $selectedClasses');
+      _log('📚 Pre-selected classes: $selectedClasses');
       for (String className in selectedClasses) {
         _selectedClasses[className] = true;
       }
@@ -80,7 +87,7 @@ class _MaterialScreenState extends State<MaterialScreen> {
       final existingAttachments = List<dynamic>.from(
         widget.initialData!['attachments'] ?? [],
       );
-      print('📎 Existing attachments: $existingAttachments');
+      _log('📎 Existing attachments: $existingAttachments');
 
       // Store existing attachments for later use
       _existingAttachments = existingAttachments;
@@ -128,8 +135,8 @@ class _MaterialScreenState extends State<MaterialScreen> {
   }
 
   void _removeExistingAttachment(int index) {
-    print('🗑️ Removing attachment at index $index');
-    print('📎 Before removal: $_existingAttachments');
+    _log('🗑️ Removing attachment at index $index');
+    _log('📎 Before removal: $_existingAttachments');
 
     // Check if this would be the last attachment
     if (_existingAttachments.length == 1 &&
@@ -149,9 +156,9 @@ class _MaterialScreenState extends State<MaterialScreen> {
       _existingAttachments.removeAt(index);
     });
 
-    print('🗑️ Removed existing attachment at index $index');
-    print('📎 After removal: $_existingAttachments');
-    print('📎 Remaining count: ${_existingAttachments.length}');
+    _log('🗑️ Removed existing attachment at index $index');
+    _log('📎 After removal: $_existingAttachments');
+    _log('📎 Remaining count: ${_existingAttachments.length}');
   }
 
   Future<void> _pickFilesWithValidation() async {
@@ -319,33 +326,31 @@ class _MaterialScreenState extends State<MaterialScreen> {
 
     if (widget.isEdit) {
       // Update existing material
-      print('🔄 Updating material with ID: ${widget.itemId}');
-      print('📝 Title: ${_titleController.text.trim()}');
-      print('📝 Description: ${_descriptionController.text.trim()}');
-      print('📝 Selected Classes: $selectedClasses');
-      print('📎 New attachments: $attachmentUrls');
-      print('📎 Existing attachments: $_existingAttachments');
+      _log('🔄 Updating material with ID: ${widget.itemId}');
+      _log('📝 Title: ${_titleController.text.trim()}');
+      _log('📝 Description: ${_descriptionController.text.trim()}');
+      _log('📝 Selected Classes: $selectedClasses');
+      _log('📎 New attachments: $attachmentUrls');
+      _log('📎 Existing attachments: $_existingAttachments');
 
       // Combine existing and new attachments
       List<dynamic> finalAttachments = [];
 
       // Always start with the current state of existing attachments (after any removals)
       finalAttachments = List.from(_existingAttachments);
-      print('📎 Starting with existing attachments: $finalAttachments');
+      _log('📎 Starting with existing attachments: $finalAttachments');
 
       if (attachmentUrls.isNotEmpty) {
         // If new files were uploaded, add them to the existing ones
         finalAttachments.addAll(attachmentUrls);
-        print('📎 Added new attachments: $attachmentUrls');
-        print('📎 Final combined attachments: $finalAttachments');
+        _log('📎 Added new attachments: $attachmentUrls');
+        _log('📎 Final combined attachments: $finalAttachments');
       } else {
-        print(
-          '📎 No new attachments, keeping only existing: $finalAttachments',
-        );
+        _log('📎 No new attachments, keeping only existing: $finalAttachments');
       }
 
-      print('📎 Final attachments to save: $finalAttachments');
-      print('📎 Final attachments count: ${finalAttachments.length}');
+      _log('📎 Final attachments to save: $finalAttachments');
+      _log('📎 Final attachments count: ${finalAttachments.length}');
 
       final success = await _createController.updateMaterial(
         itemId: widget.itemId!,
@@ -356,13 +361,13 @@ class _MaterialScreenState extends State<MaterialScreen> {
       );
 
       if (success) {
-        print('✅ Material updated successfully');
+        _log('✅ Material updated successfully');
         // Clear files after successful update
         _fileController.clearFiles();
         // Return true to trigger refresh in create screen
         Navigator.of(context).pop(true);
       } else {
-        print('❌ Material update failed');
+        _log('❌ Material update failed');
       }
     } else {
       // Create new material
@@ -387,7 +392,7 @@ class _MaterialScreenState extends State<MaterialScreen> {
           Navigator.of(context).pop(true);
         }
       } catch (e) {
-        print('❌ Error in material creation flow: $e');
+        _log('❌ Error in material creation flow: $e');
         // Show error if something went wrong
         Get.snackbar(
           'Error',

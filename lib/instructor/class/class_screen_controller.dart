@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'models/class_schedule.dart';
@@ -9,6 +10,12 @@ import '../../shared/services/in_app_notification_service.dart';
 class ClassController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  void _log(Object? message) {
+    if (kDebugMode) {
+      debugPrint('$message');
+    }
+  }
 
   var instructorName = ''.obs;
   var classes = <Map<String, dynamic>>[].obs;
@@ -102,7 +109,7 @@ class ClassController extends GetxController {
 
       return existingClasses.docs.isNotEmpty;
     } catch (e) {
-      print('Error checking section duplicate: $e');
+      _log('Error checking section duplicate: $e');
       return false;
     }
   }
@@ -552,7 +559,7 @@ class ClassController extends GetxController {
 
       classStudents[classId] = students;
     } catch (e) {
-      print('Error loading students for class $classId: $e');
+      _log('Error loading students for class $classId: $e');
     }
   }
 
@@ -566,7 +573,7 @@ class ClassController extends GetxController {
         }
       }
     } catch (e) {
-      print('Error loading all class students: $e');
+      _log('Error loading all class students: $e');
     }
   }
 
@@ -676,11 +683,11 @@ class ClassController extends GetxController {
       classStudents.clear();
       classStudents.addAll(studentsBySection);
 
-      print(
+      _log(
         'Loaded ${allStudents.length} students (pending/rejected from users, approved from instructor/students)${sectionCode != null ? ' for section $sectionCode' : ''}',
       );
     } catch (e) {
-      print('Error loading students from users collection: $e');
+      _log('Error loading students from users collection: $e');
     }
   }
 
@@ -707,10 +714,10 @@ class ClassController extends GetxController {
       final User? user = _auth.currentUser;
       if (user == null) return false;
 
-      print('=== APPROVING STUDENT: $studentId ===');
-      print('Instructor: ${user.uid}');
-      print('Section: $sectionCode');
-      print('Timestamp: ${DateTime.now()}');
+      _log('=== APPROVING STUDENT: $studentId ===');
+      _log('Instructor: ${user.uid}');
+      _log('Section: $sectionCode');
+      _log('Timestamp: ${DateTime.now()}');
 
       // Update student status in the users collection with additional fields
       await _firestore.collection('users').doc(studentId).update({
@@ -722,15 +729,15 @@ class ClassController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      print('✅ Student $studentId status updated to approved in Firestore');
-      print('✅ Firestore update completed at: ${DateTime.now()}');
+      _log('✅ Student $studentId status updated to approved in Firestore');
+      _log('✅ Firestore update completed at: ${DateTime.now()}');
 
       // Verify the update was successful
       final updatedDoc =
           await _firestore.collection('users').doc(studentId).get();
       if (updatedDoc.exists) {
         final updatedData = updatedDoc.data() as Map<String, dynamic>;
-        print(
+        _log(
           '✅ Verification: enrollmentStatus = ${updatedData['enrollmentStatus']}',
         );
       }
@@ -741,7 +748,7 @@ class ClassController extends GetxController {
         'lastSeen': FieldValue.serverTimestamp(),
       });
 
-      print('✅ Student $studentId online status set to true');
+      _log('✅ Student $studentId online status set to true');
 
       // Get instructor name (used for notification)
       final instructorNameValue =
@@ -770,6 +777,7 @@ class ClassController extends GetxController {
               'studentId': studentId,
               'studentName': studentName,
               'email': studentData['email'] ?? '',
+              'idNumber': studentData['idNumber'] ?? studentData['studentIdNumber'] ?? '',
               'selectedSectionCode': studentData['selectedSectionCode'] ?? '',
               'corUrl': studentData['corUrl'] ?? '',
               'enrollmentStatus': 'approved',
@@ -782,7 +790,7 @@ class ClassController extends GetxController {
               'lastSeen': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
 
-        print(
+        _log(
           '✅ Student document created in instructors/{instructorId}/students',
         );
 
@@ -806,9 +814,9 @@ class ClassController extends GetxController {
             },
           );
 
-          print('✅ Push notification sent to student: $studentId');
+          _log('✅ Push notification sent to student: $studentId');
         } catch (e) {
-          print('⚠️ Error sending approval notification: $e');
+          _log('⚠️ Error sending approval notification: $e');
           // Don't fail the approval if notification fails
         }
       }
@@ -832,7 +840,7 @@ class ClassController extends GetxController {
       // Force refresh the UI
       classStudents.refresh();
 
-      print('✅ Local data updated and UI refreshed');
+      _log('✅ Local data updated and UI refreshed');
 
       Get.snackbar(
         'Success',
@@ -843,10 +851,10 @@ class ClassController extends GetxController {
         duration: const Duration(seconds: 3),
       );
 
-      print('=== APPROVAL COMPLETE FOR STUDENT: $studentId ===');
+      _log('=== APPROVAL COMPLETE FOR STUDENT: $studentId ===');
       return true;
     } catch (e) {
-      print('❌ Error approving student $studentId: $e');
+      _log('❌ Error approving student $studentId: $e');
       Get.snackbar(
         'Error',
         'Failed to approve student enrollment: $e',
@@ -922,10 +930,10 @@ class ClassController extends GetxController {
             },
           );
 
-          print('✅ Push notification sent to student: $studentId');
+          _log('✅ Push notification sent to student: $studentId');
         }
       } catch (e) {
-        print('⚠️ Error sending rejection notification: $e');
+        _log('⚠️ Error sending rejection notification: $e');
         // Don't fail the rejection if notification fails
       }
 
@@ -1029,7 +1037,7 @@ class ClassController extends GetxController {
         }
       }
     } catch (e) {
-      print('Error updating student online status: $e');
+      _log('Error updating student online status: $e');
     }
   }
 
@@ -1056,7 +1064,7 @@ class ClassController extends GetxController {
               }
             })
             .onError((error) {
-              print(
+              _log(
                 'Error listening to users collection for $studentId: $error',
               );
               // If user not found in users collection, try instructors collection
@@ -1075,7 +1083,7 @@ class ClassController extends GetxController {
                     }
                   })
                   .onError((error2) {
-                    print(
+                    _log(
                       'Error listening to instructors collection for $studentId: $error2',
                     );
                   });
@@ -1113,7 +1121,7 @@ class ClassController extends GetxController {
         });
       }
     } catch (e) {
-      print('Error updating student status: $e');
+      _log('Error updating student status: $e');
     }
   }
 
@@ -1216,7 +1224,7 @@ class ClassController extends GetxController {
                 _updateStudentStatus(studentId, isOnline, lastSeen);
               }
             } catch (e2) {
-              print('Error refreshing status for student $studentId: $e2');
+              _log('Error refreshing status for student $studentId: $e2');
             }
           }
         }
@@ -1227,7 +1235,7 @@ class ClassController extends GetxController {
         classStudents.refresh();
       }
     } catch (e) {
-      print('Error refreshing student status: $e');
+      _log('Error refreshing student status: $e');
     }
   }
 
@@ -1238,11 +1246,11 @@ class ClassController extends GetxController {
         'isOnline': isOnline,
         'lastSeen': FieldValue.serverTimestamp(),
       });
-      print(
+      _log(
         'Simulated student $studentId status: ${isOnline ? "Online" : "Offline"}',
       );
     } catch (e) {
-      print('Error simulating student status: $e');
+      _log('Error simulating student status: $e');
     }
   }
 

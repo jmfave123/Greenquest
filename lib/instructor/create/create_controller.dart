@@ -113,12 +113,6 @@ class CreateController extends GetxController {
           .collection(assignmentsCollection)
           .add(assignmentData);
 
-      print(
-        '✅ Assignment saved to user subcollection: instructors/${user.uid}/assignments',
-      );
-      print('📊 Assignment ID: ${docRef.id}');
-      print('📊 Assignment data: $assignmentData');
-
       // Create notification for the selected sections
       await InAppNotificationService.createSectionNotification(
         type: 'assignment',
@@ -221,12 +215,6 @@ class CreateController extends GetxController {
           .collection(activitiesCollection)
           .add(activityData);
 
-      print(
-        '✅ Activity saved to user subcollection: instructors/${user.uid}/activities',
-      );
-      print('📊 Activity ID: ${docRef.id}');
-      print('📊 Activity data: $activityData');
-
       // Create notification for the selected sections
       await InAppNotificationService.createSectionNotification(
         type: 'activity',
@@ -327,12 +315,6 @@ class CreateController extends GetxController {
           .doc(user.uid)
           .collection(quizzesCollection)
           .add(quizData);
-
-      print(
-        '✅ Quiz saved to user subcollection: instructors/${user.uid}/quizzes',
-      );
-      print('📊 Quiz ID: ${docRef.id}');
-      print('📊 Quiz data: $quizData');
 
       // Create notification for the selected sections
       await InAppNotificationService.createSectionNotification(
@@ -438,10 +420,6 @@ class CreateController extends GetxController {
           .collection(pitsCollection)
           .add(pitData);
 
-      print('✅ PIT saved to user subcollection: instructors/${user.uid}/pits');
-      print('📊 PIT ID: ${docRef.id}');
-      print('📊 PIT data: $pitData');
-
       // Create notification for the selected sections
       await InAppNotificationService.createSectionNotification(
         type: 'pit',
@@ -531,12 +509,6 @@ class CreateController extends GetxController {
           .collection('materials')
           .add(materialData);
 
-      print(
-        '✅ Material saved to user subcollection: instructors/${user.uid}/materials',
-      );
-      print('📊 Material ID: ${docRef.id}');
-      print('📊 Material data: $materialData');
-
       // Create notification for the selected sections
       await InAppNotificationService.createSectionNotification(
         type: 'material',
@@ -578,23 +550,13 @@ class CreateController extends GetxController {
     List<dynamic>? attachments,
   }) async {
     try {
-      print('🔄 Starting material update...');
-      print('🆔 Material ID: $itemId');
-      print('📝 Title: $title');
-      print('📝 Description: $description');
-      print('📚 Selected Classes: $selectedClasses');
-      print('📎 Attachments: $attachments');
-
       isLoading.value = true;
       errorMessage.value = '';
 
       final user = _auth.currentUser;
       if (user == null) {
-        print('❌ User not authenticated');
         throw Exception('User not authenticated');
       }
-
-      print('👤 User ID: ${user.uid}');
 
       final materialData = {
         'title': title,
@@ -604,8 +566,6 @@ class CreateController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      print('📊 Material data to update: $materialData');
-
       // Update in user-specific subcollection: instructors/{userId}/materials
       await _firestore
           .collection('instructors')
@@ -614,12 +574,8 @@ class CreateController extends GetxController {
           .doc(itemId)
           .update(materialData);
 
-      print('✅ Material updated: instructors/${user.uid}/materials/$itemId');
-
       // Refresh the list
       await loadCreatedItems();
-
-      print('✅ Material update completed successfully');
       Get.snackbar(
         'Success',
         'Material updated successfully!',
@@ -631,7 +587,6 @@ class CreateController extends GetxController {
 
       return true;
     } catch (e) {
-      print('❌ Material update failed with error: $e');
       errorMessage.value = 'Error updating material: $e';
       Get.snackbar(
         'Error',
@@ -695,16 +650,10 @@ class CreateController extends GetxController {
                 .orderBy('createdAt', descending: true)
                 .get();
 
-        print('📊 Found ${assignmentsQuery.docs.length} assignments');
-
         for (var doc in assignmentsQuery.docs) {
           final data = doc.data();
           final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
           final dueDateRaw = _toDateTime(data['dueDate']);
-          print('📊 Assignment data: $data');
-          print(
-            '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
-          );
 
           allItems.add({
             'id': doc.id,
@@ -726,7 +675,7 @@ class CreateController extends GetxController {
           });
         }
       } catch (e) {
-        print('Error loading assignments: $e');
+        // Keep this catch isolated so other item types can still load.
       }
 
       // Get activities from user-specific subcollection
@@ -739,16 +688,10 @@ class CreateController extends GetxController {
                 .orderBy('createdAt', descending: true)
                 .get();
 
-        print('📊 Found ${activitiesQuery.docs.length} activities');
-
         for (var doc in activitiesQuery.docs) {
           final data = doc.data();
           final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
           final dueDateRaw = _toDateTime(data['dueDate']);
-          print('📊 Activity data: $data');
-          print(
-            '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
-          );
 
           allItems.add({
             'id': doc.id,
@@ -770,7 +713,7 @@ class CreateController extends GetxController {
           });
         }
       } catch (e) {
-        print('Error loading activities: $e');
+        // Keep this catch isolated so other item types can still load.
       }
 
       // Get quizzes from user-specific subcollection
@@ -783,16 +726,10 @@ class CreateController extends GetxController {
                 .orderBy('createdAt', descending: true)
                 .get();
 
-        print('📊 Found ${quizzesQuery.docs.length} quizzes');
-
         for (var doc in quizzesQuery.docs) {
           final data = doc.data();
           final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
           final dueDateRaw = _toDateTime(data['dueDate']);
-          print('📊 Quiz data: $data');
-          print(
-            '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
-          );
 
           allItems.add({
             'id': doc.id,
@@ -814,7 +751,7 @@ class CreateController extends GetxController {
           });
         }
       } catch (e) {
-        print('Error loading quizzes: $e');
+        // Keep this catch isolated so other item types can still load.
       }
 
       // Get PITs from user-specific subcollection
@@ -827,16 +764,10 @@ class CreateController extends GetxController {
                 .orderBy('createdAt', descending: true)
                 .get();
 
-        print('📊 Found ${pitsQuery.docs.length} PITs');
-
         for (var doc in pitsQuery.docs) {
           final data = doc.data();
           final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
           final dueDateRaw = _toDateTime(data['dueDate']);
-          print('📊 PIT data: $data');
-          print(
-            '📊 Due date raw: ${data['dueDate']} (type: ${data['dueDate'].runtimeType})',
-          );
 
           allItems.add({
             'id': doc.id,
@@ -858,7 +789,7 @@ class CreateController extends GetxController {
           });
         }
       } catch (e) {
-        print('Error loading PITs: $e');
+        // Keep this catch isolated so other item types can still load.
       }
 
       // Get materials from user-specific subcollection
@@ -871,12 +802,9 @@ class CreateController extends GetxController {
                 .orderBy('createdAt', descending: true)
                 .get();
 
-        print('📊 Found ${materialsQuery.docs.length} materials');
-
         for (var doc in materialsQuery.docs) {
           final data = doc.data();
           final createdAtRaw = _toDateTime(data['createdAt']) ?? DateTime.now();
-          print('📊 Material data: $data');
 
           allItems.add({
             'id': doc.id,
@@ -893,7 +821,7 @@ class CreateController extends GetxController {
           });
         }
       } catch (e) {
-        print('Error loading materials: $e');
+        // Keep this catch isolated so other item types can still load.
       }
 
       // Sort all items by creation date
@@ -915,7 +843,6 @@ class CreateController extends GetxController {
       // Only update error if controller is still mounted
       if (isMounted) {
         errorMessage.value = 'Error loading created items: $e';
-        print('Error loading created items: $e');
       }
     } finally {
       // Only update loading state if controller is still mounted
@@ -974,10 +901,8 @@ class CreateController extends GetxController {
 
       return '$month $day, $year ${hour.toString().padLeft(2, '0')}:$minute $period';
     } catch (e) {
-      print('Error formatting date: $e');
+      return null;
     }
-
-    return null;
   }
 
   // Delete item
@@ -1432,7 +1357,6 @@ class CreateController extends GetxController {
         return instructorName.value;
       }
     } catch (e) {
-      print('⚠️ Error fetching instructor name: $e');
       // Fallback to loaded instructor name
       if (instructorName.value.isNotEmpty) {
         return instructorName.value;
