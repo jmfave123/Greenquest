@@ -14,5 +14,11 @@
       "NODE_VERSION": "16.x",
       "FLUTTER_VERSION": "3.16.9"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/presence-cleanup",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

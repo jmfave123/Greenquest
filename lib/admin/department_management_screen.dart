@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:greenquest/admin/widgets/reusable_text.dart';
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
 import '../shared/widgets/safe_asset_image.dart';
 import '../shared/widgets/confirmation_dialog.dart';
 import '../shared/widgets/skeleton_loading.dart';
-import 'services/department_service.dart';
-import 'services/section_service.dart';
+import 'controllers/department_management_controller.dart';
 import 'services/semester_service.dart';
 import 'services/semester_assignment_service.dart';
 import 'widgets/dialogs/create_department_dialog.dart';
@@ -16,6 +16,9 @@ import 'widgets/dialogs/edit_department_dialog.dart';
 import 'widgets/dialogs/add_section_dialog.dart';
 import 'widgets/dialogs/create_semester_dialog.dart';
 import 'widgets/dialogs/edit_semester_dialog.dart';
+import 'widgets/tabs/department_tab.dart';
+import 'widgets/tabs/instructor_tab.dart';
+import 'widgets/tabs/class_tab.dart';
 
 class DepartmentManagementScreen extends StatefulWidget {
   const DepartmentManagementScreen({super.key});
@@ -29,12 +32,11 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     with AutomaticKeepAliveClientMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   AdminNavigationItem _selectedItem = AdminNavigationItem.manageDepartments;
-  List<Map<String, dynamic>> _semesters = [];
 
-  // Service instances
-  late final DepartmentService _departmentService;
-  late final SectionService _sectionService;
-  late final SemesterService _semesterService;
+  // Controller instance
+  final DepartmentManagementController _controller = Get.put(
+    DepartmentManagementController(),
+  );
 
   @override
   bool get wantKeepAlive => true;
@@ -55,7 +57,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
       builder:
           (context) => CreateDepartmentDialog(
             onSave: (name, code, description) {
-              _departmentService.createDepartment(name, code, description);
+              _controller.createDepartment(name, code, description);
             },
           ),
     );
@@ -71,7 +73,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
           (context) => EditDepartmentDialog(
             departmentData: departmentData,
             onUpdate: (name, code, description) {
-              _departmentService.updateDepartment(
+              _controller.updateDepartment(
                 departmentId,
                 name,
                 code,
@@ -94,7 +96,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
             departmentName: departmentName,
             departmentCode: departmentCode,
             onSave: (year, letter, subCode) {
-              _sectionService.createSection(
+              _controller.createSection(
                 departmentId,
                 year,
                 letter,
@@ -153,25 +155,23 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              reusableText(
                                 'Edit Section',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                  color: Colors.black,
-                                ),
+                                TextStyle(),
+                                20,
+                                Colors.black,
                               ),
                               SizedBox(height: 4),
-                              Text(
+
+                              reusableText(
                                 'Update section information',
-                                style: TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 14,
-                                ),
+                                TextStyle(),
+                                14,
+                                Colors.black54,
                               ),
                             ],
                           ),
@@ -180,15 +180,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                     ),
                     const SizedBox(height: 24),
 
-                    // Year Selection
-                    const Text(
-                      'Year Level',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
+                    reusableText('Year Level', TextStyle(), 16, Colors.black),
                     const SizedBox(height: 8),
                     Container(
                       width: double.infinity,
@@ -225,13 +217,11 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                     const SizedBox(height: 16),
 
                     // Section Letter Selection
-                    const Text(
+                    reusableText(
                       'Section Letter',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
+                      TextStyle(),
+                      16,
+                      Colors.black,
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -270,14 +260,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
 
                     // Sub-Code Selection (Only for BTLED)
                     if (departmentCode == 'BTLED') ...[
-                      const Text(
-                        'Sub-Code',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: Colors.black,
-                        ),
-                      ),
+                      reusableText('Sub-Code', TextStyle(), 16, Colors.black),
                       const SizedBox(height: 8),
                       Container(
                         width: double.infinity,
@@ -378,7 +361,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     String? subCode,
     String departmentCode,
   ) async {
-    await _sectionService.updateSection(
+    _controller.updateSection(
       sectionId,
       year,
       sectionLetter,
@@ -395,7 +378,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
       context,
       departmentName: departmentName,
       onConfirm: () async {
-        await _departmentService.deleteDepartment(departmentId);
+        _controller.deleteDepartment(departmentId, departmentName);
       },
     );
   }
@@ -405,27 +388,25 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
       context,
       sectionCode: sectionCode,
       onConfirm: () async {
-        await _sectionService.deleteSection(sectionId);
+        _controller.deleteSection(sectionId);
       },
     );
   }
 
-  // Semester Management Methods
   void _createSemester() {
     showDialog(
       context: context,
       builder:
           (context) => CreateSemesterDialog(
             onSave: (year, semester) {
-              _semesterService.createSemester(year, semester);
+              _controller.createSemester(year, semester);
             },
           ),
     );
   }
 
   Future<void> _loadSemesters() async {
-    _semesters = await _semesterService.loadSemesters();
-    setState(() {});
+    await _controller.loadSemesters();
   }
 
   void _showSemesterDetails(Map<String, dynamic> semester) {
@@ -456,7 +437,7 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
           (context) => EditSemesterDialog(
             semesterData: semester,
             onUpdate: (year, semesterName) {
-              _semesterService.updateSemester(semesterId, year, semesterName);
+              _controller.updateSemester(semesterId, year, semesterName);
             },
           ),
     );
@@ -482,21 +463,13 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
     return 24;
   }
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize services
-    _departmentService = DepartmentService(_firestore);
-    _sectionService = SectionService(_firestore);
-    _semesterService = SemesterService(_firestore);
-    _loadSemesters();
-  }
+
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Reload semesters when the screen becomes visible
-    _loadSemesters();
+    _controller.loadSemesters();
   }
 
   @override
@@ -575,342 +548,282 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                         ),
                         const SizedBox(height: 24),
                         // Departments List
-                        StreamBuilder<QuerySnapshot>(
-                          stream:
-                              _firestore.collection('departments').snapshots(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const SkeletonDepartmentList();
-                            }
+                        Obx(() {
+                          if (_controller.isLoadingDepartments.value) {
+                            return const SkeletonDepartmentList();
+                          }
 
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.error,
-                                      size: 64,
-                                      color: Colors.red,
+                          if (_controller.departments.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF34A853,
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
-                                    const SizedBox(height: 16),
-                                    Text('Error: ${snapshot.error}'),
-                                  ],
-                                ),
-                              );
-                            }
-
-                            if (!snapshot.hasData ||
-                                snapshot.data!.docs.isEmpty) {
-                              return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 80,
-                                      height: 80,
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF34A853,
-                                        ).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: const Icon(
-                                        Icons.school_outlined,
-                                        size: 40,
-                                        color: Color(0xFF34A853),
-                                      ),
+                                    child: const Icon(
+                                      Icons.school_outlined,
+                                      size: 40,
+                                      color: Color(0xFF34A853),
                                     ),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      'No departments found',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        color: Colors.grey[800],
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Create your first department to get started',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-
-                            return ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: snapshot.data!.docs.length,
-                              itemBuilder: (context, index) {
-                                final doc = snapshot.data!.docs[index];
-                                final data = doc.data() as Map<String, dynamic>;
-
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: const Color(0xFFE5E7EB),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
                                   ),
-                                  child: Column(
-                                    children: [
-                                      // Department Header
-                                      Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 50,
-                                              height: 50,
-                                              decoration: BoxDecoration(
-                                                color: const Color(
-                                                  0xFF34A853,
-                                                ).withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: const Icon(
-                                                Icons.school_rounded,
-                                                color: Color(0xFF34A853),
-                                                size: 24,
-                                              ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'No departments found',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.grey[800],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Create your first department to get started',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _controller.departments.length,
+                            itemBuilder: (context, index) {
+                              final data = _controller.departments[index];
+                              final String docId = data['id'];
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: const Color(0xFFE5E7EB),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    // Department Header
+                                    Padding(
+                                      padding: const EdgeInsets.all(20),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 50,
+                                            height: 50,
+                                            decoration: BoxDecoration(
+                                              color: const Color(
+                                                0xFF34A853,
+                                              ).withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
-                                            const SizedBox(width: 16),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    data['displayName'] ??
-                                                        data['name'] ??
-                                                        '',
-                                                    style: const TextStyle(
-                                                      fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Colors.black,
-                                                    ),
+                                            child: const Icon(
+                                              Icons.school_rounded,
+                                              color: Color(0xFF34A853),
+                                              size: 24,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  data['displayName'] ??
+                                                      data['name'] ??
+                                                      '',
+                                                  style: const TextStyle(
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black,
                                                   ),
-                                                  const SizedBox(height: 4),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Code: ${data['code'] ?? 'N/A'}',
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                                if (data['description'] !=
+                                                        null &&
+                                                    data['description']
+                                                        .isNotEmpty)
                                                   Text(
-                                                    'Code: ${data['code'] ?? 'N/A'}',
+                                                    data['description'],
                                                     style: const TextStyle(
                                                       fontSize: 14,
                                                       color: Colors.grey,
                                                     ),
                                                   ),
-                                                  if (data['description'] !=
-                                                          null &&
-                                                      data['description']
-                                                          .isNotEmpty)
-                                                    Text(
-                                                      data['description'],
-                                                      style: const TextStyle(
-                                                        fontSize: 14,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
+                                              ],
                                             ),
-                                            IconButton(
-                                              onPressed:
-                                                  () => _editDepartment(
-                                                    doc.id,
-                                                    data,
-                                                  ),
-                                              icon: const Icon(
-                                                Icons.edit_rounded,
-                                                color: Color(0xFF34A853),
-                                              ),
-                                              tooltip: 'Edit Department',
+                                          ),
+                                          IconButton(
+                                            onPressed:
+                                                () => _editDepartment(
+                                                  docId,
+                                                  data,
+                                                ),
+                                            icon: const Icon(
+                                              Icons.edit_rounded,
+                                              color: Color(0xFF34A853),
                                             ),
-                                            IconButton(
-                                              onPressed:
-                                                  () => _addSection(
-                                                    doc.id,
-                                                    data['displayName'] ??
-                                                        data['name'],
-                                                    data['code'],
-                                                  ),
-                                              icon: const Icon(
-                                                Icons.add_rounded,
-                                              ),
-                                              tooltip: 'Add Section',
+                                            tooltip: 'Edit Department',
+                                          ),
+                                          IconButton(
+                                            onPressed:
+                                                () => _addSection(
+                                                  docId,
+                                                  data['displayName'] ??
+                                                      data['name'],
+                                                  data['code'],
+                                                ),
+                                            icon: const Icon(Icons.add_rounded),
+                                            tooltip: 'Add Section',
+                                          ),
+                                          IconButton(
+                                            onPressed:
+                                                () => _deleteDepartment(
+                                                  docId,
+                                                  data['displayName'] ??
+                                                      data['name'] ??
+                                                      'Unknown',
+                                                ),
+                                            icon: const Icon(
+                                              Icons.delete_rounded,
+                                              color: Colors.red,
                                             ),
-                                            IconButton(
-                                              onPressed:
-                                                  () => _deleteDepartment(
-                                                    doc.id,
-                                                    data['displayName'] ??
-                                                        data['name'] ??
-                                                        'Unknown',
-                                                  ),
-                                              icon: const Icon(
-                                                Icons.delete_rounded,
-                                                color: Colors.red,
-                                              ),
-                                              tooltip: 'Delete Department',
-                                            ),
-                                          ],
-                                        ),
+                                            tooltip: 'Delete Department',
+                                          ),
+                                        ],
                                       ),
-                                      // Sections List
-                                      StreamBuilder<QuerySnapshot>(
-                                        stream:
-                                            _firestore
-                                                .collection('sections')
-                                                .where(
-                                                  'departmentId',
-                                                  isEqualTo: doc.id,
-                                                )
-                                                .snapshots(),
-                                        builder: (context, sectionsSnapshot) {
-                                          if (sectionsSnapshot
-                                                  .connectionState ==
-                                              ConnectionState.waiting) {
-                                            return const Padding(
-                                              padding: EdgeInsets.all(20),
-                                              child: Center(
-                                                child: CircularProgressIndicator(
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Color(0xFF34A853)),
-                                                ),
-                                              ),
-                                            );
-                                          }
+                                    ),
+                                    // Sections List
+                                    Obx(() {
+                                      final sections = _controller
+                                          .getSectionsForDepartment(docId);
 
-                                          if (!sectionsSnapshot.hasData ||
-                                              sectionsSnapshot
-                                                  .data!
-                                                  .docs
-                                                  .isEmpty) {
-                                            return Container(
-                                              padding: const EdgeInsets.all(20),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[50],
-                                                borderRadius:
-                                                    const BorderRadius.only(
-                                                      bottomLeft:
-                                                          Radius.circular(16),
-                                                      bottomRight:
-                                                          Radius.circular(16),
-                                                    ),
-                                              ),
-                                              child: const Center(
-                                                child: Text(
-                                                  'No sections yet. Click + to add sections.',
-                                                  style: TextStyle(
-                                                    color: Colors.grey,
-                                                    fontStyle: FontStyle.italic,
+                                      if (sections.isEmpty &&
+                                          !_controller.sectionsMap.containsKey(
+                                            docId,
+                                          )) {
+                                        return const Padding(
+                                          padding: EdgeInsets.all(20),
+                                          child: Center(
+                                            child: CircularProgressIndicator(
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Color(0xFF34A853),
+                                                  ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      if (sections.isEmpty) {
+                                        return Container(
+                                          padding: const EdgeInsets.all(20),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey[50],
+                                            borderRadius:
+                                                const BorderRadius.only(
+                                                  bottomLeft: Radius.circular(
+                                                    16,
+                                                  ),
+                                                  bottomRight: Radius.circular(
+                                                    16,
                                                   ),
                                                 ),
+                                          ),
+                                          child: const Center(
+                                            child: Text(
+                                              'No sections yet. Click + to add sections.',
+                                              style: TextStyle(
+                                                color: Colors.grey,
+                                                fontStyle: FontStyle.italic,
                                               ),
-                                            );
-                                          }
+                                            ),
+                                          ),
+                                        );
+                                      }
 
-                                          // Sort sections alphabetically by sectionCode
-                                          final sortedDocs =
-                                              sectionsSnapshot.data!.docs
-                                                  .toList()
-                                                ..sort((a, b) {
-                                                  final aData =
-                                                      a.data()
-                                                          as Map<
-                                                            String,
-                                                            dynamic
-                                                          >;
-                                                  final bData =
-                                                      b.data()
-                                                          as Map<
-                                                            String,
-                                                            dynamic
-                                                          >;
-                                                  final aCode =
-                                                      (aData['sectionCode'] ??
-                                                              '')
-                                                          .toString()
-                                                          .toUpperCase();
-                                                  final bCode =
-                                                      (bData['sectionCode'] ??
-                                                              '')
-                                                          .toString()
-                                                          .toUpperCase();
-                                                  return aCode.compareTo(bCode);
-                                                });
+                                      // Sort sections alphabetically by sectionCode
+                                      final sortedSections =
+                                          sections.toList()
+                                            ..sort((aData, bData) {
+                                              final aCode =
+                                                  (aData['sectionCode'] ?? '')
+                                                      .toString()
+                                                      .toUpperCase();
+                                              final bCode =
+                                                  (bData['sectionCode'] ?? '')
+                                                      .toString()
+                                                      .toUpperCase();
+                                              return aCode.compareTo(bCode);
+                                            });
 
-                                          return Column(
-                                            children:
-                                                sortedDocs.map((sectionDoc) {
-                                                  final sectionData =
-                                                      sectionDoc.data()
-                                                          as Map<
-                                                            String,
-                                                            dynamic
-                                                          >;
-                                                  return Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          left: 20,
-                                                          right: 20,
-                                                          bottom: 8,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                          16,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.grey[50],
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      border: Border.all(
-                                                        color:
-                                                            Colors.grey[200]!,
-                                                      ),
+                                      return Column(
+                                        children:
+                                            sortedSections.map((sectionData) {
+                                              final sectionId =
+                                                  sectionData['id'] as String;
+                                              return Container(
+                                                margin: const EdgeInsets.only(
+                                                  left: 20,
+                                                  right: 20,
+                                                  bottom: 8,
+                                                ),
+                                                padding: const EdgeInsets.all(
+                                                  16,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[50],
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: Colors.grey[200]!,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(
+                                                      Icons.group_work_rounded,
+                                                      color: Color(0xFF34A853),
+                                                      size: 20,
                                                     ),
-                                                    child: Row(
-                                                      children: [
-                                                        const Icon(
-                                                          Icons
-                                                              .group_work_rounded,
-                                                          color: Color(
-                                                            0xFF34A853,
-                                                          ),
-                                                          size: 20,
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 12,
-                                                        ),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Text(
-                                                                '${sectionData['year'] ?? 'N/A'} Year - Section ${sectionData['sectionLetter'] ?? 'N/A'}',
-                                                                style: const TextStyle(
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            '${sectionData['year'] ?? 'N/A'} Year - Section ${sectionData['sectionLetter'] ?? 'N/A'}',
+                                                            style:
+                                                                const TextStyle(
                                                                   fontSize: 16,
                                                                   fontWeight:
                                                                       FontWeight
@@ -919,67 +832,61 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                                                                       Colors
                                                                           .black,
                                                                 ),
-                                                              ),
-                                                              Text(
-                                                                'Code: ${sectionData['sectionCode'] ?? 'N/A'}',
-                                                                style: const TextStyle(
+                                                          ),
+                                                          Text(
+                                                            'Code: ${sectionData['sectionCode'] ?? 'N/A'}',
+                                                            style:
+                                                                const TextStyle(
                                                                   fontSize: 12,
                                                                   color:
                                                                       Colors
                                                                           .grey,
                                                                 ),
-                                                              ),
-                                                            ],
                                                           ),
-                                                        ),
-                                                        IconButton(
-                                                          onPressed:
-                                                              () =>
-                                                                  _editSection(
-                                                                    sectionDoc
-                                                                        .id,
-                                                                    sectionData,
-                                                                  ),
-                                                          icon: const Icon(
-                                                            Icons.edit_rounded,
-                                                            color: Color(
-                                                              0xFF34A853,
-                                                            ),
-                                                            size: 18,
-                                                          ),
-                                                          tooltip:
-                                                              'Edit Section',
-                                                        ),
-                                                        IconButton(
-                                                          onPressed:
-                                                              () => _deleteSection(
-                                                                sectionDoc.id,
-                                                                sectionData['sectionCode'] ??
-                                                                    'Unknown',
-                                                              ),
-                                                          icon: const Icon(
-                                                            Icons
-                                                                .delete_rounded,
-                                                            color: Colors.red,
-                                                            size: 18,
-                                                          ),
-                                                          tooltip:
-                                                              'Delete Section',
-                                                        ),
-                                                      ],
+                                                        ],
+                                                      ),
                                                     ),
-                                                  );
-                                                }).toList(),
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
+                                                    IconButton(
+                                                      onPressed:
+                                                          () => _editSection(
+                                                            sectionId,
+                                                            sectionData,
+                                                          ),
+                                                      icon: const Icon(
+                                                        Icons.edit_rounded,
+                                                        color: Color(
+                                                          0xFF34A853,
+                                                        ),
+                                                        size: 18,
+                                                      ),
+                                                      tooltip: 'Edit Section',
+                                                    ),
+                                                    IconButton(
+                                                      onPressed:
+                                                          () => _deleteSection(
+                                                            sectionId,
+                                                            sectionData['sectionCode'] ??
+                                                                'Unknown',
+                                                          ),
+                                                      icon: const Icon(
+                                                        Icons.delete_rounded,
+                                                        color: Colors.red,
+                                                        size: 18,
+                                                      ),
+                                                      tooltip: 'Delete Section',
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            }).toList(),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        }),
                         const SizedBox(height: 48),
                         // Semesters Section
                         Row(
@@ -1025,213 +932,173 @@ class _DepartmentManagementScreenState extends State<DepartmentManagementScreen>
                         ),
                         const SizedBox(height: 24),
                         // Semesters List
-                        StreamBuilder<QuerySnapshot>(
-                          stream:
-                              _firestore
-                                  .collection('semesters')
-                                  .orderBy('createdAt', descending: true)
-                                  .snapshots(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Color(0xFF34A853),
-                                  ),
+                        Obx(() {
+                          if (_controller.isLoadingSemesters.value) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF34A853),
                                 ),
-                              );
-                            }
-
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.error,
-                                      size: 64,
-                                      color: Colors.red,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text('Error: ${snapshot.error}'),
-                                  ],
-                                ),
-                              );
-                            }
-
-                            if (!snapshot.hasData ||
-                                snapshot.data!.docs.isEmpty) {
-                              return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      width: 80,
-                                      height: 80,
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF34A853,
-                                        ).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: const Icon(
-                                        Icons.calendar_month,
-                                        size: 40,
-                                        color: Color(0xFF34A853),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      'No semesters found',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Create your first semester to get started',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[500],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-
-                            final semesters =
-                                snapshot.data!.docs.map((doc) {
-                                  final data =
-                                      doc.data() as Map<String, dynamic>;
-                                  return {
-                                    'id': doc.id,
-                                    'year': data['year'] ?? '',
-                                    'semester': data['semester'] ?? '',
-                                    'displayName': data['displayName'] ?? '',
-                                    'isActive': data['isActive'] ?? true,
-                                    'createdAt': data['createdAt'],
-                                  };
-                                }).toList();
-
-                            return ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: semesters.length,
-                              itemBuilder: (context, index) {
-                                final semester = semesters[index];
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: Colors.grey[200]!,
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.grey.withOpacity(0.1),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: InkWell(
-                                    onTap: () => _showSemesterDetails(semester),
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(20),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(12),
-                                            decoration: BoxDecoration(
-                                              color: const Color(
-                                                0xFF34A853,
-                                              ).withOpacity(0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            child: const Icon(
-                                              Icons.calendar_month,
-                                              color: Color(0xFF34A853),
-                                              size: 24,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  semester['displayName'] ?? '',
-                                                  style: const TextStyle(
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Year: ${semester['year'] ?? 'N/A'}',
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'Type: ${semester['semester'] ?? 'N/A'}',
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          IconButton(
-                                            onPressed:
-                                                () =>
-                                                    _showSemesterAssignmentDialog(
-                                                      semester,
-                                                    ),
-                                            icon: const Icon(
-                                              Icons.assignment,
-                                              color: Color(0xFF34A853),
-                                              size: 20,
-                                            ),
-                                            tooltip: 'Assign to Semester',
-                                          ),
-                                          IconButton(
-                                            onPressed:
-                                                () => _editSemester(semester),
-                                            icon: const Icon(
-                                              Icons.edit,
-                                              color: Color(0xFF34A853),
-                                              size: 20,
-                                            ),
-                                            tooltip: 'Edit Semester',
-                                          ),
-                                          const Icon(
-                                            Icons.arrow_forward_ios,
-                                            color: Colors.grey,
-                                            size: 16,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
+                              ),
                             );
-                          },
-                        ),
+                          }
+
+                          if (_controller.semesters.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF34A853,
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Icon(
+                                      Icons.calendar_month,
+                                      size: 40,
+                                      color: Color(0xFF34A853),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'No semesters found',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Create your first semester to get started',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _controller.semesters.length,
+                            itemBuilder: (context, index) {
+                              final semester = _controller.semesters[index];
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.grey[200]!,
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.grey.withOpacity(0.1),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: InkWell(
+                                  onTap: () => _showSemesterDetails(semester),
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFF34A853,
+                                            ).withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                            Icons.calendar_month,
+                                            color: Color(0xFF34A853),
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                semester['displayName'] ?? '',
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Year: ${semester['year'] ?? 'N/A'}',
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Type: ${semester['semester'] ?? 'N/A'}',
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        IconButton(
+                                          onPressed:
+                                              () =>
+                                                  _showSemesterAssignmentDialog(
+                                                    semester,
+                                                  ),
+                                          icon: const Icon(
+                                            Icons.assignment,
+                                            color: Color(0xFF34A853),
+                                            size: 20,
+                                          ),
+                                          tooltip: 'Assign to Semester',
+                                        ),
+                                        IconButton(
+                                          onPressed:
+                                              () => _editSemester(semester),
+                                          icon: const Icon(
+                                            Icons.edit,
+                                            color: Color(0xFF34A853),
+                                            size: 20,
+                                          ),
+                                          tooltip: 'Edit Semester',
+                                        ),
+                                        const Icon(
+                                          Icons.arrow_forward_ios,
+                                          color: Colors.grey,
+                                          size: 16,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }),
                       ],
                     ),
                   ),
@@ -2097,9 +1964,33 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
                             Expanded(
                               child: TabBarView(
                                 children: [
-                                  _buildDepartmentsTab(),
-                                  _buildInstructorsTab(),
-                                  _buildClassesTab(),
+                                  DepartmentsTab(
+                                    departments: _departments,
+                                    selectedIds: _selectedDepartments,
+                                    onSelectionChanged: (updated) {
+                                      setState(() {
+                                        _selectedDepartments = updated;
+                                      });
+                                    },
+                                  ),
+                                  InstructorsTab(
+                                    instructors: _instructors,
+                                    selectedIds: _selectedInstructors,
+                                    onSelectionChanged: (updated) {
+                                      setState(() {
+                                        _selectedInstructors = updated;
+                                      });
+                                    },
+                                  ),
+                                  ClassesTab(
+                                    classes: _classes,
+                                    selectedIds: _selectedClasses,
+                                    onSelectionChanged: (updated) {
+                                      setState(() {
+                                        _selectedClasses = updated;
+                                      });
+                                    },
+                                  ),
                                 ],
                               ),
                             ),
@@ -2132,82 +2023,5 @@ class _SemesterAssignmentDialogState extends State<SemesterAssignmentDialog> {
       ),
     );
   }
-
-  Widget _buildDepartmentsTab() {
-    return ListView.builder(
-      itemCount: _departments.length,
-      itemBuilder: (context, index) {
-        final department = _departments[index];
-        final isSelected = _selectedDepartments.contains(department['id']);
-
-        return CheckboxListTile(
-          title: Text(department['name']),
-          subtitle: Text('Code: ${department['code']}'),
-          value: isSelected,
-          onChanged: (bool? value) {
-            setState(() {
-              if (value == true) {
-                _selectedDepartments.add(department['id']);
-              } else {
-                _selectedDepartments.remove(department['id']);
-              }
-            });
-          },
-          activeColor: const Color(0xFF34A853),
-        );
-      },
-    );
-  }
-
-  Widget _buildInstructorsTab() {
-    return ListView.builder(
-      itemCount: _instructors.length,
-      itemBuilder: (context, index) {
-        final instructor = _instructors[index];
-        final isSelected = _selectedInstructors.contains(instructor['id']);
-
-        return CheckboxListTile(
-          title: Text(instructor['name']),
-          subtitle: Text('Department: ${instructor['department']}'),
-          value: isSelected,
-          onChanged: (bool? value) {
-            setState(() {
-              if (value == true) {
-                _selectedInstructors.add(instructor['id']);
-              } else {
-                _selectedInstructors.remove(instructor['id']);
-              }
-            });
-          },
-          activeColor: const Color(0xFF34A853),
-        );
-      },
-    );
-  }
-
-  Widget _buildClassesTab() {
-    return ListView.builder(
-      itemCount: _classes.length,
-      itemBuilder: (context, index) {
-        final classItem = _classes[index];
-        final isSelected = _selectedClasses.contains(classItem['id']);
-
-        return CheckboxListTile(
-          title: Text(classItem['section']),
-          subtitle: Text('Instructor: ${classItem['instructorName']}'),
-          value: isSelected,
-          onChanged: (bool? value) {
-            setState(() {
-              if (value == true) {
-                _selectedClasses.add(classItem['id']);
-              } else {
-                _selectedClasses.remove(classItem['id']);
-              }
-            });
-          },
-          activeColor: const Color(0xFF34A853),
-        );
-      },
-    );
-  }
 }
+

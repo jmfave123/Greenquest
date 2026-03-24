@@ -682,15 +682,17 @@ class SubmissionsController extends GetxController {
               .get();
 
       // OPTIMIZATION: Fetch all users in one query to avoid N+1 problem
-      final allUsersSnapshot = await _firestore
-          .collection('users')
-          .where('selectedInstructorId', isEqualTo: user.uid)
-          .get();
-          
-      final Map<String, String> c_idNumbers = {};
+      final allUsersSnapshot =
+          await _firestore
+              .collection('users')
+              .where('selectedInstructorId', isEqualTo: user.uid)
+              .get();
+
+      final Map<String, String> cIdnumbers = {};
       for (var uDoc in allUsersSnapshot.docs) {
         final uData = uDoc.data();
-        c_idNumbers[uDoc.id] = uData['idNumber'] ?? uData['studentIdNumber'] ?? 'N/A';
+        cIdnumbers[uDoc.id] =
+            uData['idNumber'] ?? uData['studentIdNumber'] ?? 'N/A';
       }
 
       for (var doc in approvedStudentsSnapshot.docs) {
@@ -699,7 +701,7 @@ class SubmissionsController extends GetxController {
         final email = data['email'] ?? '';
 
         // Retrieve efficiently from our memory hashmap without making 300 Firebase queries
-        String idNumber = data['idNumber'] ?? c_idNumbers[studentId] ?? 'N/A';
+        String idNumber = data['idNumber'] ?? cIdnumbers[studentId] ?? 'N/A';
 
         students.add({
           'id': doc.id,

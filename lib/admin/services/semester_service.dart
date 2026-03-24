@@ -126,36 +126,49 @@ class SemesterService {
     }
   }
 
-  /// Load all semesters
+  /// Returns a real-time stream of all semesters, ordered by creation date.
+  Stream<List<Map<String, dynamic>>> semestersStream() {
+    return _firestore
+        .collection('semesters')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (query) =>
+              query.docs.map((doc) {
+                final data = doc.data();
+                return {
+                  'id': doc.id,
+                  'year': data['year'] ?? '',
+                  'semester': data['semester'] ?? '',
+                  'displayName': data['displayName'] ?? '',
+                  'isActive': data['isActive'] ?? true,
+                  'createdAt': data['createdAt'],
+                };
+              }).toList(),
+        );
+  }
+
+  /// One-shot fetch of all semesters (kept for backward compatibility).
   Future<List<Map<String, dynamic>>> loadSemesters() async {
     try {
-      print('Loading semesters...');
       final snapshot =
           await _firestore
               .collection('semesters')
               .orderBy('createdAt', descending: true)
               .get();
 
-      print('Found ${snapshot.docs.length} semesters');
-
-      final semesters =
-          snapshot.docs.map((doc) {
-            final data = doc.data();
-            print('Semester data: $data');
-            return {
-              'id': doc.id,
-              'year': data['year'] ?? '',
-              'semester': data['semester'] ?? '',
-              'displayName': data['displayName'] ?? '',
-              'isActive': data['isActive'] ?? true,
-              'createdAt': data['createdAt'],
-            };
-          }).toList();
-
-      print('Loaded semesters: $semesters');
-      return semesters;
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'year': data['year'] ?? '',
+          'semester': data['semester'] ?? '',
+          'displayName': data['displayName'] ?? '',
+          'isActive': data['isActive'] ?? true,
+          'createdAt': data['createdAt'],
+        };
+      }).toList();
     } catch (e) {
-      print('Error loading semesters: $e');
       return [];
     }
   }

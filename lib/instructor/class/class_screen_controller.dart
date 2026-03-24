@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'models/class_schedule.dart';
 import '../../shared/services/in_app_notification_service.dart';
+import '../../shared/utils/presence_utils.dart';
 
 class ClassController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -742,13 +743,8 @@ class ClassController extends GetxController {
         );
       }
 
-      // Also update the student's online status to true when approved
-      await _firestore.collection('users').doc(studentId).update({
-        'isOnline': true,
-        'lastSeen': FieldValue.serverTimestamp(),
-      });
-
-      _log('✅ Student $studentId online status set to true');
+      // Do not force online state on approval.
+      // Presence should come from real app activity (login/heartbeat).
 
       // Get instructor name (used for notification)
       final instructorNameValue =
@@ -777,7 +773,10 @@ class ClassController extends GetxController {
               'studentId': studentId,
               'studentName': studentName,
               'email': studentData['email'] ?? '',
-              'idNumber': studentData['idNumber'] ?? studentData['studentIdNumber'] ?? '',
+              'idNumber':
+                  studentData['idNumber'] ??
+                  studentData['studentIdNumber'] ??
+                  '',
               'selectedSectionCode': studentData['selectedSectionCode'] ?? '',
               'corUrl': studentData['corUrl'] ?? '',
               'enrollmentStatus': 'approved',
@@ -786,8 +785,8 @@ class ClassController extends GetxController {
               'approvedBy': user.uid,
               'approvedByInstructor': instructorName.value,
               'isActive': true,
-              'isOnline': true,
-              'lastSeen': FieldValue.serverTimestamp(),
+              'isOnline': false,
+              'lastSeen': null,
             }, SetOptions(merge: true));
 
         _log(
@@ -831,8 +830,8 @@ class ClassController extends GetxController {
           students[studentIndex]['enrollmentStatus'] = 'approved';
           students[studentIndex]['approvedAt'] = DateTime.now();
           students[studentIndex]['approvedBy'] = user.uid;
-          students[studentIndex]['isOnline'] = true;
-          students[studentIndex]['lastSeen'] = DateTime.now();
+          students[studentIndex]['isOnline'] = false;
+          students[studentIndex]['lastSeen'] = null;
           break;
         }
       }
@@ -1129,30 +1128,10 @@ class ClassController extends GetxController {
   bool isStudentOnline(Map<String, dynamic> student) {
     final isOnline = student['isOnline'] ?? false;
     final lastSeen = student['lastSeen'];
-
-    if (isOnline) return true;
-
-    // Consider offline if last seen is more than 1 minute ago
-    if (lastSeen != null) {
-      try {
-        DateTime lastSeenTime;
-        if (lastSeen is DateTime) {
-          lastSeenTime = lastSeen;
-        } else if (lastSeen is Timestamp) {
-          lastSeenTime = lastSeen.toDate();
-        } else {
-          return false;
-        }
-
-        final now = DateTime.now();
-        final difference = now.difference(lastSeenTime).inMinutes;
-        return difference <= 1; // Online if last seen within 1 minute
-      } catch (e) {
-        return false;
-      }
-    }
-
-    return false;
+    return PresenceUtils.isActuallyOnline(
+      isOnline: isOnline,
+      lastSeen: lastSeen,
+    );
   }
 
   /// Get formatted last seen time

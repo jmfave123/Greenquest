@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'presence_api_client.dart';
+
 class OnlineStatusService {
   static final OnlineStatusService _instance = OnlineStatusService._internal();
   factory OnlineStatusService() => _instance;
@@ -44,6 +46,13 @@ class OnlineStatusService {
       if (user == null) return;
 
       _isOnline = online;
+
+      // Best-effort server-side presence update.
+      if (online) {
+        await PresenceApiClient.sendHeartbeat();
+      } else {
+        await PresenceApiClient.sendOffline();
+      }
 
       // Try to update in users collection first (with timeout)
       try {
@@ -137,6 +146,9 @@ class OnlineStatusService {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // Keep heartbeat fresh on the server, then update Firestore as fallback.
+      await PresenceApiClient.sendHeartbeat();
+
       // Try to update in users collection first
       try {
         await _firestore.collection('users').doc(user.uid).update({
@@ -193,7 +205,7 @@ class _AppLifecycleObserver extends WidgetsBindingObserver {
         _service.setOffline();
         break;
       case AppLifecycleState.hidden:
-        // Keep online when app is hidden but still running
+        _service.setOffline();
         break;
     }
   }

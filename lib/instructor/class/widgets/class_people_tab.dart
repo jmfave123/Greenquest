@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:greenquest/instructor/instructor_dashboard_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../shared/widgets/skeleton_loading.dart';
+import '../../../shared/utils/presence_utils.dart';
 import '../class_screen_controller.dart';
 import '../class_detail_constants.dart';
 
@@ -678,27 +679,10 @@ class _ClassPeopleTabState extends State<ClassPeopleTab> {
           lastSeen = null;
         }
 
-        // Check if online based on lastSeen (within 1 minute)
-        bool isActuallyOnline = isOnline;
-        if (!isOnline && lastSeen != null) {
-          try {
-            DateTime? lastSeenTime;
-            if (lastSeen is Timestamp) {
-              lastSeenTime = lastSeen.toDate();
-            } else if (lastSeen is DateTime) {
-              lastSeenTime = lastSeen;
-            }
-
-            if (lastSeenTime != null) {
-              final now = DateTime.now();
-              final difference = now.difference(lastSeenTime).inMinutes;
-              isActuallyOnline =
-                  difference <= 1; // Online if last seen within 1 minute
-            }
-          } catch (e) {
-            isActuallyOnline = false;
-          }
-        }
+        final isActuallyOnline = PresenceUtils.isActuallyOnline(
+          isOnline: isOnline,
+          lastSeen: lastSeen,
+        );
 
         // Display: "Online" with green dot or "Active X ago"
         if (isActuallyOnline) {
@@ -757,29 +741,7 @@ class _ClassPeopleTabState extends State<ClassPeopleTab> {
 
   /// Format last seen time
   String _formatLastSeen(DateTime lastSeenTime) {
-    final now = DateTime.now();
-    final difference = now.difference(lastSeenTime);
-
-    if (difference.inMinutes < 1) {
-      return 'Active just now';
-    } else if (difference.inMinutes < 60) {
-      final minutes = difference.inMinutes;
-      return 'Active $minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
-    } else if (difference.inHours < 24) {
-      final hours = difference.inHours;
-      return 'Active $hours ${hours == 1 ? 'hour' : 'hours'} ago';
-    } else if (difference.inDays < 7) {
-      final days = difference.inDays;
-      return 'Active $days ${days == 1 ? 'day' : 'days'} ago';
-    } else if (difference.inDays < 30) {
-      final weeks = (difference.inDays / 7).floor();
-      return 'Active $weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
-    } else if (difference.inDays < 365) {
-      final months = (difference.inDays / 30).floor();
-      return 'Active $months ${months == 1 ? 'month' : 'months'} ago';
-    } else {
-      return 'Active a long time ago';
-    }
+    return PresenceUtils.formatLastSeen(lastSeenTime);
   }
 
   /// Format enrollment date — matches canonical format used across the instructor side

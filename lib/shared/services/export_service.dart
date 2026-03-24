@@ -1,10 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart';
 import 'package:universal_html/html.dart' as html;
 
 import 'export/grade_calculator.dart';
-import 'export/excel_style_constants.dart';
 import 'export/excel_column_layout.dart';
 import 'export/excel_header_builder.dart';
 import 'export/excel_max_points_row_builder.dart';
@@ -44,27 +42,35 @@ class ExportService {
 
     // Class Standing items
     for (var item in classStandingItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('Total Score (SRC)');
     columnHeaders.add('CPA');
 
     // Quiz/Prelim items
     for (var item in quizPrelimItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('Total Score (SRQ)');
     columnHeaders.add('QA');
 
     // Midterm Exam items
     for (var item in midtermExamItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('M');
 
     // PIT items
     for (var item in pitItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('Total Score (PIT)');
     columnHeaders.add('PIT%');
@@ -77,27 +83,35 @@ class ExportService {
 
     // Final Class Standing items
     for (var item in finalClassStandingItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('Total Score (SRC)');
     columnHeaders.add('CPA');
 
     // Final Quiz items
     for (var item in finalQuizItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('Total Score (SRQ)');
     columnHeaders.add('QA');
 
     // Final Exam items
     for (var item in finalExamItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('F');
 
     // Final PIT items
     for (var item in finalPitItems) {
-      columnHeaders.add(_gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''));
+      columnHeaders.add(
+        _gradeCalc.truncateHeaderText(item['title']?.toString() ?? ''),
+      );
     }
     columnHeaders.add('Total Score (PIT)');
     columnHeaders.add('PIT%');
@@ -134,38 +148,65 @@ class ExportService {
           // Class Standing items
           for (var item in classStandingItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
-          final csTotal = _gradeCalc.calculateGroupTotal(student, classStandingItems);
-          final csPct = _gradeCalc.calculateGroupPercent(student, classStandingItems);
+          final csTotal = _gradeCalc.calculateGroupTotal(
+            student,
+            classStandingItems,
+          );
+          final csPct = _gradeCalc.calculateGroupPercent(
+            student,
+            classStandingItems,
+          );
           previewRow[columnHeaders[colIndex++]] = csTotal.toString();
           previewRow[columnHeaders[colIndex++]] = '${csPct.round()}%';
 
           // Quiz/Prelim items
           for (var item in quizPrelimItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
-          final qpTotal = _gradeCalc.calculateGroupTotal(student, quizPrelimItems);
-          final qpPct = _gradeCalc.calculateGroupPercent(student, quizPrelimItems);
+          final qpTotal = _gradeCalc.calculateGroupTotal(
+            student,
+            quizPrelimItems,
+          );
+          final qpPct = _gradeCalc.calculateGroupPercent(
+            student,
+            quizPrelimItems,
+          );
           previewRow[columnHeaders[colIndex++]] = qpTotal.toString();
           previewRow[columnHeaders[colIndex++]] = '${qpPct.round()}%';
 
           // Midterm Exam items
           for (var item in midtermExamItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
-          final mPct = _gradeCalc.calculateGroupPercent(student, midtermExamItems);
+          final mPct = _gradeCalc.calculateGroupPercent(
+            student,
+            midtermExamItems,
+          );
           previewRow[columnHeaders[colIndex++]] = '${mPct.round()}%';
 
           // PIT items
           for (var item in pitItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
           final pitTotal = _gradeCalc.calculateGroupTotal(student, pitItems);
@@ -185,14 +226,16 @@ class ExportService {
           final midLec = _gradeCalc.gradePointFromRatio(mga);
           previewRow[columnHeaders[colIndex++]] = midLec.toStringAsFixed(3);
           previewRow[columnHeaders[colIndex++]] = midLec.toStringAsFixed(3);
-          previewRow[columnHeaders[colIndex++]] = _gradeCalc.mapGradePointToEquivalent(
-            midLec,
-          );
+          previewRow[columnHeaders[colIndex++]] = _gradeCalc
+              .mapGradePointToEquivalent(midLec);
 
           // Final Class Standing items
           for (var item in finalClassStandingItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
           final fcsTotal = _gradeCalc.calculateGroupTotal(
@@ -209,31 +252,55 @@ class ExportService {
           // Final Quiz items
           for (var item in finalQuizItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
-          final fqTotal = _gradeCalc.calculateGroupTotal(student, finalQuizItems);
-          final fqPct = _gradeCalc.calculateGroupPercent(student, finalQuizItems);
+          final fqTotal = _gradeCalc.calculateGroupTotal(
+            student,
+            finalQuizItems,
+          );
+          final fqPct = _gradeCalc.calculateGroupPercent(
+            student,
+            finalQuizItems,
+          );
           previewRow[columnHeaders[colIndex++]] = fqTotal.toString();
           previewRow[columnHeaders[colIndex++]] = '${fqPct.round()}%';
 
           // Final Exam items
           for (var item in finalExamItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
-          final fPct = _gradeCalc.calculateGroupPercent(student, finalExamItems);
+          final fPct = _gradeCalc.calculateGroupPercent(
+            student,
+            finalExamItems,
+          );
           previewRow[columnHeaders[colIndex++]] = '${fPct.round()}%';
 
           // Final PIT items
           for (var item in finalPitItems) {
             final key = _gradeCalc.makeItemKey(item);
-            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(student, key);
+            previewRow[columnHeaders[colIndex]] = _gradeCalc.readScore(
+              student,
+              key,
+            );
             colIndex++;
           }
-          final fpitTotal = _gradeCalc.calculateGroupTotal(student, finalPitItems);
-          final fpitPct = _gradeCalc.calculateGroupPercent(student, finalPitItems);
+          final fpitTotal = _gradeCalc.calculateGroupTotal(
+            student,
+            finalPitItems,
+          );
+          final fpitPct = _gradeCalc.calculateGroupPercent(
+            student,
+            finalPitItems,
+          );
           previewRow[columnHeaders[colIndex++]] = fpitTotal.toString();
           previewRow[columnHeaders[colIndex++]] = '${fpitPct.round()}%';
 
@@ -249,9 +316,8 @@ class ExportService {
           final finLec = _gradeCalc.gradePointFromRatio(fga);
           previewRow[columnHeaders[colIndex++]] = finLec.toStringAsFixed(3);
           previewRow[columnHeaders[colIndex++]] = finLec.toStringAsFixed(3);
-          previewRow[columnHeaders[colIndex++]] = _gradeCalc.mapGradePointToEquivalent(
-            finLec,
-          );
+          previewRow[columnHeaders[colIndex++]] = _gradeCalc
+              .mapGradePointToEquivalent(finLec);
 
           // Computed Final Grade
           final mtg = _gradeCalc.mapGradePointToEquivalentAsNumber(midLec);
@@ -266,14 +332,18 @@ class ExportService {
               comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2);
           previewRow[columnHeaders[colIndex++]] =
               comp12Mapped > 3.50 ? '5.00' : comp12Mapped.toStringAsFixed(2);
-          previewRow[columnHeaders[colIndex++]] = _gradeCalc.descFromNumeric(comp12);
+          previewRow[columnHeaders[colIndex++]] = _gradeCalc.descFromNumeric(
+            comp12,
+          );
 
           previewRow[columnHeaders[colIndex++]] = comp13.toStringAsFixed(2);
           previewRow[columnHeaders[colIndex++]] =
               comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2);
           previewRow[columnHeaders[colIndex++]] =
               comp13Mapped > 3.50 ? '5.00' : comp13Mapped.toStringAsFixed(2);
-          previewRow[columnHeaders[colIndex++]] = _gradeCalc.descFromNumeric(comp13);
+          previewRow[columnHeaders[colIndex++]] = _gradeCalc.descFromNumeric(
+            comp13,
+          );
 
           return previewRow;
         }).toList();
@@ -400,9 +470,7 @@ class ExportService {
     }
   }
 
-
   // Grade calculation helpers now delegated to _gradeCalc (GradeCalculator)
-
 
   // ExcelColumnLayout.totalColumnCount() -> delegated to ExcelColumnLayout.totalColumnCount()
 
@@ -420,7 +488,12 @@ class ExportService {
       sheet.name = 'Student List';
 
       // Set up headers
-      ExcelHeaderBuilder.setupStudentListHeaders(sheet, sectionName, courseName, instructorName);
+      ExcelHeaderBuilder.setupStudentListHeaders(
+        sheet,
+        sectionName,
+        courseName,
+        instructorName,
+      );
 
       // Add student data
       ExcelStudentDataWriter.writeStudentListData(sheet, students, _gradeCalc);

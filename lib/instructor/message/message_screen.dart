@@ -15,6 +15,7 @@ import '../../shared/services/file_download_service.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../../shared/utils/presence_utils.dart';
 
 class InstructorMessageScreen extends StatefulWidget {
   final Map<String, dynamic> student;
@@ -136,29 +137,7 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
   }
 
   String _formatLastSeen(DateTime lastSeenTime) {
-    final now = DateTime.now();
-    final difference = now.difference(lastSeenTime);
-
-    if (difference.inMinutes < 1) {
-      return 'Active just now';
-    } else if (difference.inMinutes < 60) {
-      final minutes = difference.inMinutes;
-      return 'Active $minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
-    } else if (difference.inHours < 24) {
-      final hours = difference.inHours;
-      return 'Active $hours ${hours == 1 ? 'hour' : 'hours'} ago';
-    } else if (difference.inDays < 7) {
-      final days = difference.inDays;
-      return 'Active $days ${days == 1 ? 'day' : 'days'} ago';
-    } else if (difference.inDays < 30) {
-      final weeks = (difference.inDays / 7).floor();
-      return 'Active $weeks ${weeks == 1 ? 'week' : 'weeks'} ago';
-    } else if (difference.inDays < 365) {
-      final months = (difference.inDays / 30).floor();
-      return 'Active $months ${months == 1 ? 'month' : 'months'} ago';
-    } else {
-      return 'Active a long time ago';
-    }
+    return PresenceUtils.formatLastSeen(lastSeenTime);
   }
 
   void _sendMessage() async {
@@ -493,31 +472,11 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                         lastSeen = null;
                                       }
 
-                                      // Check if online based on lastSeen (within 1 minute)
-                                      bool isActuallyOnline = isOnline;
-                                      if (!isOnline && lastSeen != null) {
-                                        try {
-                                          DateTime? lastSeenTime;
-                                          if (lastSeen is Timestamp) {
-                                            lastSeenTime = lastSeen.toDate();
-                                          } else if (lastSeen is DateTime) {
-                                            lastSeenTime = lastSeen;
-                                          }
-
-                                          if (lastSeenTime != null) {
-                                            final now = DateTime.now();
-                                            final difference =
-                                                now
-                                                    .difference(lastSeenTime)
-                                                    .inMinutes;
-                                            isActuallyOnline =
-                                                difference <=
-                                                1; // Online if last seen within 1 minute
-                                          }
-                                        } catch (e) {
-                                          isActuallyOnline = false;
-                                        }
-                                      }
+                                      final isActuallyOnline =
+                                          PresenceUtils.isActuallyOnline(
+                                            isOnline: isOnline,
+                                            lastSeen: lastSeen,
+                                          );
 
                                       return Stack(
                                         children: [
@@ -670,35 +629,11 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
                                               lastSeen = null;
                                             }
 
-                                            // Check if online based on lastSeen (within 1 minute)
-                                            bool isActuallyOnline = isOnline;
-                                            if (!isOnline && lastSeen != null) {
-                                              try {
-                                                DateTime? lastSeenTime;
-                                                if (lastSeen is Timestamp) {
-                                                  lastSeenTime =
-                                                      lastSeen.toDate();
-                                                } else if (lastSeen
-                                                    is DateTime) {
-                                                  lastSeenTime = lastSeen;
-                                                }
-
-                                                if (lastSeenTime != null) {
-                                                  final now = DateTime.now();
-                                                  final difference =
-                                                      now
-                                                          .difference(
-                                                            lastSeenTime,
-                                                          )
-                                                          .inMinutes;
-                                                  isActuallyOnline =
-                                                      difference <=
-                                                      1; // Online if last seen within 1 minute
-                                                }
-                                              } catch (e) {
-                                                isActuallyOnline = false;
-                                              }
-                                            }
+                                            final isActuallyOnline =
+                                                PresenceUtils.isActuallyOnline(
+                                                  isOnline: isOnline,
+                                                  lastSeen: lastSeen,
+                                                );
 
                                             return Row(
                                               children: [

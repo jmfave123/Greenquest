@@ -177,7 +177,7 @@ class _AdminDashboardState extends State<AdminDashboard>
       for (var doc in allDeptsSnapshot.docs) {
         deptCache[doc.id] = doc.data();
       }
-      
+
       final allUsersSnapshot = await _firestore.collection('users').get();
       final Map<String, Map<String, dynamic>> userCacheById = {};
       final Map<String, Map<String, dynamic>> userCacheByStudentId = {};
