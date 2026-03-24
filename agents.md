@@ -453,6 +453,8 @@ Evolves safely over time
 
 Provides value to users
 
+provide codes that is 300 lines maximum 
+
 "Any fool can write code that a computer can understand. Good programmers write code that humans can understand." — Martin Fowler
 
 Document Version: 2.0
