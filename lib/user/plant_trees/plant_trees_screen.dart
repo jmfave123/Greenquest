@@ -305,6 +305,8 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
         leading: Builder(
           builder:
               (context) => IconButton(

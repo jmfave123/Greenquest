@@ -106,6 +106,12 @@ class GreenQuestApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.white,
+        ),
         textSelectionTheme: const TextSelectionThemeData(
           cursorColor: Color(0xFF43A047),
           selectionColor: Color(0xFFB9F6CA), // Lighter green for selection

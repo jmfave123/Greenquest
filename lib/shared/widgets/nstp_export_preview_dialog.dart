@@ -21,14 +21,18 @@ class NstpExportPreviewDialog {
       builder:
           (dialogContext) => StatefulBuilder(
             builder: (context, setState) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final horizontalInset = screenWidth < 600 ? 8.0 : 24.0;
+              final verticalInset = screenWidth < 600 ? 8.0 : 16.0;
+
               return Dialog(
                 backgroundColor: Colors.white,
-                insetPadding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
+                insetPadding: EdgeInsets.symmetric(
+                  horizontal: horizontalInset,
+                  vertical: verticalInset,
                 ),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
+                  constraints: const BoxConstraints(maxWidth: 1080),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -155,8 +159,51 @@ class NstpExportPreviewDialog {
                           ),
                         ),
                       Flexible(
-                        child: SingleChildScrollView(
-                          child: NstpFormWidget(data: formData),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            const basePreviewWidth = 920.0;
+                            const ultraNarrowBreakpoint = 320.0;
+
+                            // Fallback: for extremely narrow viewports, keep horizontal pan.
+                            if (constraints.maxWidth < ultraNarrowBreakpoint) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: SizedBox(
+                                  width: basePreviewWidth,
+                                  child: SingleChildScrollView(
+                                    child: NstpFormWidget(data: formData),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            // Phase 2: keep web arrangement but scale down on phones.
+                            if (constraints.maxWidth < basePreviewWidth) {
+                              return SingleChildScrollView(
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    width: constraints.maxWidth,
+                                    child: FittedBox(
+                                      fit: BoxFit.fitWidth,
+                                      alignment: Alignment.topCenter,
+                                      child: SizedBox(
+                                        width: basePreviewWidth,
+                                        child: NstpFormWidget(data: formData),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            return SingleChildScrollView(
+                              child: SizedBox(
+                                width: constraints.maxWidth,
+                                child: NstpFormWidget(data: formData),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],

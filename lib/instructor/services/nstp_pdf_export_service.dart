@@ -6,6 +6,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:universal_html/html.dart' as html;
+import 'package:greenquest/instructor/services/nstp_pdf_open_helper_stub.dart'
+    if (dart.library.io) 'package:greenquest/instructor/services/nstp_pdf_open_helper_io.dart';
 
 import '../../core/utils/app_logger.dart';
 
@@ -54,8 +56,11 @@ class NstpPdfExportService {
         html.document.body!.children.remove(anchor);
         html.Url.revokeObjectUrl(url);
       } else {
-        // On mobile / desktop: use the platform share / save sheet.
-        await Printing.sharePdf(bytes: bytes, filename: filename);
+        // On mobile / desktop: try opening with installed PDF apps first.
+        final opened = await openPdfWithInstalledApps(bytes, filename);
+        if (!opened) {
+          await Printing.sharePdf(bytes: bytes, filename: filename);
+        }
       }
 
       _logger.info('PDF export completed', context: {'student': studentName});
