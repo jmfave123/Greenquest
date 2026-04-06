@@ -23,6 +23,18 @@ class WebNotificationDropdown extends StatefulWidget {
 class _WebNotificationDropdownState extends State<WebNotificationDropdown> {
   final RxString selectedFilter = 'All'.obs;
 
+  @override
+  void dispose() {
+    // Clear the web badge count when the dropdown is closed
+    try {
+      final controller = Get.find<NotificationController>();
+      controller.markAllAsSeen();
+    } catch (e) {
+      // Controller might already be disposed or not found
+    }
+    super.dispose();
+  }
+
   Color _getNotificationColor(String type) {
     switch (type.toLowerCase()) {
       case 'assignment':
@@ -120,11 +132,15 @@ class _WebNotificationDropdownState extends State<WebNotificationDropdown> {
       }
     }
 
-    // Announcements and tree types — go to announcements list
-    if (type == 'announcement' ||
-        type == 'tree_approved' ||
-        type == 'tree_rejected') {
+    // Announcements — go to announcements list
+    if (type == 'announcement') {
       Get.toNamed(WebRoutes.announcements);
+      return;
+    }
+
+    // Tree planting notifications — go to plant trees screen
+    if (type == 'tree_approved' || type == 'tree_rejected') {
+      Get.toNamed(WebRoutes.plantTrees);
       return;
     }
 

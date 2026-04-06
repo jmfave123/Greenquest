@@ -24,7 +24,9 @@ class TreePlantingController extends GetxController {
   void onInit() {
     super.onInit();
     _fileUploadService.initialize();
-    loadMyTreeSubmissions();
+    // Use microtask to avoid 'setState() or markNeedsBuild() called during build'
+    // when the controller is initialized during a widget's build phase.
+    Future.microtask(() => loadMyTreeSubmissions());
   }
 
   /// Submits a tree planting activity record.
@@ -125,7 +127,10 @@ class TreePlantingController extends GetxController {
   }
 
   /// Load user's tree planting submissions
-  Future<void> loadMyTreeSubmissions() async {
+  Future<void> loadMyTreeSubmissions({bool isRefresh = false}) async {
+    // Prevent concurrent loads
+    if (!isRefresh && isLoadingSubmissions.value) return;
+
     try {
       isLoadingSubmissions.value = true;
 

@@ -239,6 +239,29 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
+  /// File extensions that Google Docs Viewer can render inline.
+  static const List<String> _viewerSupportedExtensions = [
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'csv', 'txt', 'rtf',
+  ];
+
+  /// Returns a Google Docs Viewer URL for supported document types,
+  /// or the raw [url] for images and unsupported types.
+  String _buildPreviewUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.pathSegments.isEmpty) return url;
+
+    final lastSegment = uri.pathSegments.last.toLowerCase();
+    final dotIndex = lastSegment.lastIndexOf('.');
+    final ext = dotIndex != -1 ? lastSegment.substring(dotIndex + 1) : '';
+
+    if (_viewerSupportedExtensions.contains(ext)) {
+      final encodedUrl = Uri.encodeComponent(url);
+      return 'https://docs.google.com/viewer?url=$encodedUrl&embedded=false';
+    }
+    return url;
+  }
+
   void _openFilePreview(String url) async {
     if (url.isEmpty) {
       _showSnackBar('File URL not available', Colors.orange);
@@ -249,10 +272,10 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
       // Handle web and mobile platforms differently
       if (kIsWeb) {
         // For web: Open in new tab without pausing the app
-        // Using window.open() prevents the Flutter app from pausing
         try {
-          // Open file in new tab - this won't pause the Flutter app
-          html.window.open(url, '_blank');
+          // Use Google Docs Viewer for document files to force preview
+          final previewUrl = _buildPreviewUrl(url);
+          html.window.open(previewUrl, '_blank');
         } catch (e) {
           // If window.open fails completely, show dialog with link
           print('window.open failed: $e');
@@ -900,7 +923,117 @@ class _SubmissionDetailScreenState extends State<SubmissionDetailScreen> {
               filled: true,
             ),
           ),
+          const SizedBox(height: 20),
+
+          // Private Comment Input
+          Row(
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 16,
+                color: Colors.grey[600],
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Private Comment',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _feedbackController,
+            maxLines: 4,
+            minLines: 2,
+            cursorColor: const Color(0xFF34A853),
+            textInputAction: TextInputAction.newline,
+            decoration: InputDecoration(
+              hintText: 'Add a private comment for this student...',
+              hintStyle: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 14,
+              ),
+              helperText: 'Only visible to this student',
+              helperStyle: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: Color(0xFF34A853),
+                  width: 2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+              fillColor: const Color(0xFFF8F9FA),
+              filled: true,
+            ),
+          ),
           const SizedBox(height: 16),
+
+          // Display existing feedback if already graded
+          if (_isGraded &&
+              _feedbackController.text.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.amber.shade200,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.comment_outlined,
+                    size: 18,
+                    color: Colors.amber.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Previous Comment',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.amber.shade800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.submissionData['feedback'] ?? '',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.amber.shade900,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Current Grade Display
           if (_isGraded)

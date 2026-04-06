@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:greenquest/admin/helpers/load_instructors.dart';
+import 'package:greenquest/admin/helpers/show_instructor_profile.dart';
+import 'package:greenquest/admin/widgets/row/build_info_row.dart';
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/admin/widgets/admin_page_hero.dart';
@@ -43,28 +46,6 @@ class _AdminDashboardState extends State<AdminDashboard>
   void initState() {
     super.initState();
     _loadData();
-  }
-
-  void _showInstructorProfile(Map<String, dynamic> instructorData) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.5,
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.8,
-            ),
-            padding: const EdgeInsets.all(24),
-            child: InstructorProfileView(instructor: instructorData),
-          ),
-        );
-      },
-    );
   }
 
   @override
@@ -168,265 +149,7 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   Future<void> _loadInstructors() async {
     try {
-      final instructorsSnapshot =
-          await _firestore.collection('instructors').get();
-
-      // OPTIMIZATION: Fetch ALL departments and ALL users in 2 queries instead of thousands of loops
-      final allDeptsSnapshot = await _firestore.collection('departments').get();
-      final Map<String, Map<String, dynamic>> deptCache = {};
-      for (var doc in allDeptsSnapshot.docs) {
-        deptCache[doc.id] = doc.data();
-      }
-
-      final allUsersSnapshot = await _firestore.collection('users').get();
-      final Map<String, Map<String, dynamic>> userCacheById = {};
-      final Map<String, Map<String, dynamic>> userCacheByStudentId = {};
-      for (var doc in allUsersSnapshot.docs) {
-        final data = doc.data();
-        userCacheById[doc.id] = data;
-        if (data['studentId'] != null) {
-          userCacheByStudentId[data['studentId']] = data;
-        }
-      }
-
-      instructors.clear();
-
-      for (var instructorDoc in instructorsSnapshot.docs) {
-        final instructorData = instructorDoc.data();
-        final instructorName = instructorData['name']?.toString().trim() ?? '';
-        final instructorStatus =
-            instructorData['status']?.toString() ?? 'Pending';
-
-        // Filter out instructors without names or with "unknown" names
-        if (instructorName.isEmpty ||
-            instructorName.toLowerCase() == 'unknown') {
-          continue;
-        }
-
-        // Only include approved instructors - exclude pending and rejected
-        if (instructorStatus != 'Approved') {
-          _log(
-            '⏭️ Skipping instructor $instructorName - Status: $instructorStatus',
-          );
-          continue;
-        }
-
-        // Debug: Print all fields in instructor document
-        _log('🔍 Instructor: $instructorName');
-        _log('   Document ID: ${instructorDoc.id}');
-
-        // Build a map of departmentCode -> departmentId from assignments
-        Map<String, String> departmentCodeToId = {};
-        Set<String> departmentCodes = {};
-        Set<String> departmentNames = {};
-
-        final assignments = instructorData['assignments'];
-        if (assignments != null &&
-            assignments is List &&
-            assignments.isNotEmpty) {
-          _log('   📋 Found ${assignments.length} assignments');
-
-          for (var i = 0; i < assignments.length; i++) {
-            final assignmentData = assignments[i];
-
-            if (assignmentData is Map) {
-              final departmentId = assignmentData['departmentId']?.toString();
-              final departmentCode =
-                  assignmentData['departmentCode']?.toString();
-
-              if (departmentId != null && departmentCode != null) {
-                departmentCodeToId[departmentCode] = departmentId;
-                departmentCodes.add(departmentCode);
-
-                _log(
-                  '   🔍 Assignment $i - DeptCode: $departmentCode, DeptId: $departmentId',
-                );
-
-                // Use cached departments
-                try {
-                  final departmentData = deptCache[departmentId];
-
-                  if (departmentData != null) {
-                    final deptName =
-                        departmentData['displayName'] ??
-                        departmentData['name'] ??
-                        departmentData['code'] ??
-                        departmentCode;
-
-                    departmentNames.add(deptName);
-                    _log('   ✅ Assignment $i - Department: $deptName');
-                  }
-                } catch (e) {
-                  _log('   ❌ Error fetching department $departmentId: $e');
-                }
-              }
-            }
-          }
-        }
-
-        // Fallback to instructor's department field if no assignments
-        String departmentName =
-            departmentNames.isNotEmpty
-                ? departmentNames.join(', ')
-                : (instructorData['department']?.toString() ?? 'N/A');
-
-        _log('   ✅ Final department: $departmentName');
-        _log('   ✅ Department codes: ${departmentCodes.join(', ')}');
-
-        // Load classes for this instructor (schedules only)
-        final classesSnapshot =
-            await _firestore
-                .collection('instructors')
-                .doc(instructorDoc.id)
-                .collection('classes')
-                .get();
-
-        // Load approved students from instructors/{instructorId}/students
-        final studentsSnapshot =
-            await _firestore
-                .collection('instructors')
-                .doc(instructorDoc.id)
-                .collection('students')
-                .get();
-
-        List<Map<String, dynamic>> sections = [];
-        int totalStudents = studentsSnapshot.docs.length;
-
-        // Group students by section
-        Map<String, List<Map<String, dynamic>>> studentsBySection = {};
-        for (var studentDoc in studentsSnapshot.docs) {
-          final studentData = studentDoc.data();
-          final sectionName =
-              studentData['selectedSectionCode']?.toString().trim() ??
-              'Unknown';
-
-          if (!studentsBySection.containsKey(sectionName)) {
-            studentsBySection[sectionName] = [];
-          }
-
-          // Extract program code from student's selectedSectionCode (e.g., "BSIT-1A" -> "BSIT")
-          String studentProgramCode = 'N/A';
-          final studentSectionCode =
-              studentData['selectedSectionCode']?.toString().trim() ?? '';
-          if (studentSectionCode.isNotEmpty) {
-            final studentSectionMatch = RegExp(
-              r'^([A-Z]+)',
-            ).firstMatch(studentSectionCode);
-            if (studentSectionMatch != null) {
-              studentProgramCode = studentSectionMatch.group(1) ?? 'N/A';
-            }
-          }
-
-          // Fetch idNumber and profileImage from local cache
-          String idNumber = '';
-          String profileImage = '';
-          try {
-            final userData = userCacheById[studentDoc.id];
-
-            if (userData != null) {
-              idNumber = userData['idNumber']?.toString() ?? '';
-              profileImage =
-                  userData['profileImage']?.toString() ??
-                  userData['profileImageUrl']?.toString() ??
-                  userData['profileUrl']?.toString() ??
-                  '';
-            } else {
-              // Fallback: try matching by studentId field
-              final studentId = studentData['studentId']?.toString() ?? '';
-
-              if (studentId.isNotEmpty) {
-                final fallbackUserData = userCacheByStudentId[studentId];
-
-                if (fallbackUserData != null) {
-                  idNumber = fallbackUserData['idNumber']?.toString() ?? '';
-                  profileImage =
-                      fallbackUserData['profileImage']?.toString() ??
-                      fallbackUserData['profileImageUrl']?.toString() ??
-                      fallbackUserData['profileUrl']?.toString() ??
-                      '';
-                }
-              }
-            }
-          } catch (e) {}
-
-          _log(
-            '📝 Student: ${studentData['studentName']}, idNumber: "$idNumber"',
-          );
-
-          studentsBySection[sectionName]!.add({
-            'name': studentData['studentName']?.toString() ?? 'Unknown',
-            'studentName': studentData['studentName']?.toString() ?? 'Unknown',
-            'email': studentData['email']?.toString() ?? '',
-            'studentId': studentData['studentId']?.toString() ?? '',
-            'idNumber': idNumber,
-            'profileImage': profileImage,
-            'status': studentData['isActive'] == true ? 'active' : 'inactive',
-            'program':
-                studentProgramCode, // Store each student's actual program code
-          });
-        }
-
-        // Create sections from classes (schedules)
-        for (var classDoc in classesSnapshot.docs) {
-          final classData = classDoc.data();
-          final sectionName = classData['section']?.toString().trim() ?? '';
-
-          if (sectionName.isEmpty) continue;
-
-          final students = studentsBySection[sectionName] ?? [];
-          final activeStudents =
-              students.where((s) => s['status'] == 'active').length;
-          final inactiveStudents = students.length - activeStudents;
-
-          // Extract department code from section name (e.g., "BSIT-4D" -> "BSIT")
-          String sectionDeptCode = 'N/A';
-          final sectionCodeMatch = RegExp(r'^([A-Z]+)').firstMatch(sectionName);
-          if (sectionCodeMatch != null) {
-            sectionDeptCode = sectionCodeMatch.group(1) ?? 'N/A';
-          }
-
-          // Use department code from section if it matches instructor's assignments
-          String programCode = sectionDeptCode;
-          if (!departmentCodes.contains(sectionDeptCode) &&
-              departmentCodes.isNotEmpty) {
-            // If section's dept code doesn't match assignments, use first assignment's dept code
-            programCode = departmentCodes.first;
-          }
-
-          // Format schedule from schedules array or fallback to old format
-          String scheduleString = _formatSchedule(classData);
-
-          sections.add({
-            'id': classDoc.id,
-            'name': sectionName,
-            'code': classData['course'] ?? 'N/A',
-            'schedule': scheduleString,
-            'program':
-                programCode, // Use the extracted/matched department code for filtering
-            'active': activeStudents,
-            'inactive': inactiveStudents,
-            'students': students,
-          });
-        }
-
-        instructors.add({
-          'id': instructorDoc.id,
-          'name': instructorName,
-          'email': instructorData['email'] ?? 'N/A',
-          'phone': instructorData['phone'] ?? '',
-          'department': departmentName,
-          'departmentCodes':
-              departmentCodes.toList(), // Store codes for filtering
-          'profileUrl':
-              instructorData['profileUrl'] ??
-              instructorData['profileImageUrl'] ??
-              '',
-          'about': instructorData['about'] ?? '',
-          'sections': sections,
-          'totalSections': sections.length,
-          'totalStudents': totalStudents,
-        });
-      }
+      instructors = await loadInstructors(firestore: _firestore, log: _log);
     } catch (e) {
       _log('Error loading instructors: $e');
     }
@@ -1648,8 +1371,9 @@ class _AdminDashboardState extends State<AdminDashboard>
                                                                 size: 20,
                                                               ),
                                                               onPressed: () {
-                                                                _showInstructorProfile(
+                                                                showInstructorProfile(
                                                                   instructor,
+                                                                  context,
                                                                 );
                                                               },
                                                               tooltip:
@@ -2338,73 +2062,6 @@ class _AdminDashboardState extends State<AdminDashboard>
       ),
     );
   }
-
-  /// Format schedule from schedules array or fallback to old format
-  String _formatSchedule(Map<String, dynamic> classData) {
-    // Handle new format: schedules array
-    if (classData.containsKey('schedules') && classData['schedules'] is List) {
-      final schedules = List<Map<String, dynamic>>.from(classData['schedules']);
-      if (schedules.isNotEmpty) {
-        // Check if all schedules have the same time
-        final allSameTime = schedules.every(
-          (s) =>
-              s['startTime'] == schedules[0]['startTime'] &&
-              s['endTime'] == schedules[0]['endTime'],
-        );
-
-        if (allSameTime && schedules.length > 1) {
-          // Show as "Mon/Wed 9:00 AM - 10:30 AM"
-          final days = schedules
-              .map((s) => _getDayAbbreviation(s['day']?.toString() ?? ''))
-              .join('/');
-          return '$days ${schedules[0]['startTime']} - ${schedules[0]['endTime']}';
-        } else {
-          // Show all schedules separated by commas
-          final scheduleStrings =
-              schedules.map((schedule) {
-                final dayAbbr = _getDayAbbreviation(
-                  schedule['day']?.toString() ?? '',
-                );
-                return '$dayAbbr ${schedule['startTime']} - ${schedule['endTime']}';
-              }).toList();
-          return scheduleStrings.join(', ');
-        }
-      }
-    }
-
-    // Fallback to old format for backward compatibility
-    if (classData.containsKey('day') &&
-        classData.containsKey('startTime') &&
-        classData.containsKey('endTime')) {
-      final dayAbbr = _getDayAbbreviation(classData['day']?.toString() ?? '');
-      return '$dayAbbr ${classData['startTime']} - ${classData['endTime']}';
-    }
-
-    // If no schedule data found
-    return 'TBA';
-  }
-
-  /// Get day abbreviation
-  String _getDayAbbreviation(String day) {
-    switch (day.toLowerCase()) {
-      case 'monday':
-        return 'Mon';
-      case 'tuesday':
-        return 'Tue';
-      case 'wednesday':
-        return 'Wed';
-      case 'thursday':
-        return 'Thu';
-      case 'friday':
-        return 'Fri';
-      case 'saturday':
-        return 'Sat';
-      case 'sunday':
-        return 'Sun';
-      default:
-        return day;
-    }
-  }
 }
 
 // Instructor Profile View Widget
@@ -2530,26 +2187,29 @@ class InstructorProfileView extends StatelessWidget {
                 // Contact Information
                 Column(
                   children: [
-                    _buildInfoRow(
+                    buildInfoRow(
                       Icons.email_outlined,
                       'Email',
                       instructor['email'] ?? 'N/A',
+                      isLoading: false,
                     ),
                     const SizedBox(height: 16),
-                    _buildInfoRow(
+                    buildInfoRow(
                       Icons.phone_outlined,
                       'Phone',
                       instructor['phone']?.toString().isEmpty ?? true
                           ? 'Not provided'
                           : instructor['phone'],
+                      isLoading: false,
                     ),
                     const SizedBox(height: 16),
-                    _buildInfoRow(
+                    buildInfoRow(
                       Icons.business_outlined,
                       'Department',
                       instructor['department']?.toString().isEmpty ?? true
                           ? 'Not specified'
                           : instructor['department'],
+                      isLoading: false,
                     ),
                   ],
                 ),
@@ -2611,46 +2271,6 @@ class InstructorProfileView extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF34A853).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: const Color(0xFF34A853), size: 20),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

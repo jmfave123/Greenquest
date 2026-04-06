@@ -524,22 +524,45 @@ class _QuizDetailScreenState extends State<QuizDetailScreen>
                                     .submissionFeedback
                                     .value
                                     .isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Feedback:',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.lock_outline,
+                                        size: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Private Comment',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: Colors.grey[700],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    submissionController!
-                                        .submissionFeedback
-                                        .value,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[700],
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.amber.shade200,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      submissionController!
+                                          .submissionFeedback
+                                          .value,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.amber.shade900,
+                                        height: 1.4,
+                                      ),
                                     ),
                                   ),
                                 ],

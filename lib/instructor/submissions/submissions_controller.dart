@@ -49,6 +49,7 @@ class SubmissionsController extends GetxController {
     'Activities',
     'Assignments',
     'Quizzes',
+    'Exams',
     'PITs',
   ];
   final RxString selectedCategory = 'All'.obs;
@@ -756,6 +757,8 @@ class SubmissionsController extends GetxController {
                 return submission['type'] == 'assignment';
               case 'Quizzes':
                 return submission['type'] == 'quiz';
+              case 'Exams':
+                return submission['type'] == 'exam';
               case 'PITs':
                 return submission['type'] == 'pit';
               default:
@@ -910,6 +913,30 @@ class SubmissionsController extends GetxController {
           }
           break;
 
+        case 'exams':
+          Query examQuery = _firestore
+              .collection('submissions')
+              .where('instructorId', isEqualTo: user.uid)
+              .where('activityType', isEqualTo: 'exam');
+
+          if (sectionId != null && sectionId.isNotEmpty) {
+            examQuery = examQuery.where('sectionName', isEqualTo: sectionId);
+          }
+
+          QuerySnapshot examSnapshot;
+          try {
+            examSnapshot =
+                await examQuery.orderBy('submittedAt', descending: true).get();
+          } catch (e) {
+            examSnapshot = await examQuery.get();
+          }
+
+          for (var doc in examSnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            categorySubmissions.add({'id': doc.id, 'type': 'exam', ...data});
+          }
+          break;
+
         case 'pits':
           Query pitQuery = _firestore
               .collection('submissions')
@@ -1038,6 +1065,9 @@ class SubmissionsController extends GetxController {
           case 'quiz':
             activityTypeName = 'Quiz';
             break;
+          case 'exam':
+            activityTypeName = 'Exam';
+            break;
           case 'pit':
             activityTypeName = 'PIT';
             break;
@@ -1140,6 +1170,9 @@ class SubmissionsController extends GetxController {
           sourceCollection = 'activities';
           break;
         case 'quiz':
+          sourceCollection = 'quizzes';
+          break;
+        case 'exam':
           sourceCollection = 'quizzes';
           break;
         case 'pit':
@@ -1418,6 +1451,9 @@ class SubmissionsController extends GetxController {
         case 'quiz':
           await loadQuizSubmissions(activityId, sectionId: sectionId);
           break;
+        case 'exam':
+          await _loadExamSubmissions(activityId, sectionId: sectionId);
+          break;
         case 'pit':
           // For PITs, we need to load from the submissions collection
           await _loadPitSubmissions(activityId, sectionId: sectionId);
@@ -1490,6 +1526,61 @@ class SubmissionsController extends GetxController {
       updateStats();
     } catch (e) {
       _log('❌ Error loading PIT submissions: $e');
+    }
+  }
+
+  // Load exam submissions specifically
+  Future<void> _loadExamSubmissions(String examId, {String? sectionId}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      Query query = _firestore
+          .collection('submissions')
+          .where('activityId', isEqualTo: examId)
+          .where('instructorId', isEqualTo: user.uid)
+          .where('activityType', isEqualTo: 'exam');
+
+      if (sectionId != null && sectionId.isNotEmpty) {
+        _log(
+          '  - Querying exam submissions directly by sectionName: $sectionId',
+        );
+        query = query.where('sectionName', isEqualTo: sectionId);
+      } else {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isEmpty) return;
+      }
+
+      QuerySnapshot querySnapshot;
+      try {
+        querySnapshot =
+            await query.orderBy('submittedAt', descending: true).get();
+      } catch (e) {
+        querySnapshot = await query.get();
+      }
+
+      List<Map<String, dynamic>> loadedSubmissions = [];
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        loadedSubmissions.add({'id': doc.id, 'type': 'exam', ...data});
+      }
+
+      if (sectionId == null || sectionId.isEmpty) {
+        final instructorSections = await _getInstructorSections(user.uid);
+        if (instructorSections.isNotEmpty) {
+          loadedSubmissions = _filterSubmissionsBySection(
+            loadedSubmissions,
+            sectionId,
+            instructorSections,
+          );
+        }
+      }
+
+      submissions.assignAll(loadedSubmissions);
+      updateStats();
+    } catch (e) {
+      _log('❌ Error loading exam submissions: $e');
     }
   }
 
@@ -1684,24 +1775,8 @@ class SubmissionsController extends GetxController {
         throw Exception('User not authenticated');
       }
 
-      // Determine the collection based on submission type
-      String collectionName;
-      switch (submissionType.toLowerCase()) {
-        case 'assignment':
-          collectionName = 'assignment_submissions';
-          break;
-        case 'activity':
-          collectionName = 'activity_submissions';
-          break;
-        case 'quiz':
-          collectionName = 'quiz_submissions';
-          break;
-        default:
-          collectionName = 'assignment_submissions';
-      }
-
-      // Delete from Firestore
-      await _firestore.collection(collectionName).doc(submissionId).delete();
+      // All submission types are stored in the unified submissions collection.
+      await _firestore.collection('submissions').doc(submissionId).delete();
 
       // Remove from local list
       submissions.removeWhere((submission) => submission['id'] == submissionId);

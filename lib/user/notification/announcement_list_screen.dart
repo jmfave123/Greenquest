@@ -30,15 +30,13 @@ class AnnouncementListScreen extends StatelessWidget {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: controller.refreshAnnouncements,
-          ),
-        ],
       ),
       backgroundColor: Colors.white,
       body: Obx(() {
+        if (controller.isLoading.value) {
+          return const SkeletonAnnouncementCard();
+        }
+
         if (!controller.hasValidInstructor) {
           return Center(
             child: Column(

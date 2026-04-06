@@ -6,18 +6,26 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../shared/services/file_download_service.dart';
 import '../../../shared/utils/file_type_utils.dart';
 
-/// Handles preview and download actions for instructor-attached files.
+/// Handles preview and download actions for attached files.
 ///
-/// - [previewFile]: Images open in an in-app dialog; all other file types
-///   (PDF, DOC, etc.) are opened in a new browser tab.
+/// - [previewFile]: Images open in an in-app dialog; document files
+///   (PDF, DOC, XLSX, PPT) open via Google Docs Viewer in a new tab
+///   to guarantee a visual preview instead of a download.
 /// - [downloadFile]: Delegates to [FileDownloadService.handleFileAction].
 class AttachmentActionHelper {
   AttachmentActionHelper._(); // prevent instantiation
 
+  /// File extensions that Google Docs Viewer can render inline.
+  static const List<String> _viewerSupportedExtensions = [
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'csv', 'txt', 'rtf',
+  ];
+
   /// Opens a preview for [url].
   ///
   /// Images → in-app dialog with a close button.
-  /// Other file types → new browser tab via url_launcher.
+  /// Documents (PDF, DOC, etc.) → Google Docs Viewer in a new tab.
+  /// Other file types → raw URL in a new browser tab.
   static Future<void> previewFile({
     required BuildContext context,
     required String url,
@@ -34,7 +42,7 @@ class AttachmentActionHelper {
     if (FileTypeUtils.isImageFile(lowerType)) {
       await _showImagePreviewDialog(context: context, url: url);
     } else {
-      await _openInBrowser(url);
+      await _openInBrowser(url: url, fileType: lowerType);
     }
   }
 
@@ -121,9 +129,25 @@ class AttachmentActionHelper {
     );
   }
 
-  static Future<void> _openInBrowser(String url) async {
+  /// Builds a Google Docs Viewer URL for supported document types.
+  /// Returns `null` if the file type is not supported by the viewer.
+  static String? _buildViewerUrl(String rawUrl, String fileType) {
+    if (!_viewerSupportedExtensions.contains(fileType)) return null;
+    final encodedUrl = Uri.encodeComponent(rawUrl);
+    return 'https://docs.google.com/viewer?url=$encodedUrl&embedded=false';
+  }
+
+  /// Opens the file in a new browser tab.
+  ///
+  /// For document types, wraps the URL in Google Docs Viewer so the
+  /// browser renders a preview instead of triggering a download.
+  static Future<void> _openInBrowser({
+    required String url,
+    required String fileType,
+  }) async {
     if (kIsWeb) {
-      html.window.open(url, '_blank');
+      final viewerUrl = _buildViewerUrl(url, fileType);
+      html.window.open(viewerUrl ?? url, '_blank');
       return;
     }
     // Mobile / desktop

@@ -1,358 +1,601 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../shared/widgets/instructor_avatar.dart';
-import '../../shared/services/message_service.dart';
-import '../../shared/models/message_model.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:file_picker/file_picker.dart';
-import '../../shared/services/file_upload_service.dart';
+import '../../shared/widgets/instructor_avatar.dart';
+import '../../shared/models/message_model.dart';
 import '../../shared/utils/file_type_utils.dart';
-import '../../shared/utils/presence_utils.dart';
 import '../../shared/widgets/file_display_widgets.dart';
 import '../../shared/services/file_download_service.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
+import 'message_chat_controller.dart';
 
-class MessageChatScreen extends StatefulWidget {
+/// Student chat screen — shows the real-time conversation between
+/// the student and their selected instructor.
+///
+/// All business logic is delegated to [MessageChatController].
+/// This widget is a thin presentation shell per agents.md §3.1.
+class MessageChatScreen extends StatelessWidget {
   final Map<String, dynamic>? instructor;
 
   const MessageChatScreen({super.key, this.instructor});
 
   @override
-  State<MessageChatScreen> createState() => _MessageChatScreenState();
-}
+  Widget build(BuildContext context) {
+    final MessageChatController controller = Get.put(
+      MessageChatController(),
+      tag: 'chat_${instructor?['id'] ?? 'unknown'}',
+    );
+    controller.initWithInstructor(instructor);
 
-class _MessageChatScreenState extends State<MessageChatScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final FocusNode _focusNode = FocusNode();
-  Map<String, dynamic>? currentUserProfile;
-  bool _hasMarkedAsRead = false;
-
-  // Preview state for attachments
-  PlatformFile? _previewFile;
-  bool _isUploading = false;
-
-  Map<String, dynamic>? get instructor => widget.instructor;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCurrentUserProfile();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _scrollController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _clearPreview() {
-    setState(() {
-      _previewFile = null;
-    });
-  }
-
-  void _showDeleteDialog(BuildContext context, MessageModel message) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => ConfirmationDialog(
-            title: 'Unsend Message',
-            message: 'Are you sure you want to unsend this message?',
-            confirmText: 'Unsend',
-            cancelText: 'Cancel',
-            icon: Icons.undo_outlined,
-            iconColor: Colors.orange,
-            confirmButtonColor: Colors.orange,
-            onConfirm: () async {
-              try {
-                await MessageService.unsendMessage(message.id);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Message unsent successfully'),
-                      backgroundColor: Color(0xFF34A853),
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to unsend message: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-          ),
+    return Scaffold(
+      appBar: _buildAppBar(context, controller),
+      backgroundColor: const Color(0xFFF7F8FA),
+      resizeToAvoidBottomInset: true,
+      body: controller.hasInstructor
+          ? _ChatBody(controller: controller)
+          : const Center(child: Text('No instructor selected')),
     );
   }
 
-  void _loadCurrentUserProfile() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        setState(() {
-          currentUserProfile = {
-            'id': user.uid,
-            'name':
-                userData['fullName'] ??
-                'Student', // Use fullName like in profile
-            'email': userData['email'] ?? user.email ?? '',
-            'profileImage': userData['profileImage'], // Use profileImage field
-          };
-        });
-      }
-    } catch (e) {
-      print('Error loading current user profile: $e');
-    }
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context,
+    MessageChatController controller,
+  ) {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: controller.hasInstructor
+          ? _AppBarTitle(controller: controller, instructor: instructor!)
+          : _StaticAppBarTitle(instructor: instructor),
+      centerTitle: false,
+    );
   }
+}
 
-  String _getFirstName(String fullName) {
-    if (fullName.isEmpty) return 'Instructor';
-    final nameParts = fullName.trim().split(' ');
-    return nameParts.first;
-  }
+// ─────────────────────────────────────────────────────────────────────
+// Private widgets extracted for readability (agents.md §17 — 300 lines)
+// ─────────────────────────────────────────────────────────────────────
 
-  String _formatTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
+/// AppBar title with real-time instructor presence from Firestore.
+class _AppBarTitle extends StatelessWidget {
+  final MessageChatController controller;
+  final Map<String, dynamic> instructor;
 
-    if (difference.inDays == 0) {
-      final hour = dateTime.hour > 12 ? dateTime.hour - 12 : dateTime.hour;
-      final period = dateTime.hour >= 12 ? 'PM' : 'AM';
-      return '${hour == 0 ? 12 : hour}:${dateTime.minute.toString().padLeft(2, '0')} $period';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      const days = [
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
-        'Sunday',
-      ];
-      return days[dateTime.weekday - 1];
-    } else {
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${months[dateTime.month - 1]} ${dateTime.day}';
-    }
-  }
+  const _AppBarTitle({
+    required this.controller,
+    required this.instructor,
+  });
 
-  String _formatLastSeen(DateTime lastSeenTime) {
-    return PresenceUtils.formatLastSeen(lastSeenTime);
-  }
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('instructors')
+          .doc(instructor['id'] as String)
+          .snapshots(),
+      builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot> snapshot) {
+        final Map<String, dynamic>? data =
+            snapshot.hasData && snapshot.data!.exists
+                ? snapshot.data!.data() as Map<String, dynamic>?
+                : null;
 
-  void _sendMessage(String content) async {
-    final hasContent = content.trim().isNotEmpty;
-    final hasAttachment = _previewFile != null;
+        final bool isOnlineFlag = data?['isOnline'] == true;
+        final Object? lastSeen = data?['lastSeen'];
 
-    if ((!hasContent && !hasAttachment) || instructor == null) return;
-
-    if (_isUploading) return; // Prevent double sending
-
-    // Capture ScaffoldMessenger before async operations to avoid context lookup issues
-    if (!mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    try {
-      setState(() {
-        _isUploading = true;
-      });
-
-      // If there's an attachment, upload and send with file
-      if (hasAttachment && _previewFile != null) {
-        final file = _previewFile!;
-
-        if (file.bytes == null) {
-          throw Exception('File bytes are null');
-        }
-
-        // Upload to Cloudinary
-        final fileUploadService = FileUploadService();
-        fileUploadService.initialize();
-
-        final response = await fileUploadService.uploadFile(
-          file: file,
-          folder: 'greenquest/messages',
+        final bool isActuallyOnline = controller.isInstructorOnline(
+          isOnlineFlag: isOnlineFlag,
+          lastSeen: lastSeen,
         );
 
-        if (!mounted) return;
-
-        if (response != null) {
-          // Send message with file attachment
-          await MessageService.sendMessageWithFile(
-            receiverId: instructor!['id'],
-            content:
-                content
-                    .trim(), // Send empty string if no content, file name will be shown in UI
-            fileName: file.name,
-            fileUrl: response.url,
-            fileType: file.extension ?? 'unknown',
-            fileSize: file.size,
-            senderType: 'student',
-          );
-
-          if (!mounted) return;
-
-          // Clear preview and text
-          setState(() {
-            _previewFile = null;
-          });
-          _controller.clear();
-
-          // Use captured scaffoldMessenger instead of context lookup
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('File sent successfully'),
-              backgroundColor: Color(0xFF34A853),
+        return Row(
+          children: [
+            InstructorMessageAvatar(
+              profileImage: instructor['profileImageUrl'] ??
+                  instructor['profileImage'],
+              name: instructor['name'] as String? ?? 'Unknown Instructor',
+              isOnline: isActuallyOnline,
             ),
-          );
-        } else {
-          throw Exception('Upload failed');
-        }
-      } else {
-        // Send text-only message
-        await MessageService.sendMessage(
-          receiverId: instructor!['id'],
-          content: content.trim(),
-          senderType: 'student',
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  instructor['name'] as String? ?? 'Unknown Instructor',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                    fontSize: 16,
+                  ),
+                ),
+                _buildPresenceText(
+                  controller,
+                  isActuallyOnline,
+                  lastSeen,
+                ),
+              ],
+            ),
+          ],
         );
-
-        if (!mounted) return;
-        _controller.clear();
-      }
-    } catch (e) {
-      print('Error sending message: $e');
-      if (mounted) {
-        // Use captured scaffoldMessenger instead of context lookup
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Failed to send message: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-        });
-      }
-    }
+      },
+    );
   }
 
-  Future<void> _pickAndSendFile() async {
-    try {
-      // Pick file - just select, don't upload yet
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
-        withData: true, // This fixes the "bytes are null" issue on mobile
+  Widget _buildPresenceText(
+    MessageChatController controller,
+    bool isActuallyOnline,
+    Object? lastSeen,
+  ) {
+    if (isActuallyOnline) {
+      return const Text(
+        'Online',
+        style: TextStyle(color: Color(0xFF34A853), fontSize: 13),
       );
-
-      if (result == null || result.files.isEmpty) return;
-
-      final file = result.files.first;
-      if (file.bytes == null) {
-        throw Exception('File bytes are null');
-      }
-
-      // Store file for preview - don't upload yet
-      setState(() {
-        _previewFile = file;
-      });
-    } catch (e) {
-      print('Error picking file: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
-  }
 
-  /// Open image in full-screen viewer
-  void _openImageViewer(String imageUrl, String fileName, String fileType) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder:
-            (context) => _ImageViewerScreen(
-              imageUrl: imageUrl,
-              fileName: fileName,
-              fileType: fileType,
+    final DateTime? lastSeenTime = controller.parseLastSeen(lastSeen);
+    if (lastSeenTime != null) {
+      return Text(
+        controller.formatLastSeen(lastSeenTime),
+        style: const TextStyle(color: Colors.grey, fontSize: 13),
+      );
+    }
+
+    return const Text(
+      'Offline',
+      style: TextStyle(color: Colors.grey, fontSize: 13),
+    );
+  }
+}
+
+/// Static fallback app bar title when instructor ID is null.
+class _StaticAppBarTitle extends StatelessWidget {
+  final Map<String, dynamic>? instructor;
+
+  const _StaticAppBarTitle({this.instructor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        InstructorMessageAvatar(
+          profileImage:
+              instructor?['profileImageUrl'] ?? instructor?['profileImage'],
+          name: instructor?['name'] as String? ?? 'Unknown Instructor',
+          isOnline: instructor?['isOnline'] == true,
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              instructor?['name'] as String? ?? 'Unknown Instructor',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+                fontSize: 16,
+              ),
             ),
+            Text(
+              instructor?['isOnline'] == true ? 'Online' : 'Offline',
+              style: TextStyle(
+                color: instructor?['isOnline'] == true
+                    ? const Color(0xFF34A853)
+                    : Colors.grey,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The main chat body: message list + input area.
+class _ChatBody extends StatelessWidget {
+  final MessageChatController controller;
+
+  const _ChatBody({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<MessageModel>>(
+      stream: controller.messagesStream,
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<List<MessageModel>> snapshot,
+      ) {
+        // Mark as read on first load
+        if (snapshot.hasData) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            controller.markAsReadIfNeeded();
+          });
+        }
+
+        // Auto-scroll when new messages arrive
+        if (snapshot.hasData && !controller.focusNode.hasFocus) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            controller.scrollToBottom();
+          });
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(Color(0xFF34A853)),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading messages',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final List<MessageModel> messages = snapshot.data ?? [];
+
+        return Column(
+          children: [
+            Expanded(
+              child: messages.isEmpty
+                  ? _EmptyState(controller: controller)
+                  : _MessageList(
+                      controller: controller,
+                      messages: messages,
+                    ),
+            ),
+            _ChatInputArea(controller: controller),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Empty state shown when there are no messages yet.
+class _EmptyState extends StatelessWidget {
+  final MessageChatController controller;
+
+  const _EmptyState({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final String instructorName =
+        controller.instructor.value?['name'] as String? ?? 'your instructor';
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No messages yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start a conversation with $instructorName',
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Scrollable message list.
+class _MessageList extends StatelessWidget {
+  final MessageChatController controller;
+  final List<MessageModel> messages;
+
+  const _MessageList({
+    required this.controller,
+    required this.messages,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      controller: controller.scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      itemCount: messages.length,
+      itemBuilder: (BuildContext context, int i) {
+        return _MessageBubble(
+          controller: controller,
+          message: messages[i],
+        );
+      },
+    );
+  }
+}
+
+/// A single message bubble with avatar, content, and timestamp.
+class _MessageBubble extends StatelessWidget {
+  final MessageChatController controller;
+  final MessageModel message;
+
+  const _MessageBubble({
+    required this.controller,
+    required this.message,
+  });
+
+  bool get _isMe => message.senderType == 'student';
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: _isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment:
+              _isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: _isMe
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!_isMe) ...[
+                  _InstructorAvatar(controller: controller),
+                  const SizedBox(width: 8),
+                ],
+                GestureDetector(
+                  onLongPress: _isMe && !message.isUnsent
+                      ? () => _showDeleteDialog(context)
+                      : null,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: _BubbleContent(
+                          controller: controller,
+                          message: message,
+                          isMe: _isMe,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              controller.formatTime(message.timestamp.toDate()),
+              style: TextStyle(
+                color: _isMe
+                    ? const Color(0xFF34A853)
+                    : Colors.black38,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  /// Build smart file attachment display based on file type
-  Widget _buildFileAttachment(FileAttachment attachment, bool isMe) {
-    final fileType = attachment.fileType.toLowerCase();
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext ctx) => ConfirmationDialog(
+        title: 'Unsend Message',
+        message: 'Are you sure you want to unsend this message?',
+        confirmText: 'Unsend',
+        cancelText: 'Cancel',
+        icon: Icons.undo_outlined,
+        iconColor: Colors.orange,
+        confirmButtonColor: Colors.orange,
+        onConfirm: () async {
+          final bool success =
+              await controller.unsendMessage(message.id);
+          if (ctx.mounted) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(
+                  success
+                      ? 'Message unsent successfully'
+                      : 'Failed to unsend message',
+                ),
+                backgroundColor:
+                    success ? const Color(0xFF34A853) : Colors.red,
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+}
 
-    // Check if file should be displayed inline (image/video)
+/// Instructor avatar with real-time online status for message bubbles.
+class _InstructorAvatar extends StatelessWidget {
+  final MessageChatController controller;
+
+  const _InstructorAvatar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String, dynamic>? instructor = controller.instructor.value;
+    if (instructor == null || instructor['id'] == null) {
+      return InstructorMessageAvatar(
+        profileImage: instructor?['profileImageUrl'] ??
+            instructor?['profileImage'],
+        name: instructor?['name'] as String? ?? 'Unknown Instructor',
+        isOnline: false,
+        radius: 16,
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('instructors')
+          .doc(instructor['id'] as String)
+          .snapshots(),
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<DocumentSnapshot> snapshot,
+      ) {
+        final Map<String, dynamic>? data =
+            snapshot.hasData && snapshot.data!.exists
+                ? snapshot.data!.data() as Map<String, dynamic>?
+                : null;
+
+        final bool isOnlineFlag = data?['isOnline'] == true;
+        final Object? lastSeen = data?['lastSeen'];
+
+        final bool isActuallyOnline = controller.isInstructorOnline(
+          isOnlineFlag: isOnlineFlag,
+          lastSeen: lastSeen,
+        );
+
+        return InstructorMessageAvatar(
+          profileImage: instructor['profileImageUrl'] ??
+              instructor['profileImage'],
+          name: instructor['name'] as String? ?? 'Unknown Instructor',
+          isOnline: isActuallyOnline,
+          radius: 16,
+        );
+      },
+    );
+  }
+}
+
+/// The styled bubble container with message content.
+class _BubbleContent extends StatelessWidget {
+  final MessageChatController controller;
+  final MessageModel message;
+  final bool isMe;
+
+  const _BubbleContent({
+    required this.controller,
+    required this.message,
+    required this.isMe,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isMe ? const Color(0xFF34A853) : Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(isMe ? 16 : 4),
+          bottomRight: Radius.circular(isMe ? 4 : 16),
+        ),
+        boxShadow: [
+          if (!isMe)
+            const BoxShadow(
+              color: Colors.black12,
+              blurRadius: 2,
+              offset: Offset(0, 1),
+            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // File attachment (only if not unsent)
+          if (message.fileAttachment != null && !message.isUnsent) ...[
+            _FileAttachmentDisplay(
+              attachment: message.fileAttachment!,
+              isMe: isMe,
+            ),
+            if (message.content.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                message.content,
+                style: TextStyle(
+                  color: isMe ? Colors.white : Colors.black87,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ],
+          // Text content for text-only or unsent messages
+          if (message.fileAttachment == null || message.isUnsent)
+            Text(
+              message.isUnsent
+                  ? (isMe
+                      ? 'You unsent a message'
+                      : '${controller.getFirstName(controller.instructor.value?['name'] as String? ?? 'Instructor')} unsent a message')
+                  : message.content,
+              style: TextStyle(
+                color: isMe ? Colors.white : Colors.black87,
+                fontSize: 15,
+                fontStyle:
+                    message.isUnsent ? FontStyle.italic : FontStyle.normal,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Smart file attachment display — renders inline for images/videos,
+/// or as a download card for documents.
+class _FileAttachmentDisplay extends StatelessWidget {
+  final FileAttachment attachment;
+  final bool isMe;
+
+  const _FileAttachmentDisplay({
+    required this.attachment,
+    required this.isMe,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final String fileType = attachment.fileType.toLowerCase();
+
     if (FileTypeUtils.shouldDisplayInline(fileType)) {
       if (FileTypeUtils.isImageFile(fileType)) {
         return ImageDisplayWidget(
           imageUrl: attachment.fileUrl,
           maxWidth: 250,
           maxHeight: 300,
-          onTap:
-              () => _openImageViewer(
-                attachment.fileUrl,
-                attachment.fileName,
-                attachment.fileType,
-              ),
+          onTap: () => _openImageViewer(context),
         );
       } else if (FileTypeUtils.isVideoFile(fileType)) {
         return VideoDisplayWidget(
           videoUrl: attachment.fileUrl,
           maxWidth: 250,
           maxHeight: 200,
-          onTap:
-              () => FileDownloadService.handleFileAction(
-                fileUrl: attachment.fileUrl,
-                fileName: attachment.fileName,
-                fileType: attachment.fileType,
-                context: context,
-              ),
+          onTap: () => _downloadFile(context),
         );
       }
     }
 
-    // For documents and other files, show download widget
     return FileAttachmentWidget(
       fileName: attachment.fileName,
       fileUrl: attachment.fileUrl,
@@ -361,775 +604,278 @@ class _MessageChatScreenState extends State<MessageChatScreen> {
       backgroundColor:
           isMe ? Colors.white.withOpacity(0.2) : const Color(0xFFF3F4F6),
       textColor: isMe ? Colors.white : Colors.black87,
-      onTap: () {
-        print('📥 Downloading file from message: ${attachment.fileName}');
-        print('📥 File URL: ${attachment.fileUrl}');
-        print('📥 File Type: ${attachment.fileType}');
-        FileDownloadService.handleFileAction(
-          fileUrl: attachment.fileUrl,
-          fileName: attachment.fileName,
-          fileType: attachment.fileType,
-          context: context,
-        );
-      },
+      onTap: () => _downloadFile(context),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+  void _openImageViewer(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _ImageViewerScreen(
+          imageUrl: attachment.fileUrl,
+          fileName: attachment.fileName,
+          fileType: attachment.fileType,
         ),
-        title:
-            instructor != null && instructor!['id'] != null
-                ? StreamBuilder<DocumentSnapshot>(
-                  stream:
-                      FirebaseFirestore.instance
-                          .collection('instructors')
-                          .doc(instructor!['id'])
-                          .snapshots(),
-                  builder: (context, snapshot) {
-                    final isOnline =
-                        snapshot.hasData &&
-                        snapshot.data!.exists &&
-                        (snapshot.data!.data()
-                                as Map<String, dynamic>?)?['isOnline'] ==
-                            true;
-                    dynamic lastSeen;
-                    if (snapshot.hasData && snapshot.data!.exists) {
-                      final data =
-                          snapshot.data!.data() as Map<String, dynamic>?;
-                      lastSeen = data?['lastSeen'];
-                    } else {
-                      lastSeen = null;
-                    }
-
-                    final isActuallyOnline = PresenceUtils.isActuallyOnline(
-                      isOnline: isOnline,
-                      lastSeen: lastSeen,
-                    );
-
-                    return Row(
-                      children: [
-                        InstructorMessageAvatar(
-                          profileImage:
-                              instructor?['profileImageUrl'] ??
-                              instructor?['profileImage'],
-                          name: instructor?['name'] ?? 'Unknown Instructor',
-                          isOnline: isActuallyOnline,
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              instructor?['name'] ?? 'Unknown Instructor',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                                fontSize: 16,
-                              ),
-                            ),
-                            Builder(
-                              builder: (context) {
-                                if (isActuallyOnline) {
-                                  return Text(
-                                    'Online',
-                                    style: TextStyle(
-                                      color: const Color(0xFF34A853),
-                                      fontSize: 13,
-                                    ),
-                                  );
-                                } else if (lastSeen != null) {
-                                  DateTime? lastSeenTime;
-                                  try {
-                                    if (lastSeen is Timestamp) {
-                                      lastSeenTime = lastSeen.toDate();
-                                    } else if (lastSeen is DateTime) {
-                                      lastSeenTime = lastSeen;
-                                    }
-                                  } catch (e) {
-                                    lastSeenTime = null;
-                                  }
-
-                                  if (lastSeenTime != null) {
-                                    return Text(
-                                      _formatLastSeen(lastSeenTime),
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 13,
-                                      ),
-                                    );
-                                  }
-                                }
-                                return Text(
-                                  'Offline',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 13,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
-                )
-                : Row(
-                  children: [
-                    InstructorMessageAvatar(
-                      profileImage:
-                          instructor?['profileImageUrl'] ??
-                          instructor?['profileImage'],
-                      name: instructor?['name'] ?? 'Unknown Instructor',
-                      isOnline: instructor?['isOnline'] ?? false,
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          instructor?['name'] ?? 'Unknown Instructor',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          instructor?['isOnline'] == true
-                              ? 'Online'
-                              : 'Offline',
-                          style: TextStyle(
-                            color:
-                                instructor?['isOnline'] == true
-                                    ? const Color(0xFF34A853)
-                                    : Colors.grey,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-        centerTitle: false,
       ),
-      backgroundColor: const Color(0xFFF7F8FA),
-      resizeToAvoidBottomInset: true,
-      body:
-          instructor != null && instructor!['id'] != null
-              ? StreamBuilder<List<MessageModel>>(
-                stream: MessageService.getBidirectionalMessages(
-                  instructor!['id'],
-                ),
-                builder: (context, snapshot) {
-                  // Mark messages as read on first load
-                  if (snapshot.hasData && !_hasMarkedAsRead) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      MessageService.markMessagesAsRead(instructor!['id']);
-                      _hasMarkedAsRead = true;
-                    });
-                  }
+    );
+  }
 
-                  // Auto-scroll to bottom when new messages arrive (only if not typing)
-                  if (snapshot.hasData && !_focusNode.hasFocus) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_scrollController.hasClients) {
-                        _scrollController.animateTo(
-                          _scrollController.position.maxScrollExtent,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOut,
-                        );
-                      }
-                    });
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF34A853),
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: Colors.red[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Error loading messages',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final messages = snapshot.data ?? [];
-
-                  return Column(
-                    children: [
-                      Expanded(
-                        child:
-                            messages.isEmpty
-                                ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.chat_bubble_outline,
-                                        size: 64,
-                                        color: Colors.grey[400],
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'No messages yet',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Start a conversation with ${instructor?['name'] ?? 'your instructor'}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[500],
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                )
-                                : ListView.builder(
-                                  controller: _scrollController,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 16,
-                                  ),
-                                  itemCount: messages.length,
-                                  itemBuilder: (context, i) {
-                                    final message = messages[i];
-                                    final isMe =
-                                        message.senderType == 'student';
-                                    return Align(
-                                      alignment:
-                                          isMe
-                                              ? Alignment.centerRight
-                                              : Alignment.centerLeft,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 4,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              isMe
-                                                  ? CrossAxisAlignment.end
-                                                  : CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment:
-                                                  isMe
-                                                      ? MainAxisAlignment.end
-                                                      : MainAxisAlignment.start,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.end,
-                                              children: [
-                                                if (!isMe)
-                                                  instructor != null &&
-                                                          instructor!['id'] !=
-                                                              null
-                                                      ? StreamBuilder<
-                                                        DocumentSnapshot
-                                                      >(
-                                                        stream:
-                                                            FirebaseFirestore
-                                                                .instance
-                                                                .collection(
-                                                                  'instructors',
-                                                                )
-                                                                .doc(
-                                                                  instructor!['id'],
-                                                                )
-                                                                .snapshots(),
-                                                        builder: (
-                                                          context,
-                                                          snapshot,
-                                                        ) {
-                                                          final isOnline =
-                                                              snapshot
-                                                                  .hasData &&
-                                                              snapshot
-                                                                  .data!
-                                                                  .exists &&
-                                                              (snapshot.data!
-                                                                          .data()
-                                                                      as Map<
-                                                                        String,
-                                                                        dynamic
-                                                                      >?)?['isOnline'] ==
-                                                                  true;
-                                                          dynamic lastSeen;
-                                                          if (snapshot
-                                                                  .hasData &&
-                                                              snapshot
-                                                                  .data!
-                                                                  .exists) {
-                                                            final data =
-                                                                snapshot.data!
-                                                                        .data()
-                                                                    as Map<
-                                                                      String,
-                                                                      dynamic
-                                                                    >?;
-                                                            lastSeen =
-                                                                data?['lastSeen'];
-                                                          } else {
-                                                            lastSeen = null;
-                                                          }
-
-                                                          final isActuallyOnline =
-                                                              PresenceUtils.isActuallyOnline(
-                                                                isOnline:
-                                                                    isOnline,
-                                                                lastSeen:
-                                                                    lastSeen,
-                                                              );
-
-                                                          return InstructorMessageAvatar(
-                                                            profileImage:
-                                                                instructor?['profileImageUrl'] ??
-                                                                instructor?['profileImage'],
-                                                            name:
-                                                                instructor?['name'] ??
-                                                                'Unknown Instructor',
-                                                            isOnline:
-                                                                isActuallyOnline,
-                                                            radius: 16,
-                                                          );
-                                                        },
-                                                      )
-                                                      : InstructorMessageAvatar(
-                                                        profileImage:
-                                                            instructor?['profileImageUrl'] ??
-                                                            instructor?['profileImage'],
-                                                        name:
-                                                            instructor?['name'] ??
-                                                            'Unknown Instructor',
-                                                        isOnline:
-                                                            instructor?['isOnline'] ??
-                                                            false,
-                                                        radius: 16,
-                                                      ),
-                                                if (!isMe)
-                                                  const SizedBox(width: 8),
-                                                GestureDetector(
-                                                  onLongPress:
-                                                      isMe && !message.isUnsent
-                                                          ? () {
-                                                            _showDeleteDialog(
-                                                              context,
-                                                              message,
-                                                            );
-                                                          }
-                                                          : null,
-                                                  child: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment.end,
-                                                    children: [
-                                                      Flexible(
-                                                        child: Container(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 16,
-                                                                vertical: 12,
-                                                              ),
-                                                          decoration: BoxDecoration(
-                                                            color:
-                                                                isMe
-                                                                    ? const Color(
-                                                                      0xFF34A853,
-                                                                    )
-                                                                    : Colors
-                                                                        .white,
-                                                            borderRadius: BorderRadius.only(
-                                                              topLeft:
-                                                                  const Radius.circular(
-                                                                    16,
-                                                                  ),
-                                                              topRight:
-                                                                  const Radius.circular(
-                                                                    16,
-                                                                  ),
-                                                              bottomLeft:
-                                                                  Radius.circular(
-                                                                    isMe
-                                                                        ? 16
-                                                                        : 4,
-                                                                  ),
-                                                              bottomRight:
-                                                                  Radius.circular(
-                                                                    isMe
-                                                                        ? 4
-                                                                        : 16,
-                                                                  ),
-                                                            ),
-                                                            boxShadow: [
-                                                              if (!isMe)
-                                                                const BoxShadow(
-                                                                  color:
-                                                                      Colors
-                                                                          .black12,
-                                                                  blurRadius: 2,
-                                                                  offset:
-                                                                      Offset(
-                                                                        0,
-                                                                        1,
-                                                                      ),
-                                                                ),
-                                                            ],
-                                                          ),
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              // Display file attachment with smart rendering (only if not unsent)
-                                                              if (message.fileAttachment !=
-                                                                      null &&
-                                                                  !message
-                                                                      .isUnsent) ...[
-                                                                _buildFileAttachment(
-                                                                  message
-                                                                      .fileAttachment!,
-                                                                  isMe,
-                                                                ),
-                                                                // Show text content if present (no "Sent a file" text - file name is in the widget)
-                                                                if (message
-                                                                    .content
-                                                                    .isNotEmpty) ...[
-                                                                  const SizedBox(
-                                                                    height: 8,
-                                                                  ),
-                                                                  Text(
-                                                                    message
-                                                                        .content,
-                                                                    style: TextStyle(
-                                                                      color:
-                                                                          isMe
-                                                                              ? Colors.white
-                                                                              : Colors.black87,
-                                                                      fontSize:
-                                                                          15,
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ],
-                                                              // Display text content for text-only messages or unsent messages
-                                                              if (message.fileAttachment ==
-                                                                      null ||
-                                                                  message
-                                                                      .isUnsent)
-                                                                Text(
-                                                                  message.isUnsent
-                                                                      ? (isMe
-                                                                          ? 'You unsent a message'
-                                                                          : '${_getFirstName(instructor?['name'] ?? 'Instructor')} unsent a message')
-                                                                      : message
-                                                                          .content,
-                                                                  style: TextStyle(
-                                                                    color:
-                                                                        isMe
-                                                                            ? Colors.white
-                                                                            : Colors.black87,
-                                                                    fontSize:
-                                                                        15,
-                                                                    fontStyle:
-                                                                        message.isUnsent
-                                                                            ? FontStyle.italic
-                                                                            : FontStyle.normal,
-                                                                  ),
-                                                                ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              _formatTime(
-                                                message.timestamp.toDate(),
-                                              ),
-                                              style: TextStyle(
-                                                color:
-                                                    isMe
-                                                        ? const Color(
-                                                          0xFF34A853,
-                                                        )
-                                                        : Colors.black38,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                      ),
-                      // Input field section
-                      Column(
-                        children: [
-                          // Show preview if file is selected
-                          if (_previewFile != null) ...[
-                            Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: const Color(0xFFE5E7EB),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Preview for images
-                                  if (FileTypeUtils.isImageFile(
-                                    _previewFile!.extension ?? '',
-                                  )) ...[
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child:
-                                          _previewFile!.bytes != null
-                                              ? Image.memory(
-                                                _previewFile!.bytes!,
-                                                width: 80,
-                                                height: 80,
-                                                fit: BoxFit.cover,
-                                              )
-                                              : const SizedBox(
-                                                width: 80,
-                                                height: 80,
-                                                child: Icon(Icons.image),
-                                              ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _previewFile!.name,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${(_previewFile!.size / 1024).toStringAsFixed(1)} KB',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.black54,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ]
-                                  // Preview for other files
-                                  else ...[
-                                    Icon(
-                                      Icons.insert_drive_file,
-                                      size: 48,
-                                      color: Colors.grey[600],
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _previewFile!.name,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${(_previewFile!.size / 1024).toStringAsFixed(1)} KB • ${_previewFile!.extension ?? 'file'}',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.black54,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                  // Remove button
-                                  IconButton(
-                                    icon: const Icon(Icons.close, size: 20),
-                                    color: Colors.grey[600],
-                                    onPressed: _clearPreview,
-                                    tooltip: 'Remove attachment',
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                          Container(
-                            color: Colors.white,
-                            padding: EdgeInsets.only(
-                              left: 12,
-                              right: 12,
-                              top: 8,
-                              bottom: MediaQuery.of(context).padding.bottom + 8,
-                            ),
-                            child: Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: _isUploading ? null : _pickAndSendFile,
-                                  child: Image.asset(
-                                    'assets/icons/Vector (8).png',
-                                    width: 22,
-                                    color:
-                                        _isUploading
-                                            ? Colors.grey
-                                            : Colors.black45,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxHeight:
-                                          100, // Limit max height for multiline
-                                    ),
-                                    child: TextField(
-                                      cursorColor: Colors.black54,
-                                      controller: _controller,
-                                      focusNode: _focusNode,
-                                      enabled: !_isUploading,
-                                      textInputAction: TextInputAction.send,
-                                      keyboardType: TextInputType.text,
-                                      maxLines: null,
-                                      minLines: 1,
-                                      decoration: const InputDecoration(
-                                        hintText: 'Type a message',
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 8,
-                                        ),
-                                      ),
-                                      onSubmitted: (value) {
-                                        // Send message when user presses send/enter on keyboard
-                                        if (value.trim().isNotEmpty ||
-                                            _previewFile != null) {
-                                          _sendMessage(value.trim());
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                _isUploading
-                                    ? const Padding(
-                                      padding: EdgeInsets.all(8.0),
-                                      child: SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Color(0xFF34A853),
-                                              ),
-                                        ),
-                                      ),
-                                    )
-                                    : ValueListenableBuilder<TextEditingValue>(
-                                      valueListenable: _controller,
-                                      builder: (context, value, child) {
-                                        final hasText =
-                                            value.text.trim().isNotEmpty ||
-                                            _previewFile != null;
-                                        return GestureDetector(
-                                          onTap: () {
-                                            // Always allow tapping - check inside if we should send
-                                            final content =
-                                                _controller.text.trim();
-                                            if (content.isNotEmpty ||
-                                                _previewFile != null) {
-                                              _sendMessage(content);
-                                            }
-                                          },
-                                          child: Image.asset(
-                                            'assets/icons/akar-icons_send.png',
-                                            width: 24,
-                                            color:
-                                                hasText
-                                                    ? const Color(0xFF34A853)
-                                                    : Colors.grey,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              )
-              : const Center(child: Text('No instructor selected')),
+  void _downloadFile(BuildContext context) {
+    FileDownloadService.handleFileAction(
+      fileUrl: attachment.fileUrl,
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      context: context,
     );
   }
 }
 
-/// Full-screen image viewer for mobile devices
+/// Chat input area with file preview, text field, and send button.
+class _ChatInputArea extends StatelessWidget {
+  final MessageChatController controller;
+
+  const _ChatInputArea({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Obx(() => controller.previewFile.value != null
+            ? _FilePreview(controller: controller)
+            : const SizedBox.shrink()),
+        _InputRow(controller: controller),
+      ],
+    );
+  }
+}
+
+/// File preview bar shown above the input when a file is attached.
+class _FilePreview extends StatelessWidget {
+  final MessageChatController controller;
+
+  const _FilePreview({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final file = controller.previewFile.value!;
+    final bool isImage =
+        FileTypeUtils.isImageFile(file.extension ?? '');
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          if (isImage) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: file.bytes != null
+                  ? Image.memory(
+                      file.bytes!,
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                    )
+                  : const SizedBox(
+                      width: 80, height: 80, child: Icon(Icons.image)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    file.name,
+                    style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(file.size / 1024).toStringAsFixed(1)} KB',
+                    style: const TextStyle(
+                      fontSize: 12, color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Icon(Icons.insert_drive_file, size: 48, color: Colors.grey[600]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    file.name,
+                    style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w500),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(file.size / 1024).toStringAsFixed(1)} KB • ${file.extension ?? 'file'}',
+                    style: const TextStyle(
+                      fontSize: 12, color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            color: Colors.grey[600],
+            onPressed: controller.clearPreview,
+            tooltip: 'Remove attachment',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Text input row with attach button, text field, and send button.
+class _InputRow extends StatelessWidget {
+  final MessageChatController controller;
+
+  const _InputRow({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.only(
+        left: 12,
+        right: 12,
+        top: 8,
+        bottom: MediaQuery.of(context).padding.bottom + 8,
+      ),
+      child: Row(
+        children: [
+          Obx(() => GestureDetector(
+                onTap: controller.isUploading.value
+                    ? null
+                    : () async {
+                        try {
+                          await controller.pickFile();
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to pick file: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: Image.asset(
+                  'assets/icons/Vector (8).png',
+                  width: 22,
+                  color: controller.isUploading.value
+                      ? Colors.grey
+                      : Colors.black45,
+                ),
+              )),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Obx(() => ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 100),
+                  child: TextField(
+                    cursorColor: Colors.black54,
+                    controller: controller.textController,
+                    focusNode: controller.focusNode,
+                    enabled: !controller.isUploading.value,
+                    textInputAction: TextInputAction.send,
+                    keyboardType: TextInputType.text,
+                    maxLines: null,
+                    minLines: 1,
+                    decoration: const InputDecoration(
+                      hintText: 'Type a message',
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 8),
+                    ),
+                    onSubmitted: (String value) => _handleSend(context),
+                  ),
+                )),
+          ),
+          const SizedBox(width: 6),
+          Obx(() => controller.isUploading.value
+              ? const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF34A853),
+                      ),
+                    ),
+                  ),
+                )
+              : ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: controller.textController,
+                  builder: (
+                    BuildContext context,
+                    TextEditingValue value,
+                    Widget? child,
+                  ) {
+                    final bool hasContent =
+                        value.text.trim().isNotEmpty ||
+                        controller.previewFile.value != null;
+                    return GestureDetector(
+                      onTap: () => _handleSend(context),
+                      child: Image.asset(
+                        'assets/icons/akar-icons_send.png',
+                        width: 24,
+                        color: hasContent
+                            ? const Color(0xFF34A853)
+                            : Colors.grey,
+                      ),
+                    );
+                  },
+                )),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleSend(BuildContext context) async {
+    final String content = controller.textController.text.trim();
+    if (content.isEmpty && controller.previewFile.value == null) return;
+
+    final bool success = await controller.sendMessage(content);
+
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to send message'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } else if (success &&
+        controller.previewFile.value == null &&
+        context.mounted) {
+      // File success snackbar is only shown for file messages
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Full-screen image viewer (unchanged from original)
+// ─────────────────────────────────────────────────────────────────────
+
+/// Full-screen image viewer for mobile devices.
 class _ImageViewerScreen extends StatelessWidget {
   final String imageUrl;
   final String fileName;
@@ -1160,13 +906,12 @@ class _ImageViewerScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.download, color: Colors.white),
-            onPressed:
-                () => FileDownloadService.handleFileAction(
-                  fileUrl: imageUrl,
-                  fileName: fileName,
-                  fileType: fileType,
-                  context: context,
-                ),
+            onPressed: () => FileDownloadService.handleFileAction(
+              fileUrl: imageUrl,
+              fileName: fileName,
+              fileType: fileType,
+              context: context,
+            ),
             tooltip: 'Download image',
           ),
         ],
@@ -1180,26 +925,25 @@ class _ImageViewerScreen extends StatelessWidget {
           child: CachedNetworkImage(
             imageUrl: imageUrl,
             fit: BoxFit.contain,
-            placeholder:
-                (context, url) => const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            placeholder: (BuildContext context, String url) => const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            errorWidget: (BuildContext context, String url, Object error) =>
+                const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.broken_image, color: Colors.white, size: 64),
+                  SizedBox(height: 16),
+                  Text(
+                    'Failed to load image',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
                   ),
-                ),
-            errorWidget:
-                (context, url, error) => const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 64),
-                      SizedBox(height: 16),
-                      Text(
-                        'Failed to load image',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

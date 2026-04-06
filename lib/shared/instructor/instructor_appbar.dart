@@ -32,6 +32,9 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
   final ValueNotifier<List<Map<String, dynamic>>> _notificationsNotifier =
       ValueNotifier<List<Map<String, dynamic>>>([]);
 
+  // Persistent session state for clearing the badge (Seen vs Read)
+  static DateTime? _lastViewedAt;
+
   void _log(Object? message) {
     if (kDebugMode) {
       debugPrint('$message');
@@ -113,7 +116,21 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
     if (userId == null) return false;
     return _notifications.any((notification) {
       final readBy = List<String>.from(notification['readBy'] ?? []);
-      return !readBy.contains(userId);
+      if (readBy.contains(userId)) return false;
+
+      // Check if it's "New" since last visit
+      if (_lastViewedAt != null) {
+        final timestamp = notification['createdAt'];
+        DateTime? notifyTime;
+        if (timestamp is Timestamp) notifyTime = timestamp.toDate();
+        if (timestamp is DateTime) notifyTime = timestamp;
+
+        if (notifyTime != null && notifyTime.isAfter(_lastViewedAt!)) {
+          return true;
+        }
+        return false;
+      }
+      return true;
     });
   }
 
@@ -122,8 +139,41 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
     if (userId == null) return 0;
     return _notifications.where((notification) {
       final readBy = List<String>.from(notification['readBy'] ?? []);
-      return !readBy.contains(userId);
+      if (readBy.contains(userId)) return false;
+
+      // Check if it's "New" since last visit
+      if (_lastViewedAt != null) {
+        final timestamp = notification['createdAt'];
+        DateTime? notifyTime;
+        if (timestamp is Timestamp) notifyTime = timestamp.toDate();
+        if (timestamp is DateTime) notifyTime = timestamp;
+
+        if (notifyTime != null && notifyTime.isAfter(_lastViewedAt!)) {
+          return true;
+        }
+        return false;
+      }
+      return true;
     }).length;
+  }
+
+  /// Clears the badge without marking items at "read" in DB
+  void _markAllAsSeen() {
+    if (_notifications.isEmpty) return;
+
+    // Get the latest notification timestamp
+    final latest = _notifications.first;
+    final timestamp = latest['createdAt'];
+    DateTime? latestTime;
+    if (timestamp is Timestamp) latestTime = timestamp.toDate();
+    if (timestamp is DateTime) latestTime = timestamp;
+
+    if (latestTime != null) {
+      setState(() {
+        _lastViewedAt = latestTime;
+      });
+      _log('✅ Instructor badge cleared (seen up to $latestTime)');
+    }
   }
 
   void _showOverlay() {
@@ -148,6 +198,9 @@ class _InstructorAppBarState extends State<InstructorAppBar> {
   }
 
   void _removeOverlay() {
+    // Clear the badge when the dropdown is closed
+    _markAllAsSeen();
+
     _overlayEntry?.remove();
     _overlayEntry = null;
     setState(() {

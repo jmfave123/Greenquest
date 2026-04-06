@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:greenquest/instructor/helpers/extract_attachment_url.dart';
+import 'package:greenquest/instructor/helpers/get_file_icon.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/controllers/file_submission_controller.dart';
@@ -52,6 +54,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   List<String> _classes = [];
   Map<String, bool> _selectedClasses = {};
   bool _isLoadingClasses = true;
+  List<dynamic> _existingAttachments = [];
 
   // Excel category options
   final Map<String, String> _categories = {
@@ -192,6 +195,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
       if (widget.period == 'Final' && _selectedCategory == 'midterm_exam') {
         _selectedCategory = 'final_exam';
       }
+
+      _existingAttachments = List<dynamic>.from(data['attachments'] ?? []);
     });
   }
 
@@ -477,7 +482,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
     }
 
     // Upload files if any are selected
-    List<String> attachmentUrls = [];
+    List<dynamic> attachmentUrls = [];
+
+    // Preserve existing attachments in edit mode
+    if (widget.isEdit &&
+        widget.initialData != null &&
+        widget.initialData!['attachments'] != null) {
+      attachmentUrls.addAll(
+        widget.initialData!['attachments'] as List<dynamic>,
+      );
+    }
+
     if (_fileController.selectedFiles.isNotEmpty) {
       try {
         _createController.isLoading.value = true;
@@ -489,11 +504,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
         );
 
         if (uploadSuccess) {
-          // Get uploaded file URLs
-          attachmentUrls =
-              _fileController.uploadedFiles
-                  .map((file) => file['url'] as String)
-                  .toList();
+          // Add newly uploaded file objects (maps with URL, name, type)
+          attachmentUrls.addAll(_fileController.uploadedFiles.toList());
         } else {
           _createController.isLoading.value = false;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -579,6 +591,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       _selectedClasses = Map.fromEntries(
         _classes.map((e) => MapEntry(e, false)),
       );
+      _existingAttachments = [];
       _showTitleError = false;
     });
   }
@@ -1338,6 +1351,75 @@ class _ActivityScreenState extends State<ActivityScreen> {
               ),
             ),
 
+            if (widget.isEdit && _existingAttachments.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Current Attachments:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Column(
+                children:
+                    _existingAttachments.map((attachment) {
+                      return Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.blue[100]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.attach_file,
+                              color: Colors.blue[700],
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                getAttachmentDisplayName(attachment),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => previewAttachment(attachment),
+                              icon: const Icon(
+                                Icons.visibility,
+                                size: 16,
+                                color: Colors.blue,
+                              ),
+                              tooltip: 'Preview attachment',
+                            ),
+                            IconButton(
+                              onPressed: () => downloadAttachment(attachment),
+                              icon: const Icon(
+                                Icons.download,
+                                size: 16,
+                                color: Colors.green,
+                              ),
+                              tooltip: 'Download attachment',
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+              ),
+            ],
+
             // Selected files display - now fully scrollable
             if (_fileController.selectedFiles.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -1370,7 +1452,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                         child: Row(
                           children: [
                             Icon(
-                              _getFileIcon(file.extension),
+                              getFileIcon(file.extension),
                               color: Colors.grey[600],
                               size: 16,
                             ),
@@ -1442,30 +1524,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
-    }
-  }
-
-  IconData _getFileIcon(String? extension) {
-    switch (extension?.toLowerCase()) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return Icons.video_file;
-      case 'zip':
-      case 'rar':
-        return Icons.archive;
-      default:
-        return Icons.attach_file;
     }
   }
 }

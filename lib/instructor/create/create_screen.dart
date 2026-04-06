@@ -54,10 +54,12 @@ class _CreateScreenState extends State<CreateScreen>
     'Activity',
     'Material',
     'Quiz',
+    'Exam',
     'PIT',
   ];
   final List<String> _periods = ['Prelim', 'Midterm', 'Final'];
   final List<String> _pitPeriods = ['Midterm', 'Final'];
+  final List<String> _examPeriods = ['Midterm', 'Final'];
   bool _hasAssignedSections = true;
   bool _isCheckingSections = true;
 
@@ -201,6 +203,7 @@ class _CreateScreenState extends State<CreateScreen>
       if (type == 'Assignment' ||
           type == 'Activity' ||
           type == 'Quiz' ||
+          type == 'Exam' ||
           type == 'PIT') {
         // Show period dropdown first, don't navigate yet
         _showPeriodDropdown = true;
@@ -319,6 +322,15 @@ class _CreateScreenState extends State<CreateScreen>
             ),
           )
           .then((_) => _refreshData()); // Refresh data when returning
+    } else if (_selectedType == 'Exam') {
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder:
+                  (context) => QuizzesScreen(period: period, isExamMode: true),
+            ),
+          )
+          .then((_) => _refreshData()); // Refresh data when returning
     } else if (_selectedType == 'PIT') {
       Navigator.of(context)
           .push(
@@ -358,7 +370,7 @@ class _CreateScreenState extends State<CreateScreen>
           Text(
             isSearching
                 ? 'Try adjusting your search query to find what you\'re looking for.'
-                : 'Create assignments, activities, materials, or quizzes for your classes.',
+                : 'Create assignments, activities, materials, quizzes, exams, or PITs for your classes.',
             style: const TextStyle(fontSize: 16, color: Colors.black54),
             textAlign: TextAlign.center,
           ),
@@ -492,7 +504,7 @@ class _CreateScreenState extends State<CreateScreen>
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText:
-                          'Search by title (Assignment, Activity, Material, Quiz, PIT)...',
+                          'Search by title (Assignment, Activity, Material, Quiz, Exam, PIT)...',
                       border: InputBorder.none,
                       hintStyle: TextStyle(color: Color(0xFFBDBDBD)),
                     ),
@@ -845,6 +857,23 @@ class _CreateScreenState extends State<CreateScreen>
                       .then(
                         (_) => _refreshData(),
                       ); // Refresh data when returning
+                } else if (item['type'] == 'Exam') {
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder:
+                              (context) => QuizzesScreen(
+                                period: item['period'] ?? 'Midterm',
+                                isEdit: true,
+                                isExamMode: true,
+                                itemId: item['id'],
+                                initialData: item,
+                              ),
+                        ),
+                      )
+                      .then(
+                        (_) => _refreshData(),
+                      ); // Refresh data when returning
                 } else if (item['type'] == 'Material') {
                   Navigator.of(context)
                       .push(
@@ -950,6 +979,8 @@ class _CreateScreenState extends State<CreateScreen>
         return Icons.description;
       case 'Quiz':
         return Icons.quiz_outlined;
+      case 'Exam':
+        return Icons.fact_check_outlined;
       case 'PIT':
         return Icons.school;
       default:
@@ -1319,6 +1350,7 @@ class _CreateScreenState extends State<CreateScreen>
               (_selectedType == 'Assignment' ||
                   _selectedType == 'Activity' ||
                   _selectedType == 'Quiz' ||
+                  _selectedType == 'Exam' ||
                   _selectedType == 'PIT'))
             Positioned(
               top:
@@ -1392,9 +1424,11 @@ class _CreateScreenState extends State<CreateScreen>
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children:
-                                  (_selectedType == 'PIT'
+                                  ((_selectedType == 'PIT')
                                           ? _pitPeriods
-                                          : _periods)
+                                          : (_selectedType == 'Exam'
+                                              ? _examPeriods
+                                              : _periods))
                                       .map(
                                         (period) => MouseRegion(
                                           cursor: SystemMouseCursors.click,

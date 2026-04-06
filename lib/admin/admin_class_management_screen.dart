@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:greenquest/admin/widgets/row/build_info_row.dart';
 import '../shared/admin/admin_sidebar.dart';
 import '../shared/admin/admin_navigation_constants.dart';
 import '../shared/widgets/safe_asset_image.dart';
@@ -1771,16 +1772,17 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                 // Contact Information
                 Column(
                   children: [
-                    _buildInfoRow(
+                    buildInfoRow(
                       Icons.email_outlined,
                       'Email',
                       (_instructorData.isNotEmpty
                               ? _instructorData['email']
                               : widget.instructor['email']) ??
                           'N/A',
+                      isLoading: false,
                     ),
                     const SizedBox(height: 16),
-                    _buildInfoRow(
+                    buildInfoRow(
                       Icons.phone_outlined,
                       'Phone',
                       ((_instructorData.isNotEmpty
@@ -1793,9 +1795,10 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
                           : (_instructorData.isNotEmpty
                               ? _instructorData['phone']
                               : widget.instructor['phone']),
+                      isLoading: false,
                     ),
                     const SizedBox(height: 16),
-                    _buildInfoRow(
+                    buildInfoRow(
                       Icons.business_outlined,
                       'Department',
                       _getDepartmentDisplayText(),
@@ -1861,75 +1864,6 @@ class _InstructorDetailViewState extends State<InstructorDetailView>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow(
-    IconData icon,
-    String label,
-    String value, {
-    bool isLoading = false,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF34A853).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: const Color(0xFF34A853), size: 20),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              isLoading
-                  ? Row(
-                    children: [
-                      SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            const Color(0xFF34A853),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        value,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  )
-                  : Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:greenquest/admin/helpers/get_day__abbreviation.dart';
 import '../../../shared/widgets/skeleton_loading.dart';
 import '../../../user/materials/materials_detail_screen.dart';
 import '../../create/create_controller.dart';
@@ -201,7 +202,7 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
                                 if (allSameTime && schedules.length > 1) {
                                   // Show as "Mon/Wed 9:00 AM - 10:30 AM" with rooms
                                   final days = schedules
-                                      .map((s) => _getDayAbbreviation(s['day']))
+                                      .map((s) => getDayAbbreviation(s['day']))
                                       .join('/');
 
                                   // Check if all rooms are the same
@@ -227,7 +228,7 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
                                         CrossAxisAlignment.start,
                                     children:
                                         schedules.map((schedule) {
-                                          final dayAbbr = _getDayAbbreviation(
+                                          final dayAbbr = getDayAbbreviation(
                                             schedule['day'],
                                           );
                                           final room =
@@ -245,7 +246,7 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
                               } else {
                                 // Fallback to old format
                                 return Text(
-                                  '${_getDayAbbreviation(widget.classData['day'])} ${widget.classData['startTime']} - ${widget.classData['endTime']}',
+                                  '${getDayAbbreviation(widget.classData['day'])} ${widget.classData['startTime']} - ${widget.classData['endTime']}',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -941,30 +942,6 @@ class _ClassStreamTabState extends State<ClassStreamTab> {
                 ),
           ),
         );
-    }
-  }
-
-  /// Get day abbreviation
-  String _getDayAbbreviation(String? day) {
-    if (day == null) return '';
-
-    switch (day.toLowerCase()) {
-      case 'monday':
-        return 'Mon';
-      case 'tuesday':
-        return 'Tue';
-      case 'wednesday':
-        return 'Wed';
-      case 'thursday':
-        return 'Thu';
-      case 'friday':
-        return 'Fri';
-      case 'saturday':
-        return 'Sat';
-      case 'sunday':
-        return 'Sun';
-      default:
-        return day;
     }
   }
 

@@ -1,10 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../shared/instructor/instructor_sidebar.dart';
-import '../../shared/instructor/instructor_navigation_constants.dart';
-import '../../shared/responsive/responsive_layout.dart';
+import 'package:greenquest/instructor/helpers/extract_attachment_url.dart';
+import 'package:greenquest/instructor/helpers/get_file_icon.dart';
 import '../../shared/controllers/file_submission_controller.dart';
+import '../../shared/instructor/instructor_navigation_constants.dart';
+import '../../shared/instructor/instructor_sidebar.dart';
+import '../../shared/responsive/responsive_layout.dart';
 import '../../shared/services/instructor_class_service.dart';
 import '../../shared/widgets/skeleton_loading.dart';
 import '../topics/topic_controller.dart';
@@ -34,27 +36,29 @@ class _PITScreenState extends State<PITScreen> {
     FileSubmissionController(),
   );
   final TopicController _topicController = Get.put(TopicController());
+
   InstructorNavigationItem _selectedItem = InstructorNavigationItem.create;
+
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _instructionController = TextEditingController();
   final TextEditingController _pointsController = TextEditingController(
     text: '100',
   );
+
   DateTime? _selectedDueDate;
   String _selectedCategory = 'pit';
   bool _showForDropdown = false;
   bool _showCategoryDropdown = false;
   bool _showTitleError = false;
 
-  // Topic selection
   String? _selectedTopicId;
   String? _selectedTopicName;
 
   List<String> _classes = [];
   Map<String, bool> _selectedClasses = {};
   bool _isLoadingClasses = true;
+  List<dynamic> _existingAttachments = [];
 
-  // Excel category options
   final Map<String, String> _categories = {
     'class_standing': 'Class Standing Performance Items (10%)',
     'quiz_prelim': 'Quiz/Prelim Performance Item (40%)',
@@ -67,10 +71,8 @@ class _PITScreenState extends State<PITScreen> {
   void initState() {
     super.initState();
 
-    // Load topics from Firestore
     _topicController.loadTopics();
 
-    // Clear files when creating a new item (not editing)
     if (!widget.isEdit) {
       _fileController.clearFiles();
     }
@@ -79,7 +81,6 @@ class _PITScreenState extends State<PITScreen> {
       if (widget.isEdit && widget.initialData != null) {
         _loadInitialData();
       } else {
-        // Auto-update category based on period for new items
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _updateCategoryBasedOnPeriod();
         });
@@ -93,125 +94,93 @@ class _PITScreenState extends State<PITScreen> {
     });
 
     try {
-      // Load section codes from instructor's assignments
       final sectionCodes =
           await InstructorClassService.getInstructorSectionCodes();
 
       if (sectionCodes.isNotEmpty) {
         _classes = sectionCodes;
-        _selectedClasses = Map.fromEntries(
-          _classes.map((e) => MapEntry(e, false)),
-        );
-        print('✅ Loaded ${_classes.length} instructor classes: $_classes');
       } else {
-        // Fallback to static classes if no assignments found
         _classes = InstructorClassService.getFallbackClasses();
-        _selectedClasses = Map.fromEntries(
-          _classes.map((e) => MapEntry(e, false)),
-        );
-        print('⚠️ No assignments found, using fallback classes: $_classes');
       }
-    } catch (e) {
-      // Fallback to static classes on error
+
+      _selectedClasses = Map.fromEntries(
+        _classes.map((e) => MapEntry(e, false)),
+      );
+    } catch (_) {
       _classes = InstructorClassService.getFallbackClasses();
       _selectedClasses = Map.fromEntries(
         _classes.map((e) => MapEntry(e, false)),
       );
-      print('❌ Error loading classes, using fallback: $e');
     } finally {
-      setState(() {
-        _isLoadingClasses = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingClasses = false;
+        });
+      }
     }
   }
 
   void _loadInitialData() {
     final data = widget.initialData!;
+
     setState(() {
       _titleController.text = data['title'] ?? '';
       _instructionController.text = data['instruction'] ?? '';
-      _pointsController.text = data['points'] ?? '100';
+      _pointsController.text = data['points']?.toString() ?? '100';
 
-      // Set selected classes
-      if (data['selectedClasses'] != null) {
-        for (String className in data['selectedClasses']) {
-          if (_selectedClasses.containsKey(className)) {
-            _selectedClasses[className] = true;
-          }
-        }
-      }
-
-      // Set due date - prefer raw date, fallback to formatted string
       final dueDateValue = data['dueDateRaw'] ?? data['dueDate'];
       if (dueDateValue != null) {
         try {
-          // Handle both DateTime objects and ISO string formats
           if (dueDateValue is DateTime) {
             _selectedDueDate = dueDateValue;
           } else if (dueDateValue is Timestamp) {
             _selectedDueDate = dueDateValue.toDate();
           } else if (dueDateValue is String) {
-            // Try parsing ISO string format
             _selectedDueDate = DateTime.parse(dueDateValue);
           }
-        } catch (e) {
-          print('Error parsing due date: $e');
+        } catch (_) {
           _selectedDueDate = null;
         }
       }
 
-      // Set category if available
-      if (data['category'] != null) {
-        String category = data['category'] as String;
-        // Auto-update category based on period
-        if (widget.period == 'Final' && category == 'midterm_exam') {
-          category = 'final_exam';
-        } else if (widget.period != 'Final' && category == 'final_exam') {
-          category = 'midterm_exam';
+      if (data['selectedClasses'] is List) {
+        for (final dynamic className in data['selectedClasses']) {
+          final key = className.toString();
+          if (_selectedClasses.containsKey(key)) {
+            _selectedClasses[key] = true;
+          }
         }
-        _selectedCategory = category;
       }
 
-      // Auto-update category if period is Final and category is midterm_exam
-      if (widget.period == 'Final' && _selectedCategory == 'midterm_exam') {
-        _selectedCategory = 'final_exam';
+      if (data['category'] != null) {
+        _selectedCategory = data['category'].toString();
       }
 
-      // Load topic data - handle null, empty, and "null" string
       final topicId = data['topicId'];
       final topicName = data['topicName'];
 
-      // Only set topic if it has a valid value (not null, not empty, not string "null")
       if (topicId != null && topicId != '' && topicId != 'null') {
-        _selectedTopicId = topicId;
-      } else {
-        _selectedTopicId = null;
+        _selectedTopicId = topicId.toString();
+      }
+      if (topicName != null && topicName != '' && topicName != 'null') {
+        _selectedTopicName = topicName.toString();
       }
 
-      if (topicName != null && topicName != '' && topicName != 'null') {
-        _selectedTopicName = topicName;
-      } else {
-        _selectedTopicName = null;
-      }
+      _existingAttachments = List<dynamic>.from(data['attachments'] ?? []);
+
+      _updateCategoryBasedOnPeriod();
     });
   }
 
-  // Method to update category based on period
   void _updateCategoryBasedOnPeriod() {
-    if (widget.period == 'Final') {
-      // If period is Final and category is midterm_exam, change to final_exam
-      if (_selectedCategory == 'midterm_exam') {
-        setState(() {
-          _selectedCategory = 'final_exam';
-        });
-      }
-    } else if (widget.period == 'Prelim' || widget.period == 'Midterm') {
-      // If period is Prelim or Midterm and category is final_exam, change to midterm_exam
-      if (_selectedCategory == 'final_exam') {
-        setState(() {
-          _selectedCategory = 'midterm_exam';
-        });
-      }
+    if (widget.period == 'Final' && _selectedCategory == 'midterm_exam') {
+      _selectedCategory = 'final_exam';
+      return;
+    }
+
+    if ((widget.period == 'Prelim' || widget.period == 'Midterm') &&
+        _selectedCategory == 'final_exam') {
+      _selectedCategory = 'midterm_exam';
     }
   }
 
@@ -219,13 +188,13 @@ class _PITScreenState extends State<PITScreen> {
     setState(() {
       _selectedItem = item;
     });
-    String route = InstructorNavigationHelper.getRoute(item);
+    final route = InstructorNavigationHelper.getRoute(item);
     Navigator.of(context).pushReplacementNamed(route);
   }
 
   void _toggleClassSelection(String className) {
     setState(() {
-      _selectedClasses[className] = !_selectedClasses[className]!;
+      _selectedClasses[className] = !(_selectedClasses[className] ?? false);
     });
   }
 
@@ -242,11 +211,11 @@ class _PITScreenState extends State<PITScreen> {
 
     if (selectedClasses.isEmpty) {
       return 'Select classes';
-    } else if (selectedClasses.length == 1) {
-      return selectedClasses.first;
-    } else {
-      return '${selectedClasses.length} classes selected';
     }
+    if (selectedClasses.length == 1) {
+      return selectedClasses.first;
+    }
+    return '${selectedClasses.length} classes selected';
   }
 
   void _toggleForDropdown() {
@@ -262,110 +231,109 @@ class _PITScreenState extends State<PITScreen> {
   }
 
   Future<void> _showCreateTopicDialog() async {
-    final TextEditingController topicController = TextEditingController();
+    final topicController = TextEditingController();
 
     await showDialog<bool>(
       context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Container(
-              width: 400,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Create topic',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: topicController,
-                    decoration: InputDecoration(
-                      labelText: 'Topic name',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFF34A853)),
-                      ),
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            width: 400,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Create topic',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: topicController,
+                  decoration: InputDecoration(
+                    labelText: 'Topic name',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    autofocus: true,
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF34A853)),
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: () async {
-                          final topicName = topicController.text.trim();
-                          if (topicName.isEmpty) {
-                            Get.snackbar(
-                              'Error',
-                              'Please enter a topic name',
-                              backgroundColor: Colors.red,
-                              colorText: Colors.white,
-                            );
-                            return;
-                          }
+                  autofocus: true,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final topicName = topicController.text.trim();
+                        if (topicName.isEmpty) {
+                          Get.snackbar(
+                            'Error',
+                            'Please enter a topic name',
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                          return;
+                        }
 
-                          if (_topicController.topicExists(topicName)) {
-                            Get.snackbar(
-                              'Error',
-                              'A topic with this name already exists',
-                              backgroundColor: Colors.red,
-                              colorText: Colors.white,
-                            );
-                            return;
-                          }
+                        if (_topicController.topicExists(topicName)) {
+                          Get.snackbar(
+                            'Error',
+                            'A topic with this name already exists',
+                            backgroundColor: Colors.red,
+                            colorText: Colors.white,
+                          );
+                          return;
+                        }
 
-                          final newTopic = await _topicController.createTopic(
-                            topicName: topicName,
+                        final newTopic = await _topicController.createTopic(
+                          topicName: topicName,
+                        );
+
+                        if (newTopic != null) {
+                          Navigator.of(context).pop(true);
+                          Get.snackbar(
+                            'Success',
+                            'Topic created',
+                            backgroundColor: const Color(0xFF34A853),
+                            colorText: Colors.white,
                           );
 
-                          if (newTopic != null) {
-                            Navigator.of(context).pop(true);
-                            Get.snackbar(
-                              'Success',
-                              'Topic created',
-                              backgroundColor: const Color(0xFF34A853),
-                              colorText: Colors.white,
-                            );
-
-                            setState(() {
-                              _selectedTopicId = newTopic.id;
-                              _selectedTopicName = newTopic.topic;
-                            });
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF34A853),
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Create'),
+                          setState(() {
+                            _selectedTopicId = newTopic.id;
+                            _selectedTopicName = newTopic.topic;
+                          });
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF34A853),
+                        foregroundColor: Colors.white,
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                      child: const Text('Create'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
+        );
+      },
     );
   }
 
   Future<void> _selectDueDate() async {
-    // First, select the date
-    // Allow past dates when editing (in case existing due date is in the past)
     final now = DateTime.now();
     final minDate =
         widget.isEdit &&
@@ -374,7 +342,7 @@ class _PITScreenState extends State<PITScreen> {
             ? _selectedDueDate!.subtract(const Duration(days: 365))
             : now;
 
-    final DateTime? pickedDate = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDueDate ?? DateTime.now(),
       firstDate: minDate,
@@ -383,7 +351,7 @@ class _PITScreenState extends State<PITScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF34A853), // Green color for the calendar
+              primary: Color(0xFF34A853),
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
@@ -393,105 +361,126 @@ class _PITScreenState extends State<PITScreen> {
       },
     );
 
-    if (pickedDate != null) {
-      // Then, select the time
-      final TimeOfDay? pickedTime = await showTimePicker(
-        context: context,
-        initialTime:
-            _selectedDueDate != null
-                ? TimeOfDay.fromDateTime(_selectedDueDate!)
-                : TimeOfDay.now(),
-        builder: (context, child) {
-          return Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.light(
-                primary: Color(0xFF34A853), // Green color for the time picker
-                onPrimary: Colors.white,
-                onSurface: Colors.black,
-              ),
-            ),
-            child: child!,
-          );
-        },
-      );
-
-      if (pickedTime != null) {
-        // Combine date and time
-        final DateTime combinedDateTime = DateTime(
-          pickedDate.year,
-          pickedDate.month,
-          pickedDate.day,
-          pickedTime.hour,
-          pickedTime.minute,
-        );
-
-        setState(() {
-          _selectedDueDate = combinedDateTime;
-        });
-      }
+    if (pickedDate == null) {
+      return;
     }
-  }
 
-  Future<void> _validateAndSubmit() async {
-    setState(() {
-      _showTitleError = _titleController.text.trim().isEmpty;
-    });
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime:
+          _selectedDueDate != null
+              ? TimeOfDay.fromDateTime(_selectedDueDate!)
+              : TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF34A853),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
 
-    if (_showTitleError) {
+    if (pickedTime == null) {
+      return;
+    }
+
+    final combined = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    if (!combined.isAfter(DateTime.now())) {
       Get.snackbar(
         'Error',
-        'Please enter a title for the PIT',
+        'Due date and time must be in the future',
         backgroundColor: Colors.red,
         colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
       );
       return;
     }
 
-    final selectedClassesList =
+    setState(() {
+      _selectedDueDate = combined;
+    });
+  }
+
+  void _validateAndSubmit() {
+    setState(() {
+      _showTitleError = _titleController.text.trim().isEmpty;
+    });
+
+    if (!_showTitleError) {
+      _submitPIT();
+    }
+  }
+
+  Future<void> _submitPIT() async {
+    if (_selectedDueDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a due date'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (!_selectedDueDate!.isAfter(DateTime.now())) {
+      Get.snackbar(
+        'Error',
+        'Due date and time must be in the future',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
+      );
+      return;
+    }
+
+    final selectedClasses =
         _selectedClasses.entries
             .where((entry) => entry.value)
             .map((entry) => entry.key)
             .toList();
 
-    if (selectedClassesList.isEmpty) {
-      Get.snackbar(
-        'Error',
-        'Please select at least one class',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+    if (selectedClasses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one class'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
-    if (_selectedDueDate == null) {
-      Get.snackbar(
-        'Error',
-        'Please select a due date',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+    final attachmentUrls = <dynamic>[];
+
+    if (widget.isEdit &&
+        widget.initialData != null &&
+        widget.initialData!['attachments'] is List) {
+      attachmentUrls.addAll(
+        widget.initialData!['attachments'] as List<dynamic>,
       );
-      return;
     }
 
-    // Upload files if any are selected
-    List<String> attachmentUrls = [];
     if (_fileController.selectedFiles.isNotEmpty) {
       try {
         _createController.isLoading.value = true;
 
-        // Upload files
         final uploadSuccess = await _fileController.uploadFiles(
           folder: 'greenquest/pits',
           tags: {'type': 'pit', 'period': widget.period ?? 'current'},
         );
 
-        if (uploadSuccess) {
-          // Get uploaded file URLs
-          attachmentUrls =
-              _fileController.uploadedFiles
-                  .map((file) => file['url'] as String)
-                  .toList();
-        } else {
+        if (!uploadSuccess) {
           _createController.isLoading.value = false;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -501,6 +490,8 @@ class _PITScreenState extends State<PITScreen> {
           );
           return;
         }
+
+        attachmentUrls.addAll(_fileController.uploadedFiles.toList());
       } catch (e) {
         _createController.isLoading.value = false;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -513,8 +504,7 @@ class _PITScreenState extends State<PITScreen> {
       }
     }
 
-    // Auto-update category based on period before saving
-    String categoryToSave = _selectedCategory;
+    var categoryToSave = _selectedCategory;
     if (widget.period == 'Final' && categoryToSave == 'midterm_exam') {
       categoryToSave = 'final_exam';
     } else if (widget.period != 'Final' && categoryToSave == 'final_exam') {
@@ -522,12 +512,11 @@ class _PITScreenState extends State<PITScreen> {
     }
 
     if (widget.isEdit && widget.itemId != null) {
-      // Update existing PIT
       final success = await _createController.updatePIT(
         pitId: widget.itemId!,
         title: _titleController.text.trim(),
         instruction: _instructionController.text.trim(),
-        selectedClasses: selectedClassesList,
+        selectedClasses: selectedClasses,
         points: _pointsController.text.trim(),
         dueDate: _selectedDueDate!,
         period: widget.period,
@@ -537,31 +526,30 @@ class _PITScreenState extends State<PITScreen> {
         topicName: _selectedTopicName,
       );
 
-      if (success) {
-        // Clear files and reset form after successful update
+      if (success && mounted) {
         _fileController.clearFiles();
         Navigator.of(context).pop();
       }
-    } else {
-      final success = await _createController.createPIT(
-        title: _titleController.text.trim(),
-        instruction: _instructionController.text.trim(),
-        selectedClasses: selectedClassesList,
-        points: _pointsController.text.trim(),
-        dueDate: _selectedDueDate!,
-        period: widget.period,
-        category: categoryToSave,
-        attachments: attachmentUrls,
-        topicId: _selectedTopicId,
-        topicName: _selectedTopicName,
-      );
+      return;
+    }
 
-      if (success) {
-        // Clear files and reset form after successful creation
-        _fileController.clearFiles();
-        _resetForm();
-        Navigator.of(context).pop();
-      }
+    final success = await _createController.createPIT(
+      title: _titleController.text.trim(),
+      instruction: _instructionController.text.trim(),
+      selectedClasses: selectedClasses,
+      points: _pointsController.text.trim(),
+      dueDate: _selectedDueDate!,
+      period: widget.period,
+      category: categoryToSave,
+      attachments: attachmentUrls,
+      topicId: _selectedTopicId,
+      topicName: _selectedTopicName,
+    );
+
+    if (success && mounted) {
+      _fileController.clearFiles();
+      _resetForm();
+      Navigator.of(context).pop();
     }
   }
 
@@ -572,9 +560,12 @@ class _PITScreenState extends State<PITScreen> {
       _pointsController.text = '100';
       _selectedDueDate = null;
       _selectedCategory = 'pit';
+      _selectedTopicId = null;
+      _selectedTopicName = null;
       _selectedClasses = Map.fromEntries(
         _classes.map((e) => MapEntry(e, false)),
       );
+      _existingAttachments = [];
       _showTitleError = false;
     });
   }
@@ -599,7 +590,6 @@ class _PITScreenState extends State<PITScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title Field
           ResponsiveFormField(
             label: 'Title',
             controller: _titleController,
@@ -616,7 +606,6 @@ class _PITScreenState extends State<PITScreen> {
             },
           ),
           const SizedBox(height: 24),
-          // Topic Selector
           const Text(
             'Topic',
             style: TextStyle(
@@ -697,7 +686,6 @@ class _PITScreenState extends State<PITScreen> {
             );
           }),
           const SizedBox(height: 24),
-          // Instruction Field
           ResponsiveFormField(
             label: 'Instruction',
             controller: _instructionController,
@@ -705,7 +693,6 @@ class _PITScreenState extends State<PITScreen> {
             maxLines: 6,
           ),
           const SizedBox(height: 32),
-          // Attach Section
           const Text(
             'Attach',
             style: TextStyle(
@@ -739,7 +726,6 @@ class _PITScreenState extends State<PITScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              // For Dropdown
               const Text(
                 'For',
                 style: TextStyle(
@@ -800,7 +786,6 @@ class _PITScreenState extends State<PITScreen> {
                   ),
                 ),
               ),
-              // Dropdown options
               if (_showForDropdown)
                 Container(
                   margin: const EdgeInsets.only(top: 4),
@@ -857,7 +842,7 @@ class _PITScreenState extends State<PITScreen> {
                                               value:
                                                   _selectedClasses[className] ??
                                                   false,
-                                              onChanged: (bool? value) {
+                                              onChanged: (_) {
                                                 _toggleClassSelection(
                                                   className,
                                                 );
@@ -885,7 +870,6 @@ class _PITScreenState extends State<PITScreen> {
                           ),
                 ),
               const SizedBox(height: 15),
-              // Points Input
               const Text(
                 'Points',
                 style: TextStyle(
@@ -920,7 +904,6 @@ class _PITScreenState extends State<PITScreen> {
                 ),
               ),
               const SizedBox(height: 15),
-              // Excel Category Selection
               const Text(
                 'Excel Category',
                 style: TextStyle(
@@ -951,7 +934,7 @@ class _PITScreenState extends State<PITScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          _categories[_selectedCategory]!,
+                          _categories[_selectedCategory] ?? _categories['pit']!,
                           style: const TextStyle(
                             fontSize: 14,
                             color: Colors.black,
@@ -972,7 +955,6 @@ class _PITScreenState extends State<PITScreen> {
                   ),
                 ),
               ),
-              // Category dropdown options
               if (_showCategoryDropdown)
                 Container(
                   margin: const EdgeInsets.only(top: 4),
@@ -985,14 +967,10 @@ class _PITScreenState extends State<PITScreen> {
                     children:
                         _categories.entries
                             .where((entry) {
-                              // Filter categories based on period
                               if (widget.period == 'Final') {
-                                // For Final period, only show final_exam (hide midterm_exam)
                                 return entry.key != 'midterm_exam';
-                              } else {
-                                // For Prelim/Midterm periods, only show midterm_exam (hide final_exam)
-                                return entry.key != 'final_exam';
                               }
+                              return entry.key != 'final_exam';
                             })
                             .map((entry) {
                               return GestureDetector(
@@ -1000,9 +978,8 @@ class _PITScreenState extends State<PITScreen> {
                                   setState(() {
                                     _selectedCategory = entry.key;
                                     _showCategoryDropdown = false;
+                                    _updateCategoryBasedOnPeriod();
                                   });
-                                  // Auto-update category if period is Final
-                                  _updateCategoryBasedOnPeriod();
                                 },
                                 child: Container(
                                   width: double.infinity,
@@ -1041,7 +1018,6 @@ class _PITScreenState extends State<PITScreen> {
                   ),
                 ),
               const SizedBox(height: 15),
-              // Due Date & Time
               const Text(
                 'Due date & time',
                 style: TextStyle(
@@ -1113,7 +1089,6 @@ class _PITScreenState extends State<PITScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // File picker button
             GestureDetector(
               onTap: _pickFiles,
               child: Container(
@@ -1138,7 +1113,75 @@ class _PITScreenState extends State<PITScreen> {
               ),
             ),
 
-            // Selected files display - now fully scrollable
+            if (widget.isEdit && _existingAttachments.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Current Attachments:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Column(
+                children:
+                    _existingAttachments.map((attachment) {
+                      return Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.blue[100]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.attach_file,
+                              color: Colors.blue[700],
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                getAttachmentDisplayName(attachment),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => previewAttachment(attachment),
+                              icon: const Icon(
+                                Icons.visibility,
+                                size: 16,
+                                color: Colors.blue,
+                              ),
+                              tooltip: 'Preview attachment',
+                            ),
+                            IconButton(
+                              onPressed: () => downloadAttachment(attachment),
+                              icon: const Icon(
+                                Icons.download,
+                                size: 16,
+                                color: Colors.green,
+                              ),
+                              tooltip: 'Download attachment',
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+              ),
+            ],
+
             if (_fileController.selectedFiles.isNotEmpty) ...[
               const SizedBox(height: 16),
               const Text(
@@ -1150,7 +1193,6 @@ class _PITScreenState extends State<PITScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              // No height constraints - let it scroll naturally
               Column(
                 children:
                     _fileController.selectedFiles.asMap().entries.map((entry) {
@@ -1170,7 +1212,7 @@ class _PITScreenState extends State<PITScreen> {
                         child: Row(
                           children: [
                             Icon(
-                              _getFileIcon(file.extension),
+                              getFileIcon(file.extension),
                               color: Colors.grey[600],
                               size: 16,
                             ),
@@ -1211,8 +1253,6 @@ class _PITScreenState extends State<PITScreen> {
                     }).toList(),
               ),
             ],
-
-            // Upload status
             if (_fileController.uploadStatus.value.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -1245,27 +1285,11 @@ class _PITScreenState extends State<PITScreen> {
     }
   }
 
-  IconData _getFileIcon(String? extension) {
-    switch (extension?.toLowerCase()) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return Icons.video_file;
-      case 'zip':
-      case 'rar':
-        return Icons.archive;
-      default:
-        return Icons.attach_file;
-    }
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _instructionController.dispose();
+    _pointsController.dispose();
+    super.dispose();
   }
 }

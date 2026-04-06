@@ -569,6 +569,7 @@ class SubmissionRoutingService {
       case 'activity':
         return 'activities';
       case 'quiz':
+      case 'exam':
         return 'quizzes';
       case 'pit':
         return 'pits';

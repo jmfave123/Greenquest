@@ -620,6 +620,140 @@ class FileSubmissionController extends GetxController {
     }
   }
 
+  // Submit exam with uploaded files using student's enrolled section
+  Future<bool> submitExam({
+    required String examId,
+    required String instructorId,
+    required String instructorName,
+    required String sectionId,
+    String? sectionName,
+  }) async {
+    if (uploadedFiles.isEmpty) {
+      errorMessage.value = 'No files uploaded';
+      return false;
+    }
+
+    try {
+      isSubmitting.value = true;
+      final user = _auth.currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user data for student information and enrolled section
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+
+      // Get student's enrolled section from their profile
+      final studentSectionName =
+          userData['selectedSectionCode']?.toString() ?? 'Unknown Section';
+
+      log('📚 Student enrolled section: $studentSectionName');
+
+      // Exams are intentionally stored in quizzes collection for class-record compatibility
+      final examDoc =
+          await _firestore
+              .collection('instructors')
+              .doc(instructorId)
+              .collection('quizzes')
+              .doc(examId)
+              .get();
+
+      if (!examDoc.exists) {
+        throw Exception('Exam not found');
+      }
+
+      final examData = examDoc.data() ?? {};
+
+      // Extract assignedSemester if it exists
+      final assignedSemester =
+          examData['assignedSemester'] as Map<String, dynamic>?;
+
+      // Create submission data with student's actual enrolled section
+      final submissionData = {
+        'activityType': 'exam',
+        'activityId': examId,
+        'studentId': user.uid,
+        'studentName':
+            userData['fullName'] ?? user.displayName ?? 'Unknown Student',
+        'studentEmail': user.email ?? '',
+        'studentIdNumber': userData['idNumber'] ?? '',
+        'instructorId': instructorId,
+        'instructorName': instructorName,
+        'activityTitle': examData['title'] ?? 'Unknown Exam',
+        'sectionName': studentSectionName,
+        'files': uploadedFiles.toList(),
+        'submittedAt': FieldValue.serverTimestamp(),
+        'status': 'submitted',
+        'grade': null,
+        'feedback': null,
+        'gradedAt': null,
+        'gradedBy': null,
+        if (assignedSemester != null) 'assignedSemester': assignedSemester,
+      };
+
+      final docRef = await _firestore
+          .collection('submissions')
+          .add(submissionData);
+
+      log('✅ Exam submission saved successfully');
+      log('📄 Submission ID: ${docRef.id}');
+      log('📍 Section: $studentSectionName');
+
+      Get.snackbar(
+        'Success',
+        'Exam submitted successfully!',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+
+      clearFiles();
+      return true;
+    } catch (e) {
+      log('❌ Error submitting exam: $e');
+      errorMessage.value = 'Failed to submit exam: $e';
+      Get.snackbar(
+        'Error',
+        'Failed to submit exam: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
+  // Check if user has already submitted for an exam
+  Future<Map<String, dynamic>?> getExamSubmission(String examId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final query =
+          await _firestore
+              .collection('submissions')
+              .where('activityType', isEqualTo: 'exam')
+              .where('activityId', isEqualTo: examId)
+              .where('studentId', isEqualTo: user.uid)
+              .limit(1)
+              .get();
+
+      if (query.docs.isNotEmpty) {
+        return {'id': query.docs.first.id, ...query.docs.first.data()};
+      }
+
+      return null;
+    } catch (e) {
+      log('❌ Error getting exam submission: $e');
+      return null;
+    }
+  }
+
   // Get current user's section information
   Future<Map<String, dynamic>?> getCurrentUserSection() async {
     try {

@@ -44,6 +44,7 @@ import 'shared/screens/image_upload_example_screen.dart';
 import 'shared/services/online_status_service.dart';
 import 'shared/services/auth_service.dart';
 import 'shared/services/auth_middleware.dart';
+import 'shared/services/message_repository.dart';
 import 'student_web_version/config/web_routes.dart';
 import 'student_web_version/config/web_bindings.dart';
 
@@ -67,6 +68,9 @@ void main() async {
 
   // Initialize AuthService AFTER Firebase is ready
   Get.put(AuthService());
+
+  // Initialize MessageRepository for dependency injection
+  Get.put(MessageRepository());
 
   // Initialize OneSignal only on mobile platforms (not web)
   if (!kIsWeb) {

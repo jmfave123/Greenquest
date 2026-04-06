@@ -3,6 +3,7 @@ import '../screens/home/student_home_screen.dart';
 import '../screens/activities/web_activity_list_screen.dart';
 import '../screens/assignments/web_assignment_list_screen.dart';
 import '../screens/quizzes/web_quiz_list_screen.dart';
+import '../screens/exams/web_exam_list_screen.dart';
 import '../screens/leaderboard/web_leaderboard_screen.dart';
 import '../screens/materials/web_materials_list_screen.dart';
 import '../screens/messages/web_message_list_screen.dart';
@@ -25,6 +26,7 @@ class WebRoutes {
   static const String activities = '/student-web-activities';
   static const String assignments = '/student-web-assignments';
   static const String quizzes = '/student-web-quizzes';
+  static const String exams = '/student-web-exams';
   static const String leaderboard = '/leaderboard';
   static const String materials = '/materials';
   static const String messages = '/student-web-messages';
@@ -63,6 +65,12 @@ class WebRoutes {
       GetPage(
         name: quizzes,
         page: () => const WebQuizListScreen(),
+        transition: Transition.fadeIn,
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+      GetPage(
+        name: exams,
+        page: () => const WebExamListScreen(),
         transition: Transition.fadeIn,
         transitionDuration: const Duration(milliseconds: 200),
       ),

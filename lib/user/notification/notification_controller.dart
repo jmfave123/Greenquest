@@ -9,11 +9,16 @@ class NotificationController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Observable variables
+  // Observable objects
   final RxList<Map<String, dynamic>> notifications =
       <Map<String, dynamic>>[].obs;
+  // This is the global badge count (e.g. the "5" on the home screen)
   final RxInt unreadCount = 0.obs;
   final RxBool isLoading = false.obs;
+  
+  // Stores the latest notification timestamp the user has "seen" in the list
+  // This is used to clear the app badge without marking items as "read".
+  final Rx<DateTime?> lastViewedAt = Rx<DateTime?>(null);
 
   // Stream subscription for real-time updates
   StreamSubscription<List<Map<String, dynamic>>>? _notificationStream;
@@ -65,6 +70,9 @@ class NotificationController extends GetxController {
   }
 
   /// Update unread count based on notifications
+  /// A notification is counted for the "Global Badge" only if:
+  /// 1. It is not read (not in readBy array)
+  /// 2. It is newer than the 'lastViewedAt' timestamp
   void _updateUnreadCount(List<Map<String, dynamic>> notificationsList) {
     try {
       final user = _auth.currentUser;
@@ -74,9 +82,33 @@ class NotificationController extends GetxController {
       }
 
       int count = 0;
+      final seenTime = lastViewedAt.value;
+
       for (var notification in notificationsList) {
         final readBy = List<String>.from(notification['readBy'] ?? []);
-        if (!readBy.contains(user.uid)) {
+        
+        // Already clicked/opened ?
+        if (readBy.contains(user.uid)) continue;
+
+        // If we have a 'last viewed' time, check if this is a "new" notification
+        if (seenTime != null) {
+          final createdAt = notification['createdAt'];
+          DateTime? notifyTime;
+          
+          if (createdAt is Timestamp) {
+            notifyTime = createdAt.toDate();
+          } else if (createdAt is String) {
+            notifyTime = DateTime.tryParse(createdAt);
+          } else if (createdAt is DateTime) {
+            notifyTime = createdAt;
+          }
+
+          // If the notification came after we last visited the page, it's unread
+          if (notifyTime != null && notifyTime.isAfter(seenTime)) {
+            count++;
+          }
+        } else {
+          // If no seenTime yet, everything not in readBy is unread
           count++;
         }
       }
@@ -88,10 +120,30 @@ class NotificationController extends GetxController {
     }
   }
 
-  Future<void> loadNotifications() async {
-    // This method is kept for backwards compatibility but now uses streams
-    // The stream is already set up in onInit, so this is just a refresh
-    _setupRealtimeNotifications();
+  /// Refreshes the unread count locally when the user visits the screen.
+  /// This clears the "Badge" count (like 5 -> 0) without marking items as read.
+  void markAllAsSeen() {
+    if (notifications.isEmpty) return;
+    
+    // Get the timestamp of the most recent notification
+    final latest = notifications.first;
+    final createdAt = latest['createdAt'];
+    
+    DateTime? notifyTime;
+    if (createdAt is Timestamp) {
+      notifyTime = createdAt.toDate();
+    } else if (createdAt is String) {
+      notifyTime = DateTime.tryParse(createdAt);
+    } else if (createdAt is DateTime) {
+      notifyTime = createdAt;
+    }
+
+    if (notifyTime != null) {
+      lastViewedAt.value = notifyTime;
+      // Re-calculate the unread count immediately
+      _updateUnreadCount(notifications);
+      dev.log('✅ Global badge cleared by updating lastViewedAt to $notifyTime');
+    }
   }
 
   Future<void> markAsRead(String notificationId) async {
@@ -99,7 +151,7 @@ class NotificationController extends GetxController {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      // Update in Firebase using readBy array (matches InAppNotificationService)
+      // Update in Firebase using readBy array
       final notificationDoc =
           await _firestore
               .collection('notifications')
@@ -122,15 +174,18 @@ class NotificationController extends GetxController {
         );
       }
 
-      // Stream will automatically update the local state
-      dev.log('✅ Notification marked as read: $notificationId');
+      dev.log('✅ Notification marked as read (clicked): $notificationId');
     } catch (e) {
       dev.log('❌ Error marking notification as read: $e');
     }
   }
 
   Future<void> refreshNotifications() async {
-    // Stream is already real-time, but we can refresh the stream
     _setupRealtimeNotifications();
+  }
+
+  // Deprecated: No longer marking all as read in DB on exit.
+  Future<void> markAllAsRead() async {
+    markAllAsSeen();
   }
 }

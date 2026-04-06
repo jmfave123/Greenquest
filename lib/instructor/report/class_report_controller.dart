@@ -869,6 +869,7 @@ class ClassReportController extends GetxController {
           itemCollection = 'activities';
           break;
         case 'quiz':
+        case 'exam':
           itemCollection = 'quizzes';
           break;
         case 'pit':

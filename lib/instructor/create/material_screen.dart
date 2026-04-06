@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:greenquest/instructor/helpers/extract_attachment_url.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/controllers/file_submission_controller.dart';
+import '../../shared/services/file_download_service.dart';
 import '../../shared/services/instructor_class_service.dart';
 import '../../shared/widgets/skeleton_loading.dart';
 import '../instructor_dashboard_controller.dart';
@@ -195,32 +198,6 @@ class _MaterialScreenState extends State<MaterialScreen> {
         colorText: Colors.white,
       );
     }
-  }
-
-  String _getAttachmentDisplayName(dynamic attachment) {
-    // Handle new format (file object with name and url)
-    if (attachment is Map<String, dynamic>) {
-      return attachment['name'] ?? 'Unknown File';
-    }
-
-    // Handle old format (just URL string)
-    if (attachment is String && attachment.startsWith('http')) {
-      // For Cloudinary URLs, try to extract filename from URL
-      final uri = Uri.parse(attachment);
-      final pathSegments = uri.pathSegments;
-      if (pathSegments.isNotEmpty) {
-        final lastSegment = pathSegments.last;
-        // If it's a random string, try to get original name from query params or use a generic name
-        if (lastSegment.length > 20 && !lastSegment.contains('.')) {
-          return 'Document.pdf'; // Generic name for random filenames
-        }
-        return lastSegment;
-      }
-      return 'File';
-    }
-
-    // If it's not a URL, return as is
-    return attachment.toString();
   }
 
   Future<void> _submitMaterial() async {
@@ -715,7 +692,7 @@ class _MaterialScreenState extends State<MaterialScreen> {
                                                 const SizedBox(width: 8),
                                                 Expanded(
                                                   child: Text(
-                                                    _getAttachmentDisplayName(
+                                                    getAttachmentDisplayName(
                                                       attachment,
                                                     ),
                                                     style: const TextStyle(
@@ -724,6 +701,40 @@ class _MaterialScreenState extends State<MaterialScreen> {
                                                     overflow:
                                                         TextOverflow.ellipsis,
                                                   ),
+                                                ),
+                                                IconButton(
+                                                  onPressed:
+                                                      () => previewAttachment(
+                                                        attachment,
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.visibility,
+                                                    size: 16,
+                                                    color: Colors.blue,
+                                                  ),
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        minWidth: 24,
+                                                        minHeight: 24,
+                                                      ),
+                                                  padding: EdgeInsets.zero,
+                                                ),
+                                                IconButton(
+                                                  onPressed:
+                                                      () => downloadAttachment(
+                                                        attachment,
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.download,
+                                                    size: 16,
+                                                    color: Colors.green,
+                                                  ),
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        minWidth: 24,
+                                                        minHeight: 24,
+                                                      ),
+                                                  padding: EdgeInsets.zero,
                                                 ),
                                                 IconButton(
                                                   onPressed:

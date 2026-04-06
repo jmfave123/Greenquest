@@ -20,11 +20,18 @@ class UserAnnouncementController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    getSelectedInstructor();
+    // Use microtask to avoid 'setState() or markNeedsBuild() called during build'
+    // when the controller is initialized during a widget's build phase.
+    Future.microtask(() => getSelectedInstructor());
   }
 
   // Get the instructor that the current user has selected
-  Future<void> getSelectedInstructor() async {
+  Future<void> getSelectedInstructor({bool isRefresh = false}) async {
+    // Prevent redundant loads
+    if (!isRefresh && isLoading.value && announcements.isNotEmpty) return;
+    
+    isLoading.value = true;
+
     try {
       final user = _auth.currentUser;
       if (user == null) {
@@ -368,7 +375,7 @@ class UserAnnouncementController extends GetxController {
       await loadAnnouncements(selectedInstructorId.value);
     } else {
       // Try to reload the instructor selection
-      await getSelectedInstructor();
+      await getSelectedInstructor(isRefresh: true);
     }
   }
 

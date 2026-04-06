@@ -134,21 +134,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     ),
                   );
                 }),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () {
-                    Get.snackbar(
-                      'Forgot password?',
-                      'Use the Forgot Password link on the login screen to receive a reset email.',
-                      snackPosition: SnackPosition.TOP,
-                      backgroundColor: Colors.blueGrey,
-                      colorText: Colors.white,
-                    );
-                  },
-                  child: const Text(
-                    'Forgot password? Use the reset link on the login screen.',
-                  ),
-                ),
               ],
             ),
           ),

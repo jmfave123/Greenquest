@@ -378,6 +378,115 @@ class _PitDetailScreenState extends State<PitDetailScreen>
                   ),
                   const SizedBox(height: 16),
 
+                  // Show grade and private comment if graded
+                  submissionController != null
+                      ? Obx(() {
+                        if (submissionController!.isGraded.value) {
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Graded',
+                                      style: TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Score: ',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${submissionController!.submissionScore.value.toInt()}/${widget.pit['points'] ?? 100}',
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (submissionController!
+                                    .submissionFeedback
+                                    .value
+                                    .isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.lock_outline,
+                                        size: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Private Comment',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: Colors.grey[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.amber.shade200,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      submissionController!
+                                          .submissionFeedback
+                                          .value,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.amber.shade900,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      })
+                      : const SizedBox.shrink(),
+
                   // Show submission button or submitted files based on status
                   submissionController != null
                       ? Obx(() {

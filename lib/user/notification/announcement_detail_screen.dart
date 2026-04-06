@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'announcement_controller.dart';
 
 class AnnouncementDetailScreen extends StatelessWidget {
@@ -79,8 +80,13 @@ class AnnouncementDetailScreen extends StatelessWidget {
           ),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF34A853)),
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+                itemCount: 6,
+                itemBuilder: (context, index) => const SkeletonAnnouncementCard(),
               );
             }
 

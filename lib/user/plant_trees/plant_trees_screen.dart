@@ -9,6 +9,7 @@ import 'package:greenquest/shared/helpers/tree_submission_edit_flow_helper.dart'
 import 'package:greenquest/instructor/services/nstp_pdf_export_service.dart';
 import 'package:greenquest/student_web_version/helpers/tree_submission_edit_helper.dart';
 import 'tree_planting_controller.dart';
+import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
 class PlantTreesScreen extends StatefulWidget {
   const PlantTreesScreen({super.key});
@@ -38,8 +39,7 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
   @override
   void initState() {
     super.initState();
-    // Load tree submissions when screen opens
-    _controller.loadMyTreeSubmissions();
+    // Tree submissions are now loaded by the controller's onInit hook.
   }
 
   @override
@@ -324,23 +324,28 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF34A853), Color(0xFF2D8E47)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+      body: PullToRefreshWrapper(
+        onRefresh: () async {
+          await _controller.loadMyTreeSubmissions(isRefresh: true);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Card
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF34A853), Color(0xFF2D8E47)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
+                child: Row(
                 children: [
                   const Icon(Icons.eco, size: 50, color: Colors.white),
                   const SizedBox(width: 16),
@@ -1004,6 +1009,7 @@ class _PlantTreesScreenState extends State<PlantTreesScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

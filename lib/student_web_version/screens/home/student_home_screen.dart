@@ -441,6 +441,14 @@ class WebStudentHomeScreen extends StatelessWidget {
                 ),
                 _buildModernActionCard(
                   context,
+                  title: 'Exams',
+                  description: 'Midterm and final assessments',
+                  icon: Icons.fact_check_rounded,
+                  gradient: const [Color(0xFFEF6C00), Color(0xFFE65100)],
+                  onTap: () => Get.toNamed(WebRoutes.exams),
+                ),
+                _buildModernActionCard(
+                  context,
                   title: 'PIT',
                   description: 'Institutional performance tasks',
                   icon: Icons.engineering_rounded,
@@ -525,6 +533,15 @@ class WebStudentHomeScreen extends StatelessWidget {
           iconBgColor: const Color(0xFFE9D8FD),
           accentColor: const Color(0xFF8B5CF6),
           onTap: () => Get.toNamed(WebRoutes.quizzes),
+        ),
+        _buildMobileActionItem(
+          title: 'Submit Exams',
+          subtitle: 'Turn in midterm/final exams',
+          icon: Icons.fact_check_rounded,
+          bgColor: const Color(0xFFFFF3E0),
+          iconBgColor: const Color(0xFFFFE0B2),
+          accentColor: const Color(0xFFEF6C00),
+          onTap: () => Get.toNamed(WebRoutes.exams),
         ),
         _buildMobileActionItem(
           title: 'Submit PIT',

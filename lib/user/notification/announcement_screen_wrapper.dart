@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../shared/widgets/skeleton_loading.dart';
 import 'announcement_controller.dart';
+import '../../shared/widgets/pull_to_refresh_wrapper.dart';
 import '../../shared/login/custom_drawer.dart';
 
 class AnnouncementScreenWrapper extends StatefulWidget {
@@ -42,29 +44,16 @@ class _AnnouncementScreenWrapperState extends State<AnnouncementScreenWrapper> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: () {
-              try {
-                final controller = Get.find<UserAnnouncementController>();
-                controller.refreshAnnouncements();
-              } catch (e) {
-                print('Error refreshing announcements: $e');
-              }
-            },
-          ),
-        ],
       ),
       backgroundColor: Colors.white,
       body: FutureBuilder(
         future: _initializeController(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF34A853)),
-              ),
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: 6,
+              itemBuilder: (context, index) => const SkeletonAnnouncementCard(),
             );
           }
 
@@ -101,7 +90,14 @@ class _AnnouncementScreenWrapperState extends State<AnnouncementScreenWrapper> {
             );
           }
 
-          return const _AnnouncementContent();
+          return PullToRefreshWrapper(
+            onRefresh: () async {
+              final controller = Get.find<UserAnnouncementController>();
+              await controller.refreshAnnouncements();
+            },
+            wrapContent: false,
+            child: const _AnnouncementContent(),
+          );
         },
       ),
     );
@@ -125,89 +121,101 @@ class _AnnouncementContent extends StatelessWidget {
 
     return Obx(() {
       if (controller.isLoading.value) {
-        return const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF34A853)),
-          ),
+        return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          itemCount: 6,
+          itemBuilder: (context, index) => const SkeletonAnnouncementCard(),
         );
       }
 
       if (controller.announcements.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF34A853).withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.campaign_outlined,
-                  size: 64,
-                  color: Color(0xFF34A853),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'No announcements yet',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF34A853),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Your instructor will post important updates here',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Check back later for new announcements',
-                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF34A853).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFF34A853).withOpacity(0.3),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF34A853).withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.campaign_outlined,
+                          size: 64,
+                          color: Color(0xFF34A853),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'No announcements yet',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF34A853),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Your instructor will post important updates here',
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Check back later for new announcements',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF34A853).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF34A853).withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: const Color(0xFF34A853),
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Pull down to refresh',
+                              style: TextStyle(
+                                color: const Color(0xFF34A853),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: const Color(0xFF34A853),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Pull down to refresh',
-                      style: TextStyle(
-                        color: const Color(0xFF34A853),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ],
-          ),
+            );
+          },
         );
       }
 
       return ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: controller.announcements.length,
         itemBuilder: (context, index) {

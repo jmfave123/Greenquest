@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:greenquest/admin/widgets/row/build_info_row.dart';
 import 'package:greenquest/user/select/select_controller.dart';
 import 'package:greenquest/shared/services/file_upload_service.dart';
 
@@ -134,22 +135,25 @@ class _UploadCorScreenState extends State<UploadCorScreen> {
                   Obx(
                     () => Column(
                       children: [
-                        _buildInfoRow(
+                        buildInfoRow(
                           Icons.person,
                           'Instructor',
                           controller.selectedInstructorName.value,
+                          isLoading: false,
                         ),
                         const SizedBox(height: 8),
-                        _buildInfoRow(
+                        buildInfoRow(
                           Icons.school,
                           'Section',
                           controller.selectedSectionCode.value,
+                          isLoading: false,
                         ),
                         const SizedBox(height: 8),
-                        _buildInfoRow(
+                        buildInfoRow(
                           Icons.person_outline,
                           'Student',
                           controller.studentName.value,
+                          isLoading: false,
                         ),
                       ],
                     ),
@@ -311,34 +315,6 @@ class _UploadCorScreenState extends State<UploadCorScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: const Color(0xFF34A853)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

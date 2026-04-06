@@ -606,6 +606,7 @@ class _ClassClassworkTabState extends State<ClassClassworkTab> {
             collection = 'activities';
             break;
           case ClassDetailConstants.activityTypeQuiz:
+          case ClassDetailConstants.activityTypeExam:
             collection = 'quizzes';
             break;
           case ClassDetailConstants.activityTypePIT:
@@ -826,6 +827,8 @@ class _ClassClassworkTabState extends State<ClassClassworkTab> {
                 return type == ClassDetailConstants.activityTypeActivity;
               case 'Quiz':
                 return type == ClassDetailConstants.activityTypeQuiz;
+              case 'Exam':
+                return type == ClassDetailConstants.activityTypeExam;
               case 'PIT':
                 return type ==
                     ClassDetailConstants.activityTypePIT.toLowerCase();
@@ -912,6 +915,8 @@ class _ClassClassworkTabState extends State<ClassClassworkTab> {
         return ClassDetailConstants.submittedColor;
       case ClassDetailConstants.activityTypeQuiz:
         return Colors.orange;
+      case ClassDetailConstants.activityTypeExam:
+        return const Color(0xFFEF6C00);
       default:
         return Colors.grey;
     }

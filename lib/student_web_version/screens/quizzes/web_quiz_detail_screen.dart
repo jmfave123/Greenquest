@@ -5,6 +5,7 @@ import '../../../user/submit/student_submission_controller.dart';
 import '../../../shared/controllers/file_submission_controller.dart';
 import '../../widgets/submissions/web_file_upload_widget.dart';
 import '../../widgets/submissions/web_instructor_attachments_widget.dart';
+import '../../widgets/submissions/web_submitted_files_widget.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
@@ -299,6 +300,10 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
               return _buildPendingState();
             }
           }),
+          const SizedBox(height: 16),
+          WebSubmittedFilesWidget(
+            submissionController: submissionController,
+          ),
         ],
       ),
     );
@@ -426,21 +431,35 @@ class _WebQuizDetailScreenState extends State<WebQuizDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: WebTheme.backgroundLight,
+        color: Colors.amber.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: WebTheme.borderLight),
+        border: Border.all(color: Colors.amber.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Instructor Feedback',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          Row(
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 14,
+                color: Colors.grey[600],
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Private Comment',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(
             submissionController.submissionFeedback.value,
-            style: const TextStyle(fontSize: 13, height: 1.4),
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: Colors.amber.shade900,
+            ),
           ),
         ],
       ),

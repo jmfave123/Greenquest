@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:greenquest/admin/widgets/row/build_info_row.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
 import '../../utils/web_responsive_utils.dart';
@@ -292,65 +293,35 @@ class WebProfileScreen extends StatelessWidget {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
-          _buildInfoRow(
+          buildInfoRow(
             Icons.person_outline,
             'Full Name',
             userData['fullName'] ?? userData['name'] ?? 'N/A',
+            isLoading: false,
           ),
           const Divider(height: 32),
-          _buildInfoRow(
+          buildInfoRow(
             Icons.phone_outlined,
             'Phone Number',
             userData['phone'] ?? 'Not set',
+            isLoading: false,
           ),
           const Divider(height: 32),
-          _buildInfoRow(
+          buildInfoRow(
             Icons.description_outlined,
             'About',
             userData['about'] ?? 'No bio available.',
+            isLoading: false,
           ),
           const Divider(height: 32),
-          _buildInfoRow(
+          buildInfoRow(
             Icons.school_outlined,
             'Department',
             userData['department'] ?? 'Not set',
+            isLoading: false,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 18, color: WebTheme.primaryGreen),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                color: WebTheme.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.only(left: 28),
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              color: WebTheme.textPrimary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
     );
   }
 

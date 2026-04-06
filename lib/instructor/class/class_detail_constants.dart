@@ -48,6 +48,7 @@ class ClassDetailConstants {
     'Assignment',
     'Activity',
     'Quiz',
+    'Exam',
     'PIT',
   ];
 
@@ -88,6 +89,7 @@ class ClassDetailConstants {
   static const String activityTypeAssignment = 'assignment';
   static const String activityTypeActivity = 'activity';
   static const String activityTypeQuiz = 'quiz';
+  static const String activityTypeExam = 'exam';
   static const String activityTypePIT = 'PIT';
 
   // Status Values

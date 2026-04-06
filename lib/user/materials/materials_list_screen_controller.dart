@@ -26,11 +26,19 @@ class MaterialsListScreenController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadCurrentInstructorMaterials();
+    // Use microtask to avoid 'setState() or markNeedsBuild() called during build'
+    // when the controller is initialized during a widget's build phase.
+    Future.microtask(() => loadCurrentInstructorMaterials());
   }
 
   /// Load materials for the current logged-in instructor
   Future<void> loadCurrentInstructorMaterials() async {
+    isLoading.value = true;
+    // Prevent redundant loads
+    if (isLoading.value && materials.isNotEmpty) {
+      // Actually we want to allow refresh if triggered explicitly
+    }
+
     try {
       _log('🔍 Loading current instructor materials...');
 

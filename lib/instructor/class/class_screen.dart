@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:greenquest/admin/helpers/get_day__abbreviation.dart';
 import 'package:greenquest/instructor/class/class_screen_controller.dart';
 import '../../shared/instructor/instructor_appbar.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
@@ -2072,14 +2073,14 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
         if (allSameTime && schedules.length > 1) {
           // Show as "Mon/Wed 9:00 AM - 10:30 AM"
           final days = schedules
-              .map((s) => _getDayAbbreviation(s['day']))
+              .map((s) => getDayAbbreviation(s['day']))
               .join('/');
           timeString =
               '$days ${schedules[0]['startTime']} - ${schedules[0]['endTime']}';
         } else {
           // Show first schedule with indicator of more
           final firstSchedule = schedules[0];
-          final dayAbbr = _getDayAbbreviation(firstSchedule['day']);
+          final dayAbbr = getDayAbbreviation(firstSchedule['day']);
           timeString =
               '$dayAbbr ${firstSchedule['startTime']} - ${firstSchedule['endTime']}';
           if (schedules.length > 1) {
@@ -2089,7 +2090,7 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
       }
     } else {
       // Fallback to old format for backward compatibility
-      final dayAbbr = _getDayAbbreviation(classData['day']);
+      final dayAbbr = getDayAbbreviation(classData['day']);
       timeString =
           '$dayAbbr ${classData['startTime']} - ${classData['endTime']}';
     }
@@ -2350,27 +2351,6 @@ class _ClassScreenState extends State<ClassScreen> with WidgetsBindingObserver {
         ),
       ),
     );
-  }
-
-  String _getDayAbbreviation(String day) {
-    switch (day.toLowerCase()) {
-      case 'monday':
-        return 'Mon';
-      case 'tuesday':
-        return 'Tue';
-      case 'wednesday':
-        return 'Wed';
-      case 'thursday':
-        return 'Thu';
-      case 'friday':
-        return 'Fri';
-      case 'saturday':
-        return 'Sat';
-      case 'sunday':
-        return 'Sun';
-      default:
-        return day;
-    }
   }
 }
 

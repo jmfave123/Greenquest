@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:greenquest/instructor/helpers/extract_attachment_url.dart';
+import 'package:greenquest/instructor/helpers/get_file_icon.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/responsive/responsive_layout.dart';
@@ -13,6 +15,7 @@ import '../topics/topic_controller.dart';
 class QuizzesScreen extends StatefulWidget {
   final String? period;
   final bool isEdit;
+  final bool isExamMode;
   final String? itemId;
   final Map<String, dynamic>? initialData;
 
@@ -20,6 +23,7 @@ class QuizzesScreen extends StatefulWidget {
     super.key,
     this.period,
     this.isEdit = false,
+    this.isExamMode = false,
     this.itemId,
     this.initialData,
   });
@@ -49,6 +53,7 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
   List<String> _classes = [];
   Map<String, bool> _selectedClasses = {};
   bool _isLoadingClasses = true;
+  List<dynamic> _existingAttachments = [];
 
   // Topic selection
   String? _selectedTopicId;
@@ -62,6 +67,21 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
     'final_exam': 'Final Exam (10%)',
     'pit': 'Per Inno Task (20%)',
   };
+
+  bool get _isExamMode {
+    final initialType = widget.initialData?['type']?.toString();
+    return widget.isExamMode || initialType == 'Exam';
+  }
+
+  Map<String, String> get _visibleCategories {
+    if (_isExamMode) {
+      return const {
+        'midterm_exam': 'Midterm Exam (10%)',
+        'final_exam': 'Final Exam (10%)',
+      };
+    }
+    return _categories;
+  }
 
   @override
   void initState() {
@@ -184,11 +204,21 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
       if (widget.period == 'Final' && _selectedCategory == 'midterm_exam') {
         _selectedCategory = 'final_exam';
       }
+
+      _existingAttachments = List<dynamic>.from(data['attachments'] ?? []);
     });
   }
 
   // Method to update category based on period
   void _updateCategoryBasedOnPeriod() {
+    if (_isExamMode) {
+      setState(() {
+        _selectedCategory =
+            widget.period == 'Final' ? 'final_exam' : 'midterm_exam';
+      });
+      return;
+    }
+
     if (widget.period == 'Final') {
       // If period is Final and category is midterm_exam, change to final_exam
       if (_selectedCategory == 'midterm_exam') {
@@ -314,6 +344,17 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
           pickedTime.minute,
         );
 
+        if (!combinedDateTime.isAfter(DateTime.now())) {
+          Get.snackbar(
+            'Error',
+            'Due date and time must be in the future',
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+            snackPosition: SnackPosition.TOP,
+          );
+          return;
+        }
+
         setState(() {
           _selectedDueDate = combinedDateTime;
         });
@@ -343,6 +384,18 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
       return;
     }
 
+    if (!_selectedDueDate!.isAfter(DateTime.now())) {
+      Get.snackbar(
+        'Error',
+        'Due date and time must be in the future',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
+      );
+
+      return;
+    }
+
     // Get selected classes
     List<String> selectedClasses =
         _selectedClasses.entries
@@ -361,7 +414,17 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
     }
 
     // Upload files if any are selected
-    List<String> attachmentUrls = [];
+    List<dynamic> attachmentUrls = [];
+
+    // Preserve existing attachments in edit mode
+    if (widget.isEdit &&
+        widget.initialData != null &&
+        widget.initialData!['attachments'] != null) {
+      attachmentUrls.addAll(
+        widget.initialData!['attachments'] as List<dynamic>,
+      );
+    }
+
     if (_fileController.selectedFiles.isNotEmpty) {
       try {
         _createController.isLoading.value = true;
@@ -373,11 +436,8 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
         );
 
         if (uploadSuccess) {
-          // Get uploaded file URLs
-          attachmentUrls =
-              _fileController.uploadedFiles
-                  .map((file) => file['url'] as String)
-                  .toList();
+          // Add newly uploaded file objects (maps with URL, name, type)
+          attachmentUrls.addAll(_fileController.uploadedFiles.toList());
         } else {
           _createController.isLoading.value = false;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -409,20 +469,33 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
     }
 
     if (widget.isEdit && widget.itemId != null) {
-      // Update existing quiz
-      final success = await _createController.updateQuiz(
-        quizId: widget.itemId!,
-        title: _titleController.text.trim(),
-        instruction: _instructionController.text.trim(),
-        selectedClasses: selectedClasses,
-        points: _pointsController.text.trim(),
-        dueDate: _selectedDueDate!,
-        period: widget.period,
-        category: categoryToSave,
-        attachments: attachmentUrls,
-        topicId: _selectedTopicId,
-        topicName: _selectedTopicName,
-      );
+      final success =
+          _isExamMode
+              ? await _createController.updateExam(
+                examId: widget.itemId!,
+                title: _titleController.text.trim(),
+                instruction: _instructionController.text.trim(),
+                selectedClasses: selectedClasses,
+                points: _pointsController.text.trim(),
+                dueDate: _selectedDueDate!,
+                period: widget.period ?? 'Midterm',
+                attachments: attachmentUrls,
+                topicId: _selectedTopicId,
+                topicName: _selectedTopicName,
+              )
+              : await _createController.updateQuiz(
+                quizId: widget.itemId!,
+                title: _titleController.text.trim(),
+                instruction: _instructionController.text.trim(),
+                selectedClasses: selectedClasses,
+                points: _pointsController.text.trim(),
+                dueDate: _selectedDueDate!,
+                period: widget.period,
+                category: categoryToSave,
+                attachments: attachmentUrls,
+                topicId: _selectedTopicId,
+                topicName: _selectedTopicName,
+              );
 
       if (success) {
         // Clear files after successful update
@@ -430,19 +503,31 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
         Navigator.of(context).pop();
       }
     } else {
-      // Create new quiz
-      final success = await _createController.createQuiz(
-        title: _titleController.text.trim(),
-        instruction: _instructionController.text.trim(),
-        selectedClasses: selectedClasses,
-        points: _pointsController.text.trim(),
-        dueDate: _selectedDueDate!,
-        period: widget.period,
-        category: categoryToSave,
-        attachments: attachmentUrls,
-        topicId: _selectedTopicId,
-        topicName: _selectedTopicName,
-      );
+      final success =
+          _isExamMode
+              ? await _createController.createExam(
+                title: _titleController.text.trim(),
+                instruction: _instructionController.text.trim(),
+                selectedClasses: selectedClasses,
+                points: _pointsController.text.trim(),
+                dueDate: _selectedDueDate!,
+                period: widget.period ?? 'Midterm',
+                attachments: attachmentUrls,
+                topicId: _selectedTopicId,
+                topicName: _selectedTopicName,
+              )
+              : await _createController.createQuiz(
+                title: _titleController.text.trim(),
+                instruction: _instructionController.text.trim(),
+                selectedClasses: selectedClasses,
+                points: _pointsController.text.trim(),
+                dueDate: _selectedDueDate!,
+                period: widget.period,
+                category: categoryToSave,
+                attachments: attachmentUrls,
+                topicId: _selectedTopicId,
+                topicName: _selectedTopicName,
+              );
 
       if (success) {
         // Clear files and reset form after successful creation
@@ -459,12 +544,13 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
       _instructionController.clear();
       _pointsController.text = '100';
       _selectedDueDate = null;
-      _selectedCategory = 'quiz_prelim';
+      _selectedCategory = _isExamMode ? 'midterm_exam' : 'quiz_prelim';
       _selectedClasses = Map.fromEntries(
         _classes.map((e) => MapEntry(e, false)),
       );
       _selectedTopicId = null;
       _selectedTopicName = null;
+      _existingAttachments = [];
       _showTitleError = false;
     });
   }
@@ -587,7 +673,7 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
       ),
       mainContent: _buildMainContent(),
       rightPanel: _buildRightPanel(),
-      screenTitle: 'Quiz',
+      screenTitle: _isExamMode ? 'Exam' : 'Quiz',
       onBackPressed: () => Navigator.of(context).pop(),
       actionButton: _buildActionButton(),
     );
@@ -602,7 +688,7 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
           ResponsiveFormField(
             label: 'Title',
             controller: _titleController,
-            hintText: 'Quiz Title',
+            hintText: _isExamMode ? 'Exam Title' : 'Quiz Title',
             isRequired: true,
             showError: _showTitleError,
             errorText: _showTitleError ? 'Title is required' : null,
@@ -700,7 +786,10 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
           ResponsiveFormField(
             label: 'Instruction',
             controller: _instructionController,
-            hintText: 'Quiz Instructions (optional)',
+            hintText:
+                _isExamMode
+                    ? 'Exam Instructions (optional)'
+                    : 'Quiz Instructions (optional)',
             maxLines: 6,
           ),
           const SizedBox(height: 32),
@@ -729,9 +818,9 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Quiz Details',
-                style: TextStyle(
+              Text(
+                _isExamMode ? 'Exam Details' : 'Quiz Details',
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
@@ -950,7 +1039,8 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          _categories[_selectedCategory]!,
+                          _visibleCategories[_selectedCategory] ??
+                              _visibleCategories.values.first,
                           style: const TextStyle(
                             fontSize: 14,
                             color: Colors.black,
@@ -982,8 +1072,11 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
                   ),
                   child: Column(
                     children:
-                        _categories.entries
+                        _visibleCategories.entries
                             .where((entry) {
+                              if (_isExamMode) {
+                                return true;
+                              }
                               // Filter categories based on period
                               if (widget.period == 'Final') {
                                 // For Final period, only show final_exam (hide midterm_exam)
@@ -1099,7 +1192,10 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
   Widget _buildActionButton() {
     return Obx(
       () => ResponsiveButton(
-        text: widget.isEdit ? 'Update Quiz' : 'Create Quiz',
+        text:
+            _isExamMode
+                ? (widget.isEdit ? 'Update Exam' : 'Create Exam')
+                : (widget.isEdit ? 'Update Quiz' : 'Create Quiz'),
         onPressed: _validateAndPost,
         isLoading: _createController.isLoading.value,
       ),
@@ -1169,7 +1265,7 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
                         child: Row(
                           children: [
                             Icon(
-                              _getFileIcon(file.extension),
+                              getFileIcon(file.extension),
                               color: Colors.grey[600],
                               size: 16,
                             ),
@@ -1211,6 +1307,75 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
               ),
             ],
 
+            if (widget.isEdit && _existingAttachments.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Current Attachments:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Column(
+                children:
+                    _existingAttachments.map((attachment) {
+                      return Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.blue[100]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.attach_file,
+                              color: Colors.blue[700],
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                getAttachmentDisplayName(attachment),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => previewAttachment(attachment),
+                              icon: const Icon(
+                                Icons.visibility,
+                                size: 16,
+                                color: Colors.blue,
+                              ),
+                              tooltip: 'Preview attachment',
+                            ),
+                            IconButton(
+                              onPressed: () => downloadAttachment(attachment),
+                              icon: const Icon(
+                                Icons.download,
+                                size: 16,
+                                color: Colors.green,
+                              ),
+                              tooltip: 'Download attachment',
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+              ),
+            ],
+
             // Upload status
             if (_fileController.uploadStatus.value.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -1241,30 +1406,6 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
-    }
-  }
-
-  IconData _getFileIcon(String? extension) {
-    switch (extension?.toLowerCase()) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return Icons.video_file;
-      case 'zip':
-      case 'rar':
-        return Icons.archive;
-      default:
-        return Icons.attach_file;
     }
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../submit/assignment/assignment_detail_screen.dart';
@@ -7,10 +8,13 @@ import '../submit/activity/activity_detail_screen.dart';
 import '../submit/quiz_new/quiz_detail_screen.dart';
 import '../submit/pit/pit_detail_screen.dart';
 import '../materials/materials_detail_screen.dart';
+import '../plant_trees/plant_trees_screen.dart';
 import 'notification_controller.dart';
-import 'announcement_controller.dart';
 import '../../shared/services/in_app_notification_service.dart';
+import '../../shared/widgets/pull_to_refresh_wrapper.dart';
 import '../../shared/widgets/skeleton_loading.dart';
+import '../../shared/models/notification_model.dart';
+import '../../shared/widgets/notification_card.dart';
 
 class NotificationsListScreen extends StatefulWidget {
   const NotificationsListScreen({super.key});
@@ -29,137 +33,19 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     controller = Get.put(NotificationController());
   }
 
-  Color _getNotificationColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'assignment':
-        return const Color(0xFF2886D7);
-      case 'activity':
-        return const Color(0xFF43A047);
-      case 'quiz':
-        return const Color(0xFF8B5CF6);
-      case 'pit':
-        return const Color(0xFFFF9800);
-      case 'material':
-        return const Color(0xFF34A853);
-      case 'tree_approved':
-        return const Color(0xFF34A853);
-      case 'tree_rejected':
-        return Colors.orange;
-      default:
-        return const Color(0xFF34A853);
-    }
+  @override
+  void dispose() {
+    // Mark all as read when leaving the screen
+    controller.markAllAsRead();
+    super.dispose();
   }
 
-  IconData _getNotificationIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'assignment':
-        return Icons.assignment;
-      case 'activity':
-        return Icons.quiz;
-      case 'quiz':
-        return Icons.quiz;
-      case 'pit':
-        return Icons.engineering;
-      case 'material':
-        return Icons.book;
-      case 'tree_approved':
-        return Icons.eco;
-      case 'tree_rejected':
-        return Icons.eco;
-      default:
-        return Icons.notifications;
-    }
-  }
-
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown time';
-
-    try {
-      DateTime date;
-      if (timestamp is Timestamp) {
-        date = timestamp.toDate();
-      } else if (timestamp is DateTime) {
-        date = timestamp;
-      } else if (timestamp is String) {
-        date = DateTime.parse(timestamp);
-      } else {
-        return 'Unknown time';
-      }
-
-      final now = DateTime.now();
-      final difference = now.difference(date);
-
-      if (difference.inDays == 0) {
-        if (difference.inHours == 0) {
-          return '${difference.inMinutes} minutes ago';
-        }
-        return '${difference.inHours} hours ago';
-      } else if (difference.inDays == 1) {
-        return 'Yesterday';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays} days ago';
-      } else {
-        return '${date.day}/${date.month}/${date.year}';
-      }
-    } catch (e) {
-      return 'Unknown time';
-    }
-  }
-
-  /// Format material date to match the format used in materials list
-  String _formatMaterialDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown Date';
-
-    try {
-      DateTime date;
-      if (timestamp is Timestamp) {
-        date = timestamp.toDate();
-      } else if (timestamp is DateTime) {
-        date = timestamp;
-      } else if (timestamp is String) {
-        date = DateTime.parse(timestamp);
-      } else {
-        return 'Unknown Date';
-      }
-
-      // Format as "January 1, 2025" to match the UI design
-      const months = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ];
-
-      final month = months[date.month - 1];
-      return '$month ${date.day}, ${date.year}';
-    } catch (e) {
-      print('Error formatting material date: $e');
-      return 'Unknown Date';
-    }
-  }
-
-  Future<void> _markNotificationAsRead(
-    Map<String, dynamic> notification,
-  ) async {
-    final notificationId = notification['id']?.toString();
-    if (notificationId == null) return;
-
+  Future<void> _markNotificationAsRead(NotificationModel notification) async {
     // Use controller to mark as read
-    await controller.markAsRead(notificationId);
+    await controller.markAsRead(notification.id);
   }
 
-  void _navigateToRelatedScreen(
-    String type,
-    Map<String, dynamic> notification,
-  ) async {
+  void _navigateToRelatedScreen(NotificationModel notification) async {
     // Mark notification as read first
     await _markNotificationAsRead(notification);
 
@@ -175,29 +61,24 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
 
     try {
       // For graded notifications, extract activity type from metadata
-      String notificationType = type.toLowerCase();
-      String? itemId = notification['itemId']?.toString();
-      final instructorId = notification['instructorId']?.toString();
-      final metadata = notification['metadata'] as Map<String, dynamic>?;
+      String notificationType = notification.type.toLowerCase();
+      String? itemId = notification.itemId;
+      final instructorId = notification.instructorId;
+      final metadata = notification.metadata;
 
       // If it's a graded notification, use the activityType from metadata
-      if (notificationType == 'graded' && metadata != null) {
+      if (notificationType == 'graded' && metadata.isNotEmpty) {
         final activityType = metadata['activityType']?.toString() ?? '';
         if (activityType.isNotEmpty) {
           notificationType = activityType.toLowerCase();
         }
-        // Use itemId from notification (which should be activityId)
-        // or fallback to metadata if needed
-        if (itemId == null || itemId.isEmpty) {
-          // itemId should already be set from the notification, but just in case
-          itemId = metadata['activityId']?.toString();
+        // Use itemId or fallback to metadata if needed
+        if (itemId.isEmpty) {
+          itemId = metadata['activityId']?.toString() ?? '';
         }
       }
 
-      if (itemId == null ||
-          itemId.isEmpty ||
-          instructorId == null ||
-          instructorId.isEmpty) {
+      if (itemId.isEmpty || instructorId.isEmpty) {
         Get.back(); // Close loading dialog
         Get.snackbar(
           'Error',
@@ -301,7 +182,6 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
       }
 
       // Navigate to the specific detail screen
-      // This will show the student their graded submission with score and feedback
       final data = doc.data() as Map<String, dynamic>;
       data['id'] = doc.id; // Add document ID to the data
 
@@ -326,11 +206,6 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           print('Error fetching instructor name: $e');
           data['instructorName'] = 'Unknown Instructor';
         }
-
-        // Format the createdAt timestamp
-        if (data['createdAt'] != null) {
-          data['createdAt'] = _formatMaterialDate(data['createdAt']);
-        }
       }
 
       switch (notificationType) {
@@ -351,12 +226,16 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           break;
         case 'announcement':
           // Show announcement dialog and update views
-          _showAnnouncementDialogFromNotification(data, instructorId);
+          _showAnnouncementDialogFromNotification(data, instructorId, notification);
           break;
         case 'tree_approved':
         case 'tree_rejected':
-          // Show tree submission details dialog
-          _showTreeSubmissionDialog(data);
+          // Navigate to the Plant Trees screen, then show details
+          Get.to(() => const PlantTreesScreen())?.then((_) {});
+          // Show the tree submission details dialog after navigation
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _showTreeSubmissionDialog(data, notification.createdAt);
+          });
           break;
       }
     } catch (e) {
@@ -375,45 +254,19 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   void _showAnnouncementDialogFromNotification(
     Map<String, dynamic> announcementData,
     String instructorId,
+    NotificationModel notification,
   ) async {
-    // Mark notification as read when opening dialog
-    final notificationId = announcementData['id']?.toString();
-    if (notificationId != null && notificationId.isNotEmpty) {
-      await _markNotificationAsRead(announcementData);
-    }
-    // Update views for the announcement
-    try {
-      final announcementId = announcementData['id']?.toString();
-      if (announcementId != null && announcementId.isNotEmpty) {
-        // Get or create announcement controller to update views
-        UserAnnouncementController? announcementController;
-        try {
-          announcementController = Get.find<UserAnnouncementController>();
-        } catch (e) {
-          // Controller not found, create it temporarily just to update views
-          announcementController = Get.put(UserAnnouncementController());
-        }
-
-        // Update the instructor ID in controller if needed
-        announcementController!.selectedInstructorId.value = instructorId;
-        // Update views
-        await announcementController.updateViews(announcementId);
-      }
-    } catch (e) {
-      print('Error updating announcement views: $e');
-    }
-
     // Show the announcement dialog
-    _showAnnouncementDialogInNotifications(announcementData);
+    _showAnnouncementDialogInNotifications(announcementData, notification);
   }
 
   // Show tree submission details dialog
-  void _showTreeSubmissionDialog(Map<String, dynamic> submission) {
+  void _showTreeSubmissionDialog(Map<String, dynamic> submission, dynamic plantDateOverride) {
     final status = submission['status'] ?? 'submitted';
     final quantity = submission['quantity'] ?? 0;
     final location = submission['location'] ?? 'Unknown location';
     final feedback = submission['feedback'] ?? '';
-    final plantDate = submission['plantDate'];
+    final plantDate = submission['plantDate'] ?? plantDateOverride;
     final files = submission['files'] as List<dynamic>? ?? [];
 
     showDialog(
@@ -510,7 +363,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                           _buildDetailRow(
                             Icons.calendar_today,
                             'Plant Date',
-                            _formatTimestamp(plantDate),
+                            _formatSimpleTimestamp(plantDate),
                           ),
                         if (plantDate != null) const SizedBox(height: 16),
                         // Feedback
@@ -681,11 +534,12 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
   // Show announcement dialog (extracted from announcement_screen_wrapper)
   void _showAnnouncementDialogInNotifications(
     Map<String, dynamic> announcement,
+    NotificationModel notification,
   ) {
-    final title = announcement['title'] ?? 'No Title';
-    final content = announcement['content'] ?? 'No content available';
-    final timestamp = announcement['createdAt'] ?? announcement['timestamp'];
-    final instructorName = announcement['instructorName'] ?? 'Instructor';
+    final title = announcement['title'] ?? notification.title;
+    final content = announcement['content'] ?? announcement['description'] ?? notification.description;
+    final timestamp = announcement['createdAt'] ?? announcement['timestamp'] ?? notification.createdAt;
+    final instructorName = announcement['instructorName'] ?? notification.instructorName;
     final instructorProfileUrl = announcement['instructorProfileUrl'] ?? '';
     final imageUrl = announcement['imageUrl'] ?? '';
 
@@ -780,7 +634,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    _formatTimestamp(timestamp),
+                                    _formatSimpleTimestamp(timestamp),
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: Colors.white.withOpacity(0.9),
@@ -1060,7 +914,7 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
                                 child: ElevatedButton(
                                   onPressed: () async {
                                     // Mark notification as read
-                                    await _markNotificationAsRead(announcement);
+                                    await _markNotificationAsRead(notification);
                                     Navigator.of(context).pop();
                                     Get.snackbar(
                                       'Marked as Read',
@@ -1214,94 +1068,135 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
           },
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: controller.refreshNotifications,
-          ),
-        ],
       ),
       backgroundColor: Colors.white,
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: InAppNotificationService.getStudentNotificationsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: PullToRefreshWrapper(
+        onRefresh: () async {
+          await controller.refreshNotifications();
+        },
+        wrapContent: false,
+        child: Obx(() {
+          if (controller.isLoading.value) {
             return ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: 6,
               itemBuilder: (context, index) => const SkeletonListItem(),
             );
           }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error loading notifications: ${snapshot.error}',
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
+          return StreamBuilder<List<Map<String, dynamic>>>(
+            stream: InAppNotificationService.getStudentNotificationsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                ],
-              ),
-            );
-          }
+                  itemCount: 6,
+                  itemBuilder: (context, index) => const SkeletonListItem(),
+                );
+              }
 
-          final notifications = snapshot.data ?? [];
+              if (snapshot.hasError) {
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: Colors.red,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error loading notifications: ${snapshot.error}',
+                                style: const TextStyle(color: Colors.red),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }
 
-          if (notifications.isEmpty) {
-            return _buildEmptyState();
-          }
+              final notifications = snapshot.data ?? [];
 
-          return _buildNotificationsList(notifications);
-        },
+              if (notifications.isEmpty) {
+                return _buildEmptyState();
+              }
+
+              return _buildNotificationsList(notifications);
+            },
+          );
+        }),
       ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: const Color(0xFF34A853).withOpacity(0.1),
-              shape: BoxShape.circle,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF34A853).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.notifications_none,
+                      size: 64,
+                      color: Color(0xFF34A853),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'No notifications yet',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF34A853),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'You\'ll see important updates here',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Check back later for new notifications',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
-            child: const Icon(
-              Icons.notifications_none,
-              size: 64,
-              color: Color(0xFF34A853),
-            ),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'No notifications yet',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF34A853),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'You\'ll see important updates here',
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Check back later for new notifications',
-            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1310,185 +1205,33 @@ class _NotificationsListScreenState extends State<NotificationsListScreen> {
     final userId = user?.uid ?? '';
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: notifications.length,
       itemBuilder: (context, index) {
-        final notification = notifications[index];
-        final type = notification['type']?.toString() ?? 'activity';
-        final title = notification['title']?.toString() ?? 'New notification';
-        final description = notification['description']?.toString() ?? '';
-        final instructorName = notification['instructorName']?.toString() ?? '';
-        // Check if notification is read by checking readBy array
-        final readBy = List<String>.from(notification['readBy'] ?? []);
-        final isRead = userId.isNotEmpty && readBy.contains(userId);
-        final timestamp = notification['createdAt'];
-        final color = _getNotificationColor(type);
-        final icon = _getNotificationIcon(type);
+        final data = notifications[index];
+        final notification = NotificationModel.fromMap(data, data['id'] ?? '');
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          constraints: const BoxConstraints(minHeight: 80),
-          decoration: BoxDecoration(
-            color: isRead ? Colors.grey[50] : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isRead ? Colors.grey[200]! : color.withOpacity(0.3),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => _navigateToRelatedScreen(type, notification),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Icon container
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, color: color, size: 24),
-                    ),
-                    const SizedBox(width: 12),
-                    // Content area
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Title and unread indicator
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  title,
-                                  style: TextStyle(
-                                    fontWeight:
-                                        isRead
-                                            ? FontWeight.w600
-                                            : FontWeight.bold,
-                                    fontSize: 15,
-                                    color:
-                                        isRead
-                                            ? Colors.grey[700]
-                                            : Colors.black87,
-                                    height: 1.2,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              if (!isRead)
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  margin: const EdgeInsets.only(top: 4),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF34A853),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          // Description
-                          if (description.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              description,
-                              style: TextStyle(
-                                color:
-                                    isRead
-                                        ? Colors.grey[600]
-                                        : Colors.grey[700],
-                                fontSize: 13,
-                                height: 1.3,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                          const SizedBox(height: 8),
-                          // Footer info
-                          Row(
-                            children: [
-                              if (instructorName.isNotEmpty) ...[
-                                Flexible(
-                                  child: Text(
-                                    'From: $instructorName',
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '•',
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              Flexible(
-                                child: Text(
-                                  _formatTimestamp(timestamp),
-                                  style: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Navigation indicator
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: isRead ? Colors.grey[400] : color,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        return NotificationCard(
+          notification: notification,
+          userId: userId,
+          onTap: () => _navigateToRelatedScreen(notification),
         );
       },
     );
+  }
+
+  /// Simplified timestamp formatter for internal dialogs
+  String _formatSimpleTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown';
+    DateTime date;
+    if (timestamp is Timestamp) {
+      date = timestamp.toDate();
+    } else if (timestamp is DateTime) {
+      date = timestamp;
+    } else {
+      return 'Unknown';
+    }
+    return DateFormat('MMM dd, yyyy').format(date);
   }
 }

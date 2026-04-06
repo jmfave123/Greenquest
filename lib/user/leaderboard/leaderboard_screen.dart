@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../shared/login/custom_drawer.dart';
 import 'leaderboard_controller.dart';
 import 'package:greenquest/shared/widgets/skeleton_loading.dart';
+import 'package:greenquest/shared/widgets/pull_to_refresh_wrapper.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -51,78 +52,84 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         centerTitle: true,
       ),
       backgroundColor: Colors.white,
-      body:
-          leaderboardController == null
-              ? _buildSkeletonLoading()
-              : Obx(() {
-                if (leaderboardController!.isLoadingLeaderboard.value) {
-                  return _buildSkeletonLoading();
-                }
+      body: PullToRefreshWrapper(
+        onRefresh: () async {
+          await leaderboardController?.refreshLeaderboard();
+        },
+        wrapContent: false,
+        child: Obx(() {
+          if (leaderboardController == null ||
+              leaderboardController!.isLoadingLeaderboard.value) {
+            return _buildSkeletonLoading();
+          }
 
-                final topThree = leaderboardController!.getTopThree(
-                  selectedTab,
-                );
-                final remainingStudents = leaderboardController!
-                    .getRemainingStudents(selectedTab);
+          final topThree = leaderboardController!.getTopThree(selectedTab);
+          final remainingStudents = leaderboardController!
+              .getRemainingStudents(selectedTab);
 
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    await leaderboardController!.refreshLeaderboard();
-                  },
-                  color: const Color(0xFF34A853),
-                  child: CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 20),
-                            _buildPodium(topThree),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                      SliverFillRemaining(
-                        hasScrollBody: true,
-                        child: Container(
-                          width: double.infinity,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(32),
-                              topRight: Radius.circular(32),
-                            ),
-                            border: Border.fromBorderSide(
-                              BorderSide(color: Colors.black12),
-                            ),
-                          ),
-                          child:
-                              remainingStudents.isEmpty
-                                  ? const Center(
-                                    child: Text(
-                                      'No students found',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  )
-                                  : ListView.builder(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    itemCount: remainingStudents.length,
-                                    itemBuilder: (context, i) {
-                                      final student = remainingStudents[i];
-                                      return _buildStudentItem(student, i + 4);
-                                    },
-                                  ),
-                        ),
-                      ),
-                    ],
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildPodium(topThree),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+              SliverFillRemaining(
+                hasScrollBody: true,
+                child: Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(32),
+                      topRight: Radius.circular(32),
+                    ),
+                    border: Border.fromBorderSide(
+                      BorderSide(color: Colors.black12),
+                    ),
                   ),
-                );
-              }),
+                  child:
+                      remainingStudents.isEmpty
+                          ? _buildEmptyState()
+                          : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            itemCount: remainingStudents.length,
+                            itemBuilder: (context, i) {
+                              final student = remainingStudents[i];
+                              return _buildStudentItem(student, i + 4);
+                            },
+                          ),
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: const Center(
+              child: Text(
+                'No students found',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -352,30 +359,40 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   }
 
   Widget _buildSkeletonLoading() {
-    return Column(
-      children: [
-        const SizedBox(height: 20),
-        const SkeletonLeaderboardPodium(),
-        const SizedBox(height: 24),
-        Expanded(
-          child: Container(
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(32),
-                topRight: Radius.circular(32),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              const SkeletonLeaderboardPodium(),
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                height: 500, // Sufficient height for visible skeleton items
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(32),
+                    topRight: Radius.circular(32),
+                  ),
+                  border: Border.fromBorderSide(
+                    BorderSide(color: Colors.black12),
+                  ),
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  itemCount: 5,
+                  itemBuilder: (context, i) => const SkeletonLeaderboardItem(),
+                ),
               ),
-              border: Border.fromBorderSide(BorderSide(color: Colors.black12)),
-            ),
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              itemCount: 5,
-              itemBuilder: (context, i) => const SkeletonLeaderboardItem(),
-            ),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

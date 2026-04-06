@@ -22,11 +22,18 @@ class LeaderboardController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadLeaderboardData();
+    // Use microtask to avoid 'setState() or markNeedsBuild() called during build'
+    // when the controller is initialized during a widget's build phase.
+    Future.microtask(() => loadLeaderboardData());
   }
 
   /// Load leaderboard data for students
-  Future<void> loadLeaderboardData() async {
+  Future<void> loadLeaderboardData({bool isRefresh = false}) async {
+    if (!isRefresh &&
+        isLoadingLeaderboard.value &&
+        leaderboardData['All']!.isNotEmpty) {
+      return;
+    }
     try {
       isLoadingLeaderboard.value = true;
       final user = _auth.currentUser;
@@ -287,7 +294,7 @@ class LeaderboardController extends GetxController {
 
   /// Refresh leaderboard data
   Future<void> refreshLeaderboard() async {
-    await loadLeaderboardData();
+    await loadLeaderboardData(isRefresh: true);
   }
 
   /// Get top 3 students for podium display

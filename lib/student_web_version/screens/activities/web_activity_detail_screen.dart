@@ -6,6 +6,7 @@ import '../../../user/submit/student_submission_controller.dart';
 import '../../../shared/controllers/file_submission_controller.dart';
 import '../../widgets/submissions/web_file_upload_widget.dart';
 import '../../widgets/submissions/web_instructor_attachments_widget.dart';
+import '../../widgets/submissions/web_submitted_files_widget.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../config/web_theme.dart';
 import '../../config/web_routes.dart';
@@ -268,6 +269,10 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
           _buildStatusDisplay(),
           const SizedBox(height: 24),
           _buildSubmissionAction(),
+          const SizedBox(height: 16),
+          WebSubmittedFilesWidget(
+            submissionController: submissionController,
+          ),
           const SizedBox(height: 24),
           _buildFeedbackSection(),
         ],
@@ -428,12 +433,22 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
         children: [
           const Divider(),
           const SizedBox(height: 16),
-          const Text(
-            'Instructor Feedback',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: WebTheme.textPrimary,
-            ),
+          Row(
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 16,
+                color: Colors.grey[600],
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Private Comment',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: WebTheme.textPrimary,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Container(
@@ -442,7 +457,7 @@ class _WebActivityDetailScreenState extends State<WebActivityDetailScreen> {
             decoration: BoxDecoration(
               color: Colors.amber.shade50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.shade100),
+              border: Border.all(color: Colors.amber.shade200),
             ),
             child: Text(
               submissionController.submissionFeedback.value,

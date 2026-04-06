@@ -128,6 +128,18 @@ class QuizController extends GetxController {
           continue;
         }
 
+        final itemType = (quizData['type'] ?? '').toString().toLowerCase();
+        final category = (quizData['category'] ?? '').toString();
+        final isExamItem =
+            itemType == 'exam' ||
+            category == 'midterm_exam' ||
+            category == 'final_exam';
+
+        if (isExamItem) {
+          log('🧪 Skipping exam item from quiz list: ${quizData['title']}');
+          continue;
+        }
+
         // Get selected classes for this quiz
         final selectedClasses = List<String>.from(
           quizData['selectedClasses'] ?? [],
@@ -352,8 +364,9 @@ class QuizController extends GetxController {
 
       // Clear existing statuses and extract IDs
       submissionStatus.clear();
-      final quizIds = quizzes.map((a) => a['id']?.toString()).whereType<String>().toList();
-      
+      final quizIds =
+          quizzes.map((a) => a['id']?.toString()).whereType<String>().toList();
+
       if (quizIds.isEmpty) return;
 
       // Set defaults for all first
@@ -363,24 +376,28 @@ class QuizController extends GetxController {
 
       log('🔍 Bulk loading submissions for ${quizIds.length} quizzes');
 
-      // 1 single query to fetch all quiz submissions created by THIS student 
-      final allSubmissions = await _firestore
-          .collection('submissions')
-          .where('studentId', isEqualTo: user.uid)
-          .where('activityType', isEqualTo: 'quiz')
-          .get();
+      // 1 single query to fetch all quiz submissions created by THIS student
+      final allSubmissions =
+          await _firestore
+              .collection('submissions')
+              .where('studentId', isEqualTo: user.uid)
+              .where('activityType', isEqualTo: 'quiz')
+              .get();
 
       // Process them locally in memory instantly
       for (var doc in allSubmissions.docs) {
         final data = doc.data();
         final activityId = data['activityId']?.toString();
-        
+
         if (activityId != null && submissionStatus.containsKey(activityId)) {
-           submissionStatus[activityId] = data['status']?.toString() ?? 'not_submitted';
+          submissionStatus[activityId] =
+              data['status']?.toString() ?? 'not_submitted';
         }
       }
 
-      log('📊 Successfully mapped submission statuses without looping queries.');
+      log(
+        '📊 Successfully mapped submission statuses without looping queries.',
+      );
     } catch (e) {
       log('❌ Error bulk loading submission statuses: $e');
     }

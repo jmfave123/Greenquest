@@ -54,6 +54,10 @@ class CreateController extends GetxController {
     super.onClose();
   }
 
+  bool _isDueDateInvalid(DateTime dueDate) {
+    return !dueDate.isAfter(DateTime.now());
+  }
+
   // Create Assignment
   Future<bool> createAssignment({
     required String title,
@@ -62,7 +66,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? category,
     String? topicId,
     String? topicName,
@@ -70,6 +74,16 @@ class CreateController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final user = _auth.currentUser;
       if (user == null) {
@@ -166,7 +180,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? category,
     String? topicId,
     String? topicName,
@@ -174,6 +188,16 @@ class CreateController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final user = _auth.currentUser;
       if (user == null) {
@@ -268,7 +292,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? category,
     String? topicId,
     String? topicName,
@@ -276,6 +300,16 @@ class CreateController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final user = _auth.currentUser;
       if (user == null) {
@@ -361,6 +395,111 @@ class CreateController extends GetxController {
     }
   }
 
+  // Create Exam (stored in quizzes collection for class-record compatibility)
+  Future<bool> createExam({
+    required String title,
+    required String instruction,
+    required List<String> selectedClasses,
+    required String points,
+    required DateTime dueDate,
+    required String period,
+    List<dynamic>? attachments,
+    String? topicId,
+    String? topicName,
+  }) async {
+    try {
+      isLoading.value = true;
+      errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final semester = await _getInstructorSemester(user.uid);
+      final instructorNameToUse = await _getInstructorName(user.uid);
+      final category = period == 'Final' ? 'final_exam' : 'midterm_exam';
+
+      final examData = {
+        'title': title,
+        'instruction': instruction,
+        'selectedClasses': selectedClasses,
+        'points': int.tryParse(points) ?? 0,
+        'dueDate': dueDate,
+        'period': period,
+        'attachments': attachments ?? [],
+        'category': category,
+        'instructorId': user.uid,
+        'instructorName': instructorNameToUse,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'status': 'active',
+        'type': 'Exam',
+        'topicId': topicId,
+        'topicName': topicName,
+        if (semester != null) 'assignedSemester': semester,
+      };
+
+      final docRef = await _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection(quizzesCollection)
+          .add(examData);
+
+      await InAppNotificationService.createSectionNotification(
+        type: 'quiz',
+        instructorId: user.uid,
+        instructorName: instructorNameToUse,
+        itemId: docRef.id,
+        title: title,
+        targetSections: selectedClasses,
+        description: instruction,
+        metadata: {
+          'dueDate': dueDate.toIso8601String(),
+          'points': int.tryParse(points) ?? 0,
+          'period': period,
+          'category': category,
+        },
+      );
+
+      await loadCreatedItems();
+
+      Get.snackbar(
+        'Success',
+        'Exam created successfully!',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFF34A853),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Error creating exam: $e';
+      Get.snackbar(
+        'Error',
+        'Failed to create exam: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   // Create PIT
   Future<bool> createPIT({
     required String title,
@@ -369,7 +508,7 @@ class CreateController extends GetxController {
     required String points,
     required DateTime dueDate,
     String? period,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? category,
     String? topicId,
     String? topicName,
@@ -377,6 +516,16 @@ class CreateController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final user = _auth.currentUser;
       if (user == null) {
@@ -733,7 +882,7 @@ class CreateController extends GetxController {
 
           allItems.add({
             'id': doc.id,
-            'type': 'Quiz',
+            'type': data['type'] ?? 'Quiz',
             'title': data['title'] ?? 'No Title',
             'instruction': data['instruction'] ?? '',
             'period': data['period'],
@@ -922,6 +1071,9 @@ class CreateController extends GetxController {
         case 'Quiz':
           collection = quizzesCollection;
           break;
+        case 'Exam':
+          collection = quizzesCollection;
+          break;
         case 'PIT':
           collection = pitsCollection;
           break;
@@ -983,13 +1135,23 @@ class CreateController extends GetxController {
     required DateTime dueDate,
     String? period,
     String? category,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? topicId,
     String? topicName,
   }) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final assignmentData = {
         'title': title,
@@ -1059,13 +1221,23 @@ class CreateController extends GetxController {
     required DateTime dueDate,
     String? period,
     String? category,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? topicId,
     String? topicName,
   }) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final activityData = {
         'title': title,
@@ -1132,13 +1304,23 @@ class CreateController extends GetxController {
     required DateTime dueDate,
     String? period,
     String? category,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? topicId,
     String? topicName,
   }) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final quizData = {
         'title': title,
@@ -1205,13 +1387,23 @@ class CreateController extends GetxController {
     required DateTime dueDate,
     String? period,
     String? category,
-    List<String>? attachments,
+    List<dynamic>? attachments,
     String? topicId,
     String? topicName,
   }) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
 
       final pitData = {
         'title': title,
@@ -1260,6 +1452,88 @@ class CreateController extends GetxController {
       Get.snackbar(
         'Error',
         'Failed to update PIT: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Update Exam (stored in quizzes collection)
+  Future<bool> updateExam({
+    required String examId,
+    required String title,
+    required String instruction,
+    required List<String> selectedClasses,
+    required String points,
+    required DateTime dueDate,
+    required String period,
+    List<dynamic>? attachments,
+    String? topicId,
+    String? topicName,
+  }) async {
+    try {
+      isLoading.value = true;
+      errorMessage.value = '';
+
+      if (_isDueDateInvalid(dueDate)) {
+        Get.snackbar(
+          'Error',
+          'Due date and time must be in the future',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          snackPosition: SnackPosition.TOP,
+        );
+      }
+
+      final examData = {
+        'title': title,
+        'instruction': instruction,
+        'selectedClasses': selectedClasses,
+        'points': int.tryParse(points) ?? 0,
+        'dueDate': dueDate,
+        'period': period,
+        'attachments': attachments ?? [],
+        'updatedAt': FieldValue.serverTimestamp(),
+        'category': period == 'Final' ? 'final_exam' : 'midterm_exam',
+        'type': 'Exam',
+        'topicId': topicId,
+        'topicName': topicName,
+      };
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _firestore
+          .collection('instructors')
+          .doc(user.uid)
+          .collection(quizzesCollection)
+          .doc(examId)
+          .update(examData);
+
+      await loadCreatedItems();
+
+      Get.snackbar(
+        'Success',
+        'Exam updated successfully!',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFF34A853),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Error updating exam: $e';
+      Get.snackbar(
+        'Error',
+        'Failed to update exam: $e',
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
