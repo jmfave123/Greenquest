@@ -96,6 +96,7 @@ class MessageListScreen extends StatelessWidget {
             onRefresh: () async {
               await controller.loadSelectedInstructor();
             },
+            wrapContent: false,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: [

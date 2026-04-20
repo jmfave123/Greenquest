@@ -28,10 +28,9 @@ class MessageRepository extends GetxService {
     final User? user = _auth.currentUser;
     if (user == null) return Stream.value([]);
 
-    return _firestore
-        .collection('messages')
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+    return _firestore.collection('messages').snapshots().map((
+      QuerySnapshot<Map<String, dynamic>> snapshot,
+    ) {
       final List<MessageModel> messages = <MessageModel>[];
 
       for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
@@ -51,8 +50,7 @@ class MessageRepository extends GetxService {
       }
 
       messages.sort(
-        (MessageModel a, MessageModel b) =>
-            a.timestamp.compareTo(b.timestamp),
+        (MessageModel a, MessageModel b) => a.timestamp.compareTo(b.timestamp),
       );
       return messages;
     });
@@ -68,8 +66,10 @@ class MessageRepository extends GetxService {
         .where('receiverId', isEqualTo: user.uid)
         .where('isRead', isEqualTo: false)
         .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) =>
-            snapshot.docs.length);
+        .map(
+          (QuerySnapshot<Map<String, dynamic>> snapshot) =>
+              snapshot.docs.length,
+        );
   }
 
   // ── Commands ──────────────────────────────────────────────────────

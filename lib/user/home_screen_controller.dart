@@ -119,7 +119,6 @@ class HomeScreenController extends GetxController {
 
       final data = await StudentDataService.getStudentData();
       if (data != null) {
-
         enrollmentStatus.value = data['enrollmentStatus'] ?? 'none';
         instructorName.value = data['selectedInstructorName'] ?? '';
         instructorId.value = data['selectedInstructorId'] ?? '';
