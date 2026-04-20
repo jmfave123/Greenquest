@@ -742,9 +742,10 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen>
                                               ),
                                               if (fileData['size'] != null)
                                                 Text(
-                                                  FileUploadService.formatFileSize(
-                                                    fileData['size'],
-                                                  ),
+                                                  FileUploadService()
+                                                      .formatFileSize(
+                                                        fileData['size'],
+                                                      ),
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     color: Colors.grey[600],

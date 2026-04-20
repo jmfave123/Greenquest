@@ -11,6 +11,30 @@ class FileUploadService {
   factory FileUploadService() => _instance;
   FileUploadService._internal();
 
+  // Strict allowlist: any extension outside this set is blocked.
+  static const Set<String> _allowedFileExtensions = {
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'ppt',
+    'pptx',
+    'txt',
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'webp',
+    'bmp',
+    'svg',
+  };
+
+  static bool isAllowedExtension(String? extension) {
+    final normalized = (extension ?? '').trim().toLowerCase();
+    return normalized.isNotEmpty && _allowedFileExtensions.contains(normalized);
+  }
+
   final CloudinaryService _cloudinaryService = CloudinaryService();
 
   // Initialize the service
@@ -41,8 +65,21 @@ class FileUploadService {
       if (result != null && result.files.isNotEmpty) {
         log('✅ Selected ${result.files.length} files');
 
-        // Validate file sizes
+        // Validate extensions and file sizes.
         for (PlatformFile file in result.files) {
+          final extension = (file.extension ?? '').toLowerCase();
+
+          if (!isAllowedExtension(extension)) {
+            Get.snackbar(
+              'File Not Supported',
+              'Unsupported file type for "${file.name}".',
+              snackPosition: SnackPosition.TOP,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+            );
+            return null;
+          }
+
           if (file.size > CloudinaryConfig.maxFileSize) {
             Get.snackbar(
               'File Too Large',
@@ -86,6 +123,13 @@ class FileUploadService {
         throw Exception('File data not available');
       }
 
+      final extension = (file.extension ?? '').toLowerCase();
+      if (!isAllowedExtension(extension)) {
+        throw Exception(
+          'Unsupported file type: .${file.extension ?? 'unknown'}',
+        );
+      }
+
       log('📤 Uploading file: ${file.name} (${file.size} bytes)');
 
       onProgress?.call(0.1);
@@ -105,7 +149,7 @@ class FileUploadService {
           tags: tags,
         );
       } else {
-        // Upload as raw file for documents, videos, etc.
+        // Upload as raw file for documents and other non-image allowed files.
         response = await _uploadRawFile(
           fileBytes: file.bytes!,
           fileName: file.name,
@@ -204,16 +248,6 @@ class FileUploadService {
       'svg',
     ].contains(extension)) {
       return 'image';
-    } else if ([
-      'mp4',
-      'avi',
-      'mov',
-      'wmv',
-      'flv',
-      'webm',
-      'mkv',
-    ].contains(extension)) {
-      return 'video';
     } else {
       return 'raw'; // Documents, PDFs, etc.
     }
@@ -247,14 +281,6 @@ class FileUploadService {
       case 'gif':
       case 'webp':
         return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return Icons.video_file;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-        return Icons.audio_file;
       default:
         return Icons.insert_drive_file;
     }
@@ -288,21 +314,13 @@ class FileUploadService {
       case 'gif':
       case 'webp':
         return Colors.purple;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return Colors.indigo;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-        return Colors.teal;
       default:
         return Colors.grey;
     }
   }
 
   // Format file size
-  static String formatFileSize(int bytes) {
+  String formatFileSize(int bytes) {
     if (bytes < 1024) {
       return '$bytes B';
     } else if (bytes < 1024 * 1024) {

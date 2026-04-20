@@ -328,6 +328,20 @@ class WebStudentHomeScreen extends StatelessWidget {
   }
 
   Widget _buildCompletionCard(BuildContext context) {
+    // Filter completions based on active period, matching mobile behavior
+    final List<Map<String, dynamic>> activeCompletions;
+    if (controller.activePeriodType.value == 'Midterm') {
+      activeCompletions = controller.midtermCompletions;
+    } else if (controller.activePeriodType.value == 'Final') {
+      activeCompletions = controller.finalCompletions;
+    } else {
+      // No active period set — show both
+      activeCompletions = [
+        ...controller.midtermCompletions,
+        ...controller.finalCompletions,
+      ];
+    }
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -338,7 +352,7 @@ class WebStudentHomeScreen extends StatelessWidget {
           children: [
             const Text('Tasks Overview', style: WebTheme.headingSmall),
             const SizedBox(height: 16),
-            ...controller.midtermCompletions.map(
+            ...activeCompletions.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _buildCompletionRow(
@@ -350,7 +364,7 @@ class WebStudentHomeScreen extends StatelessWidget {
                 ),
               ),
             ),
-            if (controller.midtermCompletions.isEmpty)
+            if (activeCompletions.isEmpty)
               const Text('No tasks recorded yet.', style: WebTheme.bodyMedium),
           ],
         ),

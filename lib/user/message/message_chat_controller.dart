@@ -46,8 +46,7 @@ class MessageChatController extends GetxController {
   String? get instructorId =>
       instructor.value != null ? instructor.value!['id'] as String? : null;
 
-  bool get hasInstructor =>
-      instructor.value != null && instructorId != null;
+  bool get hasInstructor => instructor.value != null && instructorId != null;
 
   /// Stream of bidirectional messages between current user and instructor.
   Stream<List<MessageModel>> get messagesStream {
@@ -110,17 +109,25 @@ class MessageChatController extends GetxController {
       if (result == null || result.files.isEmpty) return;
 
       final PlatformFile file = result.files.first;
+      final extension = (file.extension ?? '').toLowerCase();
+      if (!FileUploadService.isAllowedExtension(extension)) {
+        Get.snackbar(
+          'File Not Supported',
+          'This file type is not allowed in chat.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
       if (file.bytes == null) {
         throw Exception('File bytes are null — file may be too large');
       }
 
       previewFile.value = file;
     } catch (e, stackTrace) {
-      _logger.error(
-        'Failed to pick file',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      _logger.error('Failed to pick file', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -159,11 +166,7 @@ class MessageChatController extends GetxController {
       textController.clear();
       return true;
     } catch (e, stackTrace) {
-      _logger.error(
-        'Failed to send message',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      _logger.error('Failed to send message', error: e, stackTrace: stackTrace);
       return false;
     } finally {
       isUploading.value = false;
@@ -224,22 +227,36 @@ class MessageChatController extends GetxController {
     final Duration difference = now.difference(dateTime);
 
     if (difference.inDays == 0) {
-      final int hour =
-          dateTime.hour > 12 ? dateTime.hour - 12 : dateTime.hour;
+      final int hour = dateTime.hour > 12 ? dateTime.hour - 12 : dateTime.hour;
       final String period = dateTime.hour >= 12 ? 'PM' : 'AM';
       return '${hour == 0 ? 12 : hour}:${dateTime.minute.toString().padLeft(2, '0')} $period';
     } else if (difference.inDays == 1) {
       return 'Yesterday';
     } else if (difference.inDays < 7) {
       const List<String> days = [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-        'Friday', 'Saturday', 'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
       ];
       return days[dateTime.weekday - 1];
     } else {
       const List<String> months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '${months[dateTime.month - 1]} ${dateTime.day}';
     }

@@ -251,6 +251,19 @@ class _InstructorMessageScreenState extends State<InstructorMessageScreen> {
       if (result == null || result.files.isEmpty) return;
 
       final file = result.files.first;
+      final extension = (file.extension ?? '').toLowerCase();
+      if (!FileUploadService.isAllowedExtension(extension)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This file type is not allowed in chat.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       if (file.bytes == null) {
         throw Exception('File bytes are null');
       }

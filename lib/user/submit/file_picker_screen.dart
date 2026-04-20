@@ -549,7 +549,7 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                FileUploadService.formatFileSize(file.size),
+                                FileUploadService().formatFileSize(file.size),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],

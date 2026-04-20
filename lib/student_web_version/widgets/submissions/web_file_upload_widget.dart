@@ -174,7 +174,7 @@ class WebFileUploadWidget extends StatelessWidget {
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
-              FileUploadService.formatFileSize(file.size),
+              FileUploadService().formatFileSize(file.size),
               style: const TextStyle(fontSize: 12),
             ),
             trailing: IconButton(

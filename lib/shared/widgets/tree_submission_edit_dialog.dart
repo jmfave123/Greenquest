@@ -506,7 +506,9 @@ class _TreeSubmissionEditDialogState extends State<TreeSubmissionEditDialog> {
                                   const SizedBox(height: 2),
                                   Text(
                                     size > 0
-                                        ? FileUploadService.formatFileSize(size)
+                                        ? FileUploadService().formatFileSize(
+                                          size,
+                                        )
                                         : 'Existing file',
                                     style: TextStyle(
                                       fontSize: 11,
@@ -567,7 +569,9 @@ class _TreeSubmissionEditDialogState extends State<TreeSubmissionEditDialog> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    FileUploadService.formatFileSize(file.size),
+                                    FileUploadService().formatFileSize(
+                                      file.size,
+                                    ),
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: Colors.grey.shade600,

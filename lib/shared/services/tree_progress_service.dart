@@ -1065,12 +1065,12 @@ class TreeProgressService {
     final categories = [
       {
         'key': isMidterm ? 'classStandingItems' : 'finalClassStandingItems',
-        'name': 'Class Standing',
+        'name': 'Assignment/Activity',
         'category': 'class_standing',
       },
       {
         'key': isMidterm ? 'quizPrelimItems' : 'finalQuizItems',
-        'name': isMidterm ? 'Quiz/Prelim' : 'Quiz/Pre-final',
+        'name': 'Quizzes',
         'category': 'quiz_prelim',
       },
       {

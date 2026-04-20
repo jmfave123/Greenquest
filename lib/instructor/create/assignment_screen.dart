@@ -3,12 +3,10 @@ import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:greenquest/instructor/helpers/extract_attachment_url.dart';
 import 'package:greenquest/instructor/helpers/get_file_icon.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../shared/instructor/instructor_sidebar.dart';
 import '../../shared/instructor/instructor_navigation_constants.dart';
 import '../../shared/responsive/responsive_layout.dart';
 import '../../shared/controllers/file_submission_controller.dart';
-import '../../shared/services/file_download_service.dart';
 import '../../shared/services/instructor_class_service.dart';
 import '../../shared/widgets/skeleton_loading.dart';
 import '../topics/topic_controller.dart';
@@ -61,8 +59,8 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
 
   // Excel category options
   final Map<String, String> _categories = {
-    'class_standing': 'Class Standing Performance Items (10%)',
-    'quiz_prelim': 'Quiz/Prelim Performance Item (40%)',
+    'class_standing': 'Assignment/Activity (10%)',
+    'quiz_prelim': 'Quizzes (40%)',
     'midterm_exam': 'Midterm Exam (10%)',
     'final_exam': 'Final Exam (10%)',
     'pit': 'Per Inno Task (20%)',

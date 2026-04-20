@@ -61,8 +61,8 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
 
   // Excel category options
   final Map<String, String> _categories = {
-    'class_standing': 'Class Standing Performance Items (10%)',
-    'quiz_prelim': 'Quiz/Prelim Performance Item (40%)',
+    'class_standing': 'Assignment/Activity (10%)',
+    'quiz_prelim': 'Quizzes (40%)',
     'midterm_exam': 'Midterm Exam (10%)',
     'final_exam': 'Final Exam (10%)',
     'pit': 'Per Inno Task (20%)',
