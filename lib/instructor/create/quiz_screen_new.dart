@@ -61,10 +61,10 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
 
   // Excel category options
   final Map<String, String> _categories = {
-    'class_standing': 'Assignment/Activity (10%)',
-    'quiz_prelim': 'Quizzes (40%)',
-    'midterm_exam': 'Midterm Exam (10%)',
-    'final_exam': 'Final Exam (10%)',
+    'class_standing': 'Class Standing Performance Items (10%)',
+    'quiz_prelim': 'Quiz/Prelim Performance Item (40%)',
+    'midterm_exam': 'Midterm Exam (30%)',
+    'final_exam': 'Final Exam (30%)',
     'pit': 'Per Inno Task (20%)',
   };
 
@@ -76,8 +76,8 @@ class _QuizzesScreenState extends State<QuizzesScreen> {
   Map<String, String> get _visibleCategories {
     if (_isExamMode) {
       return const {
-        'midterm_exam': 'Midterm Exam (10%)',
-        'final_exam': 'Final Exam (10%)',
+        'midterm_exam': 'Midterm Exam (30%)',
+        'final_exam': 'Final Exam (30%)',
       };
     }
     return _categories;
