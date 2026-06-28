@@ -5,7 +5,8 @@ import 'grade_calculator.dart';
 
 class ExcelHeaderBuilder {
   static void setupCompleteHeaders(
-    Worksheet sheet, GradeCalculator gradeCalc,
+    Worksheet sheet,
+    GradeCalculator gradeCalc,
     List<Map<String, dynamic>> classStandingItems,
     List<Map<String, dynamic>> quizPrelimItems,
     List<Map<String, dynamic>> midtermExamItems,
@@ -42,7 +43,11 @@ class ExcelHeaderBuilder {
 
     // Row 1: Department (merged across all columns)
     final totalColumns = 3 + midtermGroup + finalGroup + computedGroup;
-    sheet.getRangeByName('A1:${ExcelColumnLayout.getColumnLetter(totalColumns)}1').merge();
+    sheet
+        .getRangeByName(
+          'A1:${ExcelColumnLayout.getColumnLetter(totalColumns)}1',
+        )
+        .merge();
     sheet
         .getRangeByName('A1')
         .setText('Department of NATIONAL SERVICE TRAINING PROGRAM');
@@ -50,7 +55,11 @@ class ExcelHeaderBuilder {
     sheet.getRangeByName('A1').cellStyle.backColor = ExcelStyleConstants.kWhite;
 
     // Row 2: Subject (merged across all columns)
-    sheet.getRangeByName('A2:${ExcelColumnLayout.getColumnLetter(totalColumns)}2').merge();
+    sheet
+        .getRangeByName(
+          'A2:${ExcelColumnLayout.getColumnLetter(totalColumns)}2',
+        )
+        .merge();
     sheet.getRangeByName('A2').setText('Subject: NSTP 101C');
     sheet.getRangeByName('A2').cellStyle.bold = true;
     sheet.getRangeByName('A2').cellStyle.backColor = ExcelStyleConstants.kWhite;
@@ -64,7 +73,9 @@ class ExcelHeaderBuilder {
         )
         .merge();
     // spacer for student info columns
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col)}$row').setText('');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col)}$row')
+        .setText('');
     col += 3;
 
     sheet
@@ -108,7 +119,8 @@ class ExcelHeaderBuilder {
     computedHeaderRow4.setText('Computed Final Grade');
     computedHeaderRow4.cellStyle.hAlign = HAlignType.center;
     computedHeaderRow4.cellStyle.bold = true;
-    computedHeaderRow4.cellStyle.backColor = ExcelStyleConstants.kMidtermHeaderGreenBg;
+    computedHeaderRow4.cellStyle.backColor =
+        ExcelStyleConstants.kMidtermHeaderGreenBg;
     computedHeaderRow4.cellStyle.fontColor = ExcelStyleConstants.kWhite;
     // Borders will be applied to complete section rectangle at the end
 
@@ -124,7 +136,8 @@ class ExcelHeaderBuilder {
       '${ExcelColumnLayout.getColumnLetter(col)}$row',
     );
     midtermLectureRow5.setText('Lecture 100%');
-    midtermLectureRow5.cellStyle.backColor = ExcelStyleConstants.kHeaderOrangeBg;
+    midtermLectureRow5.cellStyle.backColor =
+        ExcelStyleConstants.kHeaderOrangeBg;
     midtermLectureRow5.cellStyle.bold = true;
     midtermLectureRow5.cellStyle.hAlign = HAlignType.center;
     // Borders will be applied to complete section rectangle at the end
@@ -147,7 +160,8 @@ class ExcelHeaderBuilder {
     );
     computedRow5.merge();
     // Apply green background to match row 4
-    computedRow5.cellStyle.backColor = ExcelStyleConstants.kMidtermHeaderGreenBg;
+    computedRow5.cellStyle.backColor =
+        ExcelStyleConstants.kMidtermHeaderGreenBg;
     // Borders will be applied to complete section rectangle at the end
 
     // Row 6: Category headers for midterm and final groups
@@ -159,7 +173,9 @@ class ExcelHeaderBuilder {
         )
         .merge();
     // Midterm category headers
-    final csCategoryRow6 = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col)}$row');
+    final csCategoryRow6 = sheet.getRangeByName(
+      '${ExcelColumnLayout.getColumnLetter(col)}$row',
+    );
     csCategoryRow6.setText('Class Standing Performance Items (10%)');
     csCategoryRow6.cellStyle.backColor = ExcelStyleConstants.kCategoryYellowBg;
     csCategoryRow6.cellStyle.bold = true;
@@ -202,7 +218,8 @@ class ExcelHeaderBuilder {
     );
     midLectureCategoryRow6.merge();
     midLectureCategoryRow6.setText('Lecture');
-    midLectureCategoryRow6.cellStyle.backColor = ExcelStyleConstants.kCategoryYellowBg;
+    midLectureCategoryRow6.cellStyle.backColor =
+        ExcelStyleConstants.kCategoryYellowBg;
     midLectureCategoryRow6.cellStyle.bold = true;
     midLectureCategoryRow6.cellStyle.hAlign = HAlignType.center;
 
@@ -244,7 +261,8 @@ class ExcelHeaderBuilder {
     );
     fpitCategoryRow6.merge();
     fpitCategoryRow6.setText('Per Inno Task (20%)');
-    fpitCategoryRow6.cellStyle.backColor = ExcelStyleConstants.kCategoryYellowBg;
+    fpitCategoryRow6.cellStyle.backColor =
+        ExcelStyleConstants.kCategoryYellowBg;
     fpitCategoryRow6.cellStyle.bold = true;
     fpitCategoryRow6.cellStyle.hAlign = HAlignType.center;
     col += fpitGroup;
@@ -254,7 +272,8 @@ class ExcelHeaderBuilder {
     );
     finalLectureCategoryRow6.merge();
     finalLectureCategoryRow6.setText('Lecture');
-    finalLectureCategoryRow6.cellStyle.backColor = ExcelStyleConstants.kCategoryYellowBg;
+    finalLectureCategoryRow6.cellStyle.backColor =
+        ExcelStyleConstants.kCategoryYellowBg;
     finalLectureCategoryRow6.cellStyle.bold = true;
     finalLectureCategoryRow6.cellStyle.hAlign = HAlignType.center;
 
@@ -267,7 +286,8 @@ class ExcelHeaderBuilder {
     );
     computedRow6.merge();
     // Apply green background to match row 4
-    computedRow6.cellStyle.backColor = ExcelStyleConstants.kMidtermHeaderGreenBg;
+    computedRow6.cellStyle.backColor =
+        ExcelStyleConstants.kMidtermHeaderGreenBg;
     computedRow6.cellStyle.hAlign = HAlignType.center;
     // Borders will be applied to complete section rectangle at the end
 
@@ -276,15 +296,23 @@ class ExcelHeaderBuilder {
     // Row 7: Detailed column headers
     row = 7;
     col = 1;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('');
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('');
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('');
 
     // Track column positions for vertical rotation
     int csItemsStartCol = col;
     for (var item in classStandingItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
@@ -294,12 +322,16 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (SRC)');
     int cpaMidCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('CPA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('CPA');
 
     int qpItemsStartCol = col;
     for (var item in quizPrelimItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
@@ -309,24 +341,32 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (SRQ)');
     int qaMidCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('QA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('QA');
 
     int meItemsStartCol = col;
     for (var item in midtermExamItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
     }
     int meItemsEndCol = col;
     int mCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('M');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('M');
 
     int pitItemsStartCol = col;
     for (var item in pitItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
@@ -336,10 +376,14 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (PIT)');
     int pitPercentMidCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('PIT%');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('PIT%');
 
     int mgaCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('MGA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('MGA');
     int midLecGradePointCol = col;
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
@@ -356,7 +400,9 @@ class ExcelHeaderBuilder {
     int fcsItemsStartCol = col;
     for (var item in finalClassStandingItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
@@ -366,12 +412,16 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (SRC)');
     int cpaFinalCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('CPA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('CPA');
 
     int fqItemsStartCol = col;
     for (var item in finalQuizItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
@@ -381,24 +431,32 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (SRQ)');
     int qaFinalCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('QA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('QA');
 
     int feItemsStartCol = col;
     for (var item in finalExamItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
     }
     int feItemsEndCol = col;
     int fCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('F');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('F');
 
     int fpitItemsStartCol = col;
     for (var item in finalPitItems) {
       final title = gradeCalc.truncateHeaderText(item['title'] ?? '');
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(col++)}$row',
+      );
       cell.setText(title);
       cell.cellStyle.wrapText =
           false; // No wrapping - text will be clipped at fixed height
@@ -408,10 +466,14 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (PIT)');
     int pitPercentFinalCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('PIT%');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('PIT%');
 
     int fgaCol = col;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('FGA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('FGA');
     int finLecGradePointCol = col;
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
@@ -433,15 +495,21 @@ class ExcelHeaderBuilder {
         .setText('1/2 MTG + 1/2 FTG');
     final comp12RemovalCol = col++;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(comp12RemovalCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(comp12RemovalCol)}$row',
+        )
         .setText('1/2 MTG + 1/2 FTG (For Removal)');
     final comp12AfterCol = col++;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(comp12AfterCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(comp12AfterCol)}$row',
+        )
         .setText('1/2 MTG + 1/2 FTG (After Removal)');
     final comp12DescCol = col++;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(comp12DescCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(comp12DescCol)}$row',
+        )
         .setText('Description');
     final comp13Col = col++;
     sheet
@@ -449,20 +517,28 @@ class ExcelHeaderBuilder {
         .setText('1/3 MTG + 2/3 FTG');
     final comp13RemovalCol = col++;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(comp13RemovalCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(comp13RemovalCol)}$row',
+        )
         .setText('1/3 MTG + 2/3 FTG (For Removal)');
     final comp13AfterCol = col++;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(comp13AfterCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(comp13AfterCol)}$row',
+        )
         .setText('1/3 MTG + 2/3 FTG (After Removal)');
     final comp13DescCol = col++;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(comp13DescCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(comp13DescCol)}$row',
+        )
         .setText('Description');
 
     // Set computed columns to horizontal (no rotation) with text wrapping
     for (int i = computedStartCol; i < col; i++) {
-      final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+      final cell = sheet.getRangeByName(
+        '${ExcelColumnLayout.getColumnLetter(i)}$row',
+      );
       cell.cellStyle.rotation = 0; // Horizontal text (no rotation)
       cell.cellStyle.wrapText = true; // Enable text wrapping
       cell.cellStyle.hAlign = HAlignType.center; // Center align
@@ -476,36 +552,56 @@ class ExcelHeaderBuilder {
       'A$row:${ExcelColumnLayout.getColumnLetter(col - 1)}$row',
     );
     headerRange.cellStyle.bold = false; // Set all to normal first
-    headerRange.cellStyle.backColor = ExcelStyleConstants.kWhite; // White background
+    headerRange.cellStyle.backColor =
+        ExcelStyleConstants.kWhite; // White background
     // Note: Individual section borders are set above, so thin borders are only for cells not in sections
 
     // Set bold for specific columns: Midterm
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaMidCol)}$row').cellStyle.bold =
-        true;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol)}$row').cellStyle.bold =
-        true;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row').cellStyle.bold = true;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row')
-        .cellStyle
-        .bold = true;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row').cellStyle.bold =
-        true;
-    sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row')
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaMidCol)}$row')
         .cellStyle
         .bold = true;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row')
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol)}$row')
         .cellStyle
         .bold = true;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row')
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row',
+        )
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row',
+        )
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row',
+        )
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row',
+        )
         .cellStyle
         .bold = true;
     // Apply #FFC000 background to Midterm Grade header
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row',
+        )
         .cellStyle
         .backColor = ExcelStyleConstants.kHeaderOrangeBg;
 
@@ -514,36 +610,56 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaFinalCol)}$row')
         .cellStyle
         .bold = true;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(qaFinalCol)}$row').cellStyle.bold =
-        true;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row').cellStyle.bold = true;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row')
-        .cellStyle
-        .bold = true;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row').cellStyle.bold =
-        true;
-    sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row')
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaFinalCol)}$row')
         .cellStyle
         .bold = true;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row')
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row')
         .cellStyle
         .bold = true;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row',
+        )
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row',
+        )
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row',
+        )
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row',
+        )
         .cellStyle
         .bold = true;
     // Apply #FFC000 background to Final Period Grade header
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row',
+        )
         .cellStyle
         .backColor = ExcelStyleConstants.kHeaderOrangeBg;
 
     // Set bold for all computed final grade columns (8 columns)
     for (int i = computedStartCol; i < col; i++) {
-      sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row').cellStyle.bold = true;
+      sheet
+          .getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row')
+          .cellStyle
+          .bold = true;
     }
 
     // Make the first three header cells (No., ID Number, Names) appear white
@@ -557,7 +673,9 @@ class ExcelHeaderBuilder {
     // Midterm item columns
     if (csItemsEndCol > csItemsStartCol) {
       for (int i = csItemsStartCol; i < csItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation =
             90; // 90 degrees rotation (vertical, reading bottom to top)
         cell.cellStyle.hAlign = HAlignType.center;
@@ -566,15 +684,21 @@ class ExcelHeaderBuilder {
     }
     // CPA, Total Score columns for midterm
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(cpaMidCol - 1)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(cpaMidCol - 1)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(cpaMidCol - 1)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
@@ -592,7 +716,9 @@ class ExcelHeaderBuilder {
 
     if (qpItemsEndCol > qpItemsStartCol) {
       for (int i = qpItemsStartCol; i < qpItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
         cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
@@ -600,45 +726,65 @@ class ExcelHeaderBuilder {
     }
     // QA, Total Score columns for midterm
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(qaMidCol - 1)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(qaMidCol - 1)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(qaMidCol - 1)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol)}$row')
         .cellStyle
         .rotation = 90;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol)}$row').cellStyle.vAlign =
-        VAlignType.bottom; // Bottom align for row 7
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaMidCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     if (meItemsEndCol > meItemsStartCol) {
       for (int i = meItemsStartCol; i < meItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
         cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // M column
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row').cellStyle.rotation =
-        90;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row').cellStyle.vAlign =
-        VAlignType.bottom; // Bottom align for row 7
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     if (pitItemsEndCol > pitItemsStartCol) {
       for (int i = pitItemsStartCol; i < pitItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
         cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
@@ -646,42 +792,62 @@ class ExcelHeaderBuilder {
     }
     // PIT%, Total Score columns for midterm
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentMidCol - 1)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentMidCol - 1)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentMidCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentMidCol - 1)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentMidCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // MGA column
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row').cellStyle.rotation =
-        90;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row').cellStyle.vAlign =
-        VAlignType.bottom; // Bottom align for row 7
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(mgaCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // Final item columns
     if (fcsItemsEndCol > fcsItemsStartCol) {
       for (int i = fcsItemsStartCol; i < fcsItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
         cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
@@ -689,15 +855,21 @@ class ExcelHeaderBuilder {
     }
     // CPA, Total Score columns for final
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(cpaFinalCol - 1)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(cpaFinalCol - 1)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(cpaFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(cpaFinalCol - 1)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
@@ -715,7 +887,9 @@ class ExcelHeaderBuilder {
 
     if (fqItemsEndCol > fqItemsStartCol) {
       for (int i = fqItemsStartCol; i < fqItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
         cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
@@ -723,15 +897,21 @@ class ExcelHeaderBuilder {
     }
     // QA, Total Score columns for final
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(qaFinalCol - 1)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(qaFinalCol - 1)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(qaFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(qaFinalCol - 1)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
@@ -749,23 +929,33 @@ class ExcelHeaderBuilder {
 
     if (feItemsEndCol > feItemsStartCol) {
       for (int i = feItemsStartCol; i < feItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
         cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
       }
     }
     // F column
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row').cellStyle.rotation =
-        90;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row').cellStyle.vAlign =
-        VAlignType.bottom; // Bottom align for row 7
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     if (fpitItemsEndCol > fpitItemsStartCol) {
       for (int i = fpitItemsStartCol; i < fpitItemsEndCol; i++) {
-        final cell = sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(i)}$row');
+        final cell = sheet.getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(i)}$row',
+        );
         cell.cellStyle.rotation = 90;
         cell.cellStyle.hAlign = HAlignType.center;
         cell.cellStyle.vAlign = VAlignType.bottom; // Bottom align for row 7
@@ -773,115 +963,169 @@ class ExcelHeaderBuilder {
     }
     // PIT%, Total Score columns for final
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol - 1)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol - 1)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol - 1)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol - 1)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(pitPercentFinalCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // FGA column
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row').cellStyle.rotation =
-        90;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row').cellStyle.hAlign =
-        HAlignType.center;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row').cellStyle.vAlign =
-        VAlignType.bottom; // Bottom align for row 7
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row')
+        .cellStyle
+        .rotation = 90;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(fgaCol)}$row')
+        .cellStyle
+        .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // Mid Lec Grade Point, Mid Grade Point, Midterm Grade columns
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midLecGradePointCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midGradePointCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(midtermGradeCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     // Fin Lec Grade Point, Fin Grade Point, Final Period Grade columns
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finLecGradePointCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finGradePointCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row',
+        )
         .cellStyle
         .rotation = 90;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(finalPeriodGradeCol)}$row',
+        )
         .cellStyle
         .vAlign = VAlignType.bottom; // Bottom align for row 7
 
@@ -923,7 +1167,8 @@ class ExcelHeaderBuilder {
     sheet.getRangeByName('A$row').setText('STUDENT LIST');
     sheet.getRangeByName('A$row').cellStyle.bold = true;
     sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
-    sheet.getRangeByName('A$row').cellStyle.backColor = ExcelStyleConstants.kTitleBlueBg;
+    sheet.getRangeByName('A$row').cellStyle.backColor =
+        ExcelStyleConstants.kTitleBlueBg;
     row++;
 
     // Section info
@@ -952,6 +1197,7 @@ class ExcelHeaderBuilder {
     headerRange.cellStyle.fontColor = ExcelStyleConstants.kBlack;
     headerRange.cellStyle.borders.all.lineStyle = LineStyle.thin;
   }
+
   static void setupGradeSheetHeaders(
     Worksheet sheet,
     List<Map<String, dynamic>> classStandingItems,
@@ -971,19 +1217,29 @@ class ExcelHeaderBuilder {
         2; // No, ID Number, Names + class standing + SRC, CPA + SRQ, QA
 
     // Row 1: MIDTERM GRADE (merged across all columns)
-    sheet.getRangeByName('A$row:${ExcelColumnLayout.getColumnLetter(totalColumns)}$row').merge();
+    sheet
+        .getRangeByName(
+          'A$row:${ExcelColumnLayout.getColumnLetter(totalColumns)}$row',
+        )
+        .merge();
     sheet.getRangeByName('A$row').setText('MIDTERM GRADE');
     sheet.getRangeByName('A$row').cellStyle.bold = true;
     sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
-    sheet.getRangeByName('A$row').cellStyle.backColor = ExcelStyleConstants.kHeaderBlueBg; // Light blue
+    sheet.getRangeByName('A$row').cellStyle.backColor =
+        ExcelStyleConstants.kHeaderBlueBg; // Light blue
     row++;
 
     // Row 2: LECTURE 100% (merged across all columns)
-    sheet.getRangeByName('A$row:${ExcelColumnLayout.getColumnLetter(totalColumns)}$row').merge();
+    sheet
+        .getRangeByName(
+          'A$row:${ExcelColumnLayout.getColumnLetter(totalColumns)}$row',
+        )
+        .merge();
     sheet.getRangeByName('A$row').setText('LECTURE 100%');
     sheet.getRangeByName('A$row').cellStyle.bold = true;
     sheet.getRangeByName('A$row').cellStyle.hAlign = HAlignType.center;
-    sheet.getRangeByName('A$row').cellStyle.backColor = ExcelStyleConstants.kHeaderOrangeBg; // Orange
+    sheet.getRangeByName('A$row').cellStyle.backColor =
+        ExcelStyleConstants.kHeaderOrangeBg; // Orange
     row++;
 
     // Row 3: Performance Categories
@@ -1000,10 +1256,14 @@ class ExcelHeaderBuilder {
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(startCol)}$row')
         .setText('CLASS STANDING PERFORMANCE ITEMS (10%)');
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(startCol)}$row').cellStyle.bold =
-        true;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(startCol)}$row').cellStyle.hAlign =
-        HAlignType.center;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(startCol)}$row')
+        .cellStyle
+        .bold = true;
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(startCol)}$row')
+        .cellStyle
+        .hAlign = HAlignType.center;
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(startCol)}$row')
         .cellStyle
@@ -1017,18 +1277,26 @@ class ExcelHeaderBuilder {
         )
         .merge();
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row',
+        )
         .setText('PRELIM PERFORMANCE ITEM');
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row',
+        )
         .cellStyle
         .bold = true;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row',
+        )
         .cellStyle
         .hAlign = HAlignType.center;
     sheet
-        .getRangeByName('${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row')
+        .getRangeByName(
+          '${ExcelColumnLayout.getColumnLetter(quizStartCol)}$row',
+        )
         .cellStyle
         .backColor = ExcelStyleConstants.kCategoryYellowBg; // Yellow
     row++;
@@ -1054,7 +1322,9 @@ class ExcelHeaderBuilder {
 
     // Row 10: Column Headers
     int col = 1;
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('No.');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('No.');
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('ID Number'); // Swapped position
@@ -1071,13 +1341,17 @@ class ExcelHeaderBuilder {
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (SRC)');
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('CPA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('CPA');
 
     // Quiz/Prelim Items (only totals, no individual items)
     sheet
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('Total Score (SRQ)');
-    sheet.getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row').setText('QA');
+    sheet
+        .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
+        .setText('QA');
 
     // Style headers
     final headerRange = sheet.getRangeByName(
@@ -1120,6 +1394,7 @@ class ExcelHeaderBuilder {
         .getRangeByName('${ExcelColumnLayout.getColumnLetter(col++)}$row')
         .setText('100%'); // QA
   }
+
   static void ensureRow6CategoryHeaderWidths(
     Worksheet sheet,
     List<Map<String, dynamic>> classStandingItems,
@@ -1249,6 +1524,7 @@ class ExcelHeaderBuilder {
       // Silently handle errors
     }
   }
+
   static void setColumnWidths(Worksheet sheet, int totalColumns) {
     try {
       // Column A (No.) - narrow since it's just numbers
@@ -1284,4 +1560,3 @@ class ExcelHeaderBuilder {
     }
   }
 }
-
